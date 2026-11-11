@@ -52,9 +52,8 @@ Supabase **SQL Editor** 에서 `supabase/production-after-setup.sql` 내용을 �
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | 3단계 지도 키 |
 | `NEXT_PUBLIC_SITE_URL` | 배포 주소 (예: `https://myeongdong-street-map.<계정>.workers.dev`) — 첫 배포 후 채우고 재배포 |
 | `NEXT_PUBLIC_ADS_ENABLED` | `false` |
-| `MSM_SERVER_SECRET` | 2단계 비밀값 (빌드 중 페이지 생성에 필요) |
 
-4. 배포 후 Worker → **Settings → Variables and Secrets** 에도 위 값들을 추가하고, `MSM_SERVER_SECRET` 은 **Type = Secret** 으로 저장.
+4. 배포 후 Worker → **Settings → Variables and Secrets** 에 `MSM_SERVER_SECRET`(2단계 비밀값)을 **Type = Secret** 으로 추가. (빌드에는 필요 없음)
    ⚠️ `MSM_LOCAL_*` 변수는 넣지 않습니다. `SERVICE_ROLE` 이 들어간 변수가 있으면 앱이 일부러 시작을 거부합니다.
 5. 배포가 끝나면 `*.workers.dev` 주소가 나옵니다 → `NEXT_PUBLIC_SITE_URL` 채우고 다시 배포, 지도 키 제한에도 그 주소 추가.
    나중에 도메인을 사면 Worker → **Settings → Domains & Routes** 에서 연결합니다.
