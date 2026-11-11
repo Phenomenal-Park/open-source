@@ -1,0 +1,49 @@
+import type { Messages } from "./ko";
+const zhCN: Messages = {
+  siteName: "明洞街摊地图",
+  seoTitle: "明洞街摊地图 – 街头小吃、购物摊位价格与位置",
+  metaDescription: "在地图上查看明洞街摊的位置、菜单、价格、辣度、营业时间和游客评分。",
+  nav: { map: "地图", rankings: "排行", guides: "指南", search: "搜索", language: "语言", theme: "显示模式", themeSystem: "跟随设备", themeLight: "浅色", themeDark: "深色", menu: "菜单", close: "关闭", back: "返回" },
+  ticker: { label: "本周评分排行", rank: "第{n}名", empty: "正在收集本周评分" },
+  filters: { open: "营业中", price: "价格", priceUnder: "{p}以下", priceAny: "不限价格", halal: "清真", card: "可刷卡", clear: "清除" },
+  stall: {
+    details: "查看详情", repMenu: "招牌", otherMenu: "其他", others: "{list}等", openNow: "营业中", closedNow: "未营业",
+    usualHours: "一般营业时间", usualHoursNote: "明洞街摊的一般营业时间", verifiedHours: "已确认的营业时间", closed: "休息", nextDay: "次日{t}",
+    priceVaries: "价格不一", priceUnknown: "价格未确认", tabMenu: "价格·菜单", tabReviews: "评价", tabPhotos: "照片",
+    moreMenu: "+ 查看另外{n}项", lessMenu: "收起", directions: "导航", showOnMap: "在地图上查看", lastVerified: "{date} 实地确认",
+    noPhotos: "还没有照片", payment: "付款", cardWorked: "刷卡成功 {n} 次", cardFailed: "刷卡失败 {n} 次", cashUsed: "现金支付 {n} 次",
+    paymentUnknown: "付款方式未确认", dietary: "饮食信息", dietaryUnknown: "未确认", notActive: "最近未确认该摊位营业",
+    report: "信息有误？告诉我们", seafood: "海鲜",
+  },
+  claims: {
+    halal_certified: "清真认证 — 已核实证明", seller_claims_halal: "摊主称清真 — 未经独立核实", no_pork_confirmed: "确认不含猪肉",
+    no_alcohol_confirmed: "确认不含酒精", contains_pork: "含猪肉", contains_alcohol: "含酒精", vegetarian: "素食", unconfirmed: "未确认",
+  },
+  spice: {
+    notSpicy: "不辣", l1: "微辣", l2: "比较辣", l3: "推荐给爱吃辣的人", unknown: "未确认",
+    operator: "标注辣度", community: "游客感受", votes: "{n}人评价", ask: "这道有多辣？", disclaimer: "辣度因人而异，仅供参考。", yourVote: "我的评价",
+  },
+  hint: { near: "{p}附近", in_front: "{p}门前", opposite: "{p}对面", beside: "{p}旁边" },
+  weekdays: ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
+  weekdaysLong: ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"],
+  review: {
+    defaultNickname: "明洞游客", write: "写评价", helpNext: "告诉下一位旅行者吧。", overall: "评分", taste: "味道", value: "性价比", kindness: "服务",
+    optional: "选填", facts: "你确认到的", priceMatched: "价格一致", priceDifferent: "价格不同", cardOk: "可刷卡", cashUsed: "现金支付", openNow: "正在营业",
+    textPlaceholder: "感觉怎么样？（选填）", nicknamePlaceholder: "昵称（选填）", submit: "发布", thanks: "谢谢！这对下一位旅行者很有帮助。",
+    viewOriginal: "查看原文", viewTranslation: "查看翻译", none: "还没有评价，来写第一条吧。", ratingRequired: "请选择评分。",
+    justNow: "刚刚", minutes: "{n}分钟前", hours: "{n}小时前", days: "{n}天前",
+  },
+  rankings: { title: "本周评分排行", basis: "根据最近7天的游客评分", overall: "总榜", byCategory: "分类", empty: "本周评分还不够多。", reviews: "{n}条评分" },
+  map: {
+    locate: "我的位置", locationWhy: "我们使用你的位置来显示到附近摊位的距离，不会保存位置信息。", allow: "使用位置",
+    locationDenied: "位置权限已关闭，请在浏览器设置中允许。", zoomIn: "放大", zoomOut: "缩小",
+    schematic: "未配置地图密钥，显示简易地图", stallsShown: "{n}个摊位", noResults: "没有符合条件的摊位", visited: "评价去过的摊位",
+    whichStall: "是哪个摊位？", noneNearby: "附近没有找到摊位", away: "约{n}米",
+  },
+  search: { placeholder: "搜索美食或商品（如：草莓麻薯）", foods: "美食", stalls: "摊位", empty: "没有结果", broad: "相关摊位" },
+  report: { title: "反馈信息", closed: "没有营业", price_changed: "价格不同", menu_changed: "菜单不同", moved: "位置不同", other: "其他", text: "详细说明（选填）", send: "发送", thanks: "谢谢反馈！我们会核实并更新。" },
+  ads: { label: "广告" },
+  common: { cancel: "取消", save: "保存", close: "关闭", loading: "加载中…", error: "出了点问题，请重试。", retry: "重试", tooMany: "请求过多，请稍后再试。" },
+  footer: { about: "根据实地确认和游客反馈整理。", privacy: "隐私政策" },
+};
+export default zhCN;
