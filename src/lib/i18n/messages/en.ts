@@ -1,0 +1,49 @@
+import type { Messages } from "./ko";
+const en: Messages = {
+  siteName: "Myeongdong Street Map",
+  seoTitle: "Myeongdong Street Map – Street Food, Shopping & Stalls",
+  metaDescription: "Find Myeongdong street stalls on a map: menus, prices, spice levels, opening hours and visitor ratings.",
+  nav: { map: "Map", rankings: "Rankings", guides: "Guide", search: "Search", language: "Language", theme: "Display", themeSystem: "Device", themeLight: "Light", themeDark: "Dark", menu: "Menu", close: "Close", back: "Back" },
+  ticker: { label: "Top This Week", rank: "#{n}", empty: "Collecting this week’s ratings" },
+  filters: { open: "Open now", price: "Price", priceUnder: "Under {p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters" },
+  stall: {
+    details: "Details", repMenu: "Signature", otherMenu: "Also", others: "{list} & more", openNow: "Open now", closedNow: "Closed now",
+    usualHours: "Usual hours", usualHoursNote: "Typical hours for Myeongdong stalls", verifiedHours: "Confirmed hours", closed: "Closed", nextDay: "{t} next day",
+    priceVaries: "Prices vary", priceUnknown: "Price not checked", tabMenu: "Menu & Prices", tabReviews: "Reviews", tabPhotos: "Photos",
+    moreMenu: "+ {n} more items", lessMenu: "Show less", directions: "Directions", showOnMap: "Show on map", lastVerified: "Checked on site {date}",
+    noPhotos: "No photos yet", payment: "Payment", cardWorked: "Card worked ({n})", cardFailed: "Card declined ({n})", cashUsed: "Paid cash ({n})",
+    paymentUnknown: "Payment not checked yet", dietary: "Dietary info", dietaryUnknown: "Dietary info not checked", notActive: "This stall hasn’t been seen operating recently",
+    report: "Something wrong? Let us know", seafood: "Seafood",
+  },
+  claims: {
+    halal_certified: "Halal certified — evidence checked", seller_claims_halal: "Seller says halal — not independently verified", no_pork_confirmed: "No pork (confirmed)",
+    no_alcohol_confirmed: "No alcohol (confirmed)", contains_pork: "Contains pork", contains_alcohol: "Contains alcohol", vegetarian: "Vegetarian", unconfirmed: "Unconfirmed",
+  },
+  spice: {
+    notSpicy: "Not spicy", l1: "A little spicy", l2: "Quite spicy", l3: "For spice lovers", unknown: "Unknown",
+    operator: "Listed", community: "Visitors felt", votes: "{n} votes", ask: "How spicy was it?", disclaimer: "Spiciness is personal — take it as a guide.", yourVote: "Your vote",
+  },
+  hint: { near: "Near {p}", in_front: "In front of {p}", opposite: "Opposite {p}", beside: "Next to {p}" },
+  weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  weekdaysLong: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  review: {
+    defaultNickname: "Myeongdong visitor", write: "Write a review", helpNext: "Help the next traveler.", overall: "Rating", taste: "Taste", value: "Value", kindness: "Friendliness",
+    optional: "optional", facts: "What you noticed", priceMatched: "Price matched", priceDifferent: "Price differed", cardOk: "Card OK", cashUsed: "Paid cash", openNow: "Open now",
+    textPlaceholder: "How was it? (optional)", nicknamePlaceholder: "Nickname (optional)", submit: "Post", thanks: "Thank you! This really helps the next traveler.",
+    viewOriginal: "View original", viewTranslation: "View translation", none: "No reviews yet. Be the first!", ratingRequired: "Please choose a rating.",
+    justNow: "just now", minutes: "{n} min ago", hours: "{n} h ago", days: "{n} d ago",
+  },
+  rankings: { title: "Top This Week", basis: "Based on visitor ratings from the last 7 days", overall: "Overall", byCategory: "By category", empty: "Not enough ratings this week yet.", reviews: "{n} ratings" },
+  map: {
+    locate: "My location", locationWhy: "We use your location to show distances to nearby stalls. It is not stored.", allow: "Use location",
+    locationDenied: "Location is blocked. Please allow it in your browser settings.", zoomIn: "Zoom in", zoomOut: "Zoom out",
+    schematic: "Simplified map (no map key configured)", stallsShown: "{n} stalls", noResults: "No stalls match these filters", visited: "Rate a stall you visited",
+    whichStall: "Which stall was it?", noneNearby: "No stalls found nearby", away: "~{n} m",
+  },
+  search: { placeholder: "Search food or items (e.g. mochi)", foods: "Food", stalls: "Stalls", empty: "No results", broad: "Related stalls" },
+  report: { title: "Report info", closed: "Not operating", price_changed: "Price is different", menu_changed: "Menu is different", moved: "Location is different", other: "Other", text: "Details (optional)", send: "Send", thanks: "Thanks! We’ll check and update." },
+  ads: { label: "Ad" },
+  common: { cancel: "Cancel", save: "Save", close: "Close", loading: "Loading…", error: "Something went wrong. Please try again.", retry: "Retry", tooMany: "Too many requests. Please try again shortly." },
+  footer: { about: "Built from on-site checks and visitor reports.", privacy: "Privacy" },
+};
+export default en;

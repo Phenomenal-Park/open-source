@@ -1,0 +1,60 @@
+-- ⚠️ LOCAL DEVELOPMENT DEMO DATA ONLY — NEVER APPLY TO PRODUCTION.
+-- Fabricated stalls, menus, prices and reviews for UI testing. Street geometry is a rough approximation.
+-- Real data comes only from the field survey (/admin/field).
+do $$
+declare
+  owner constant text := '{"sub":"00000000-0000-0000-0000-0000000000aa","role":"authenticated"}';
+  lines jsonb := '[
+    {"name":"명동길 서쪽 (DEMO)","path":[[37.56520,126.98290],[37.56380,126.98380],[37.56250,126.98460],[37.56150,126.98510]]},
+    {"name":"명동길 동쪽 (DEMO)","path":[[37.56530,126.98314],[37.56390,126.98404],[37.56260,126.98484],[37.56160,126.98534]]},
+    {"name":"명동8나길 (DEMO)","path":[[37.56500,126.98520],[37.56380,126.98575],[37.56250,126.98630],[37.56170,126.98665]]},
+    {"name":"중앙로 횡단 (DEMO)","path":[[37.56300,126.98250],[37.56290,126.98400],[37.56275,126.98560],[37.56262,126.98700]]}
+  ]';
+  l jsonb; pts jsonb; i int; n int; seg int; t float8; vlat float8; vlng float8;
+  cats text[] := array['fried_bunsik','skewer_grill','snack','dessert_fruit','fashion_goods'];
+  menus jsonb := '{
+    "fried_bunsik":[[["떡볶이",5000,2],["어묵",3000,0],["순대",5000,null],["튀김",4000,0]],[["핫도그",4500,0],["치즈 떡볶이",6000,1]],[["새우튀김",5000,0],["만두",4000,0]]],
+    "skewer_grill":[[["닭꼬치",6000,1],["매운 닭꼬치",7000,3]],[["랍스터 구이",20000,0],["가리비 구이",10000,1]],[["큐브 스테이크",15000,0],["구운 치즈",5000,0]],[["양꼬치",8000,1],["소시지",4000,0]]],
+    "snack":[[["호떡",2000,0],["계란빵",2500,0]],[["군밤",5000,0],["옥수수",4000,0],["은행",5000,0],["쥐포",5000,0]],[["회오리감자",5000,1]],[["붕어빵",3000,0]]],
+    "dessert_fruit":[[["딸기모찌",5000,null],["초코모찌",5000,null],["녹차모찌",5000,null]],[["탕후루",4000,0]],[["생과일주스",6000,0],["과일컵",7000,0]],[["소프트 아이스크림",5000,0]]],
+    "fashion_goods":[[["양말",null,null]],[["모자",15000,null]],[["휴대폰 케이스",10000,null]],[["액세서리",null,null]]]
+  }';
+  c text; m jsonb; it jsonb; items jsonb; res jsonb; k int := 0; sid uuid; j int;
+begin
+  perform set_config('request.jwt.claims', owner, true);
+  for l in select * from jsonb_array_elements(lines) loop
+    perform public.admin_save_display_line(null, l ->> 'name', l -> 'path');
+  end loop;
+  perform setseed(0.42);
+  for l in select * from jsonb_array_elements(lines) loop
+    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 14 else 20 end;
+    for i in 0 .. n - 1 loop
+      t := (i + 0.5) / n * (jsonb_array_length(pts) - 1);
+      seg := least(floor(t)::int, jsonb_array_length(pts) - 2); t := t - seg;
+      vlat := (pts -> seg ->> 0)::float8 * (1 - t) + (pts -> (seg + 1) ->> 0)::float8 * t + (random() - 0.5) * 0.00003;
+      vlng := (pts -> seg ->> 1)::float8 * (1 - t) + (pts -> (seg + 1) ->> 1)::float8 * t + (random() - 0.5) * 0.00003;
+      c := cats[1 + floor(random() * 5)::int];
+      m := (menus -> c) -> floor(random() * jsonb_array_length(menus -> c))::int;
+      items := '[]';
+      for it in select * from jsonb_array_elements(m) loop
+        items := items || jsonb_build_array(jsonb_build_object('name', it ->> 0, 'price', it -> 1, 'spice', it -> 2));
+      end loop;
+      res := public.field_create_spot(jsonb_build_object('lat', vlat, 'lng', vlng, 'category_code', c, 'items', items,
+                                       'hint', jsonb_build_object('landmark_id', (select id from public.landmarks order by private.dist_m(vlat, vlng, landmarks.lat, landmarks.lng) limit 1))));
+      k := k + 1;
+      -- demo reviews on some stalls (through the real public RPC)
+      if random() < 0.35 then
+        sid := (res ->> 'stall_id')::uuid;
+        for j in 1 .. 3 + floor(random() * 8)::int loop
+          perform public.public_submit_review('local-dev-server-secret', md5(k::text || '-' || j) || md5('dev'),
+            jsonb_build_object('stall_id', sid, 'rating', least(5, 3 + floor(random() * 3)::int), 'text', case when j = 1 then '맛있어요. 표시된 가격과 같았어요.' end,
+                               'language', 'ko', 'payment', case when random() < 0.5 then 'card_worked' else 'cash_used' end));
+        end loop;
+      end if;
+    end loop;
+  end loop;
+  -- one demo verified halal claim needs evidence; use a seller claim instead (honest default)
+  insert into public.dietary_claims (stall_id, claim, source)
+  select id, 'seller_claims_halal', 'DEMO' from public.stalls where category_code = 'skewer_grill' limit 2;
+  raise notice 'demo seed: % spots', k;
+end $$;
