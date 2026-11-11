@@ -11,7 +11,7 @@ import { GuideIcon } from "@/components/public/GuideIcon";
 import { AdSlot } from "@/components/public/AdSlot";
 import { IconChevronRight } from "@/components/ui/icons";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic"; // reads live category data
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;

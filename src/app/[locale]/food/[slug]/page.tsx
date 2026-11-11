@@ -7,7 +7,7 @@ import { getFood } from "@/lib/server/queries";
 import { PublicHeader } from "@/components/public/Header";
 import { StallRow } from "@/components/public/StallRow";
 
-export const revalidate = 600;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
   const { locale, slug } = await params;

@@ -4,6 +4,7 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 
 ## Phase 1 — Foundation
 - ✅ Next.js 15 + TypeScript app, Supabase/Postgres schema (5 migrations), docs
+- ✅ Cloudflare Workers hosting via OpenNext (build + Worker runtime preview tested locally, 1.26 MB gzip); not yet deployed to a real Cloudflare account
 - ✅ Admin auth: Supabase Auth + `admin_profiles` roles + MFA-ready (TOTP enroll/verify, `require_mfa` → AAL2 enforced in DB)
 - 🟡 Google Maps base (implemented; not exercised here because Maps is unreachable from the build sandbox — schematic fallback used for tests)
 - ✅ Localization structure (ko/en/ja/zh-cn; vi registered, disabled)

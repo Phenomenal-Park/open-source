@@ -4,7 +4,7 @@
 Browser (mobile-first Next.js UI)
   │  same-origin fetch
   ▼
-Next.js server (App Router, Node runtime)          ← Cloudflare-friendly; not tied to Vercel
+Next.js server (App Router) on Cloudflare Workers via OpenNext (wrangler.jsonc, open-next.config.ts)
   ├─ /api/public/[fn]   allowlist → anon key + server secret ─┐
   ├─ /api/admin/rpc/[fn] allowlist → caller's Supabase JWT ───┤
   ├─ server components  → public RPCs (SSR for SEO) ──────────┤

@@ -24,9 +24,15 @@ function statusFor(code: string | undefined, message: string): number {
 let pool: import("pg").Pool | null = null;
 async function localPool() {
   if (!pool) {
-    const { Pool } = await import("pg");
-    pool = new Pool({ connectionString: env.localDbUrl, max: 5 });
-    pool.on("error", (e) => console.warn("local pg pool:", e.message)); // idle client dropped (e.g. db reset)
+    // Local dev only. In production builds this branch is removed at compile time,
+    // so the pg driver never ships in the Cloudflare Worker.
+    if (process.env.NODE_ENV !== "production") {
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: env.localDbUrl, max: 5 });
+      pool.on("error", (e) => console.warn("local pg pool:", e.message)); // idle client dropped (e.g. db reset)
+    } else {
+      throw new Error("local database adapter is not available in production");
+    }
   }
   return pool;
 }

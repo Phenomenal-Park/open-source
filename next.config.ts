@@ -10,7 +10,8 @@ const securityHeaders = [
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["pg"],
+  // The pg driver is for local development only; keep it out of the production (Cloudflare) bundle.
+  outputFileTracingExcludes: { "*": ["node_modules/pg/**", "node_modules/pg-*/**", "node_modules/pgpass/**"] },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

@@ -8,7 +8,7 @@ import { PublicHeader } from "@/components/public/Header";
 import { StallRow } from "@/components/public/StallRow";
 import { AdSlot } from "@/components/public/AdSlot";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic"; // live data; also required on Cloudflare (no ISR cache)
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;

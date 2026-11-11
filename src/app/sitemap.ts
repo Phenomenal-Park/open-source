@@ -4,7 +4,7 @@ import { GUIDE_SLUGS } from "@/lib/guides";
 import { SITE_URL } from "@/lib/seo";
 import { getSitemap } from "@/lib/server/queries";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 // Indexable: home map, rankings, guides, stall details, food pages. Never filter combinations (§113).
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
