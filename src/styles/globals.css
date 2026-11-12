@@ -35,7 +35,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121417; --bg-soft: #16191d; --surface: #191c21; --surface-2: #20242a; --line: #2b3038; --line-strong: #363c45;
+    --bg: #121417; --bg-soft: #16191d; --surface: #191c21; --surface-2: #20242a; --line: #383e48; --line-strong: #4a515c;
     --text: #e8eaf0; --text-2: #c9ccd3; --muted: #9ca3af; --accent: #6d95f5; --accent-soft: #1f2a40; --accent-text: #0e1116;
     --map-bg: #1a1d22; --map-line: #262a31; --map-block: #1f2328; --shadow: 0 2px 10px rgba(0,0,0,.4); --shadow-lg: 0 8px 28px rgba(0,0,0,.5);
     --tag-bg: #232a35; --tag-text: #b4c2d6; --logo-bg: #e8eaf0; --logo-fg: #121417; --marker-off: #7a828c; --on: #2fae68;
@@ -44,7 +44,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #121417; --bg-soft: #16191d; --surface: #191c21; --surface-2: #20242a; --line: #2b3038; --line-strong: #363c45;
+  --bg: #121417; --bg-soft: #16191d; --surface: #191c21; --surface-2: #20242a; --line: #383e48; --line-strong: #4a515c;
   --text: #e8eaf0; --text-2: #c9ccd3; --muted: #9ca3af; --accent: #6d95f5; --accent-soft: #1f2a40; --accent-text: #0e1116;
   --map-bg: #1a1d22; --map-line: #262a31; --map-block: #1f2328; --shadow: 0 2px 10px rgba(0,0,0,.4); --shadow-lg: 0 8px 28px rgba(0,0,0,.5);
   --tag-bg: #232a35; --tag-text: #b4c2d6; --logo-bg: #e8eaf0; --logo-fg: #121417; --marker-off: #7a828c; --on: #2fae68;
@@ -173,6 +173,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* ── bottom sheet ── */
 .sheet { flex: none; background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 18px rgba(0,0,0,.08); position: relative; z-index: 10; margin-top: -16px;
   padding: 8px 16px calc(14px + env(safe-area-inset-bottom)); }
+/* dark mode: a hairline keeps the sheet from melting into the map */
+:root[data-theme="dark"] .sheet { border-top: 1px solid var(--line); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sheet { border-top: 1px solid var(--line); } }
 .sheet__handle { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 2px auto 10px; }
 .sheet--overlay { position: fixed; left: 0; right: 0; bottom: 0; max-height: 88dvh; overflow-y: auto; margin: 0; z-index: 40; }
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 39; }
