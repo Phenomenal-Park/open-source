@@ -38,7 +38,8 @@ export function RankingTicker({ items, locale, t }: { items: StallCard[]; locale
           return (
             <Link key={s.id} href={`/${locale}/stalls/${s.slug}`} className="ticker__item" data-state={state}
               aria-hidden={idx !== i} tabIndex={idx === i ? 0 : -1}>
-              <span className="ticker__name ellipsis">{fmt(t.ticker.rank, { n: s.rank ?? idx + 1 })} {stallTitle(s, locale)}</span>
+              <span className="ticker__rank">{fmt(t.ticker.rank, { n: s.rank ?? idx + 1 })}</span>
+              <span className="ticker__name ellipsis">{stallTitle(s, locale)}</span>
               {hint && <><span className="ticker__dot">·</span><span className="ticker__hint ellipsis">{hint}</span></>}
               <span className="ticker__dot">·</span>
               <span className="ticker__star"><Star size={15} />{(s.week_avg ?? s.rating.avg ?? 0).toFixed(1)}</span>

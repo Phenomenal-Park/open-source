@@ -88,6 +88,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .ticker__item[data-state="enter"] { transform: translateY(100%); opacity: 0; }
 .ticker__item[data-state="active"] { transform: translateY(0); opacity: 1; }
 .ticker__item[data-state="leave"] { transform: translateY(-100%); opacity: 0; }
+.ticker__rank { font-weight: 800; flex: none; margin-right: 2px; } /* rank and name a little apart (+ the item gap) */
 .ticker__name { font-weight: 700; flex: 0 0 auto; max-width: 64%; }
 .ticker__hint { color: var(--muted); font-size: 13px; flex: 0 1 auto; }
 .ticker__dot { color: var(--muted); flex: none; }
