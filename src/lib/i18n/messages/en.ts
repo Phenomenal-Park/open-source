@@ -8,7 +8,7 @@ const en: Messages = {
   filters: {
     open: "Open now", price: "Price", priceUnder: "Under {p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters",
     sheetTitle: "Filters", reset: "Reset", foodType: "Category", nSelected: "{n} selected", status: "Open status", all: "All", extra: "Other", halalOk: "Halal options", cardOk: "Card accepted", priceBand: "Price",
-    bands: ["Under ₩3,000", "₩3,000–5,000", "₩5,000–10,000", "₩10,000+"], apply: "Show {n} stalls",
+    priceFrom: "{p}+", priceMinLabel: "Minimum price", priceMaxLabel: "Maximum price", apply: "Show {n} stalls",
   },
   stall: {
     details: "Details", repMenu: "Signature", otherMenu: "Also", others: "{list} & more", openNow: "Open now", closedNow: "Closed now",

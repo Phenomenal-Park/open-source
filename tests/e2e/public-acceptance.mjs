@@ -130,6 +130,24 @@ try {
     ok(!titleClipped, `${l}: service name not truncated in header`);
   }
 
+  // price range slider in the filter sheet: both handles, live count, chip label, handles never cross
+  await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /가격/ }).click();
+  const sheetDlg = page.getByRole("dialog");
+  const countOf = async () => +(await sheetDlg.locator(".filtersheet__apply").innerText()).match(/\d+/)[0];
+  const all = await countOf();
+  await sheetDlg.getByRole("slider", { name: "최저 가격" }).fill("3000");
+  await sheetDlg.getByRole("slider", { name: "최고 가격" }).fill("8000");
+  const some = await countOf();
+  ok(some < all && some > 0, `price slider narrows the live count (${all} → ${some})`);
+  await sheetDlg.getByRole("slider", { name: "최저 가격" }).fill("15000");
+  ok((await sheetDlg.getByRole("slider", { name: "최저 가격" }).inputValue()) === "8000", "handles can't cross");
+  await sheetDlg.getByRole("slider", { name: "최저 가격" }).fill("3000");
+  await sheetDlg.locator(".filtersheet__apply").click();
+  ok((await page.locator(".chiprow").first().innerText()).includes("₩3,000–₩8,000"), "price chip shows the chosen range");
+  const priceStates = await page.locator(".marker").evaluateAll((els) => els.map((e) => e.dataset.state));
+  ok(priceStates.includes("match") && priceStates.includes("muted"), "price range applied on the map (matches vivid, others grey)");
+
   // "+n" bubbles for stalls hidden when zoomed far out; tapping one zooms in on that stretch
   await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
   for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "축소", exact: true }).click(); await page.waitForTimeout(200); }

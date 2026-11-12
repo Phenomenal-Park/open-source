@@ -5,8 +5,8 @@ import { minKnownPrice } from "./price";
 
 export type Filters = {
   open: boolean;
-  /** index into PRICE_BANDS, or null for any price */
-  band: number | null;
+  /** price range (₩); max === PRICE_MAX means "and above"; null = any price */
+  price: PriceRange | null;
   halal: boolean;
   card: boolean;
   /** major categories (OR) */
@@ -15,27 +15,38 @@ export type Filters = {
   subs: string[];
 };
 
-export const NO_FILTERS: Filters = { open: false, band: null, halal: false, card: false, categories: [], subs: [] };
+export type PriceRange = { min: number; max: number };
 
-/** ~3,000 · 3,000–5,000 · 5,000–10,000 · 10,000~  (lower bound exclusive, upper inclusive) */
-export const PRICE_BANDS: [number, number][] = [[0, 3000], [3000, 5000], [5000, 10000], [10000, Infinity]];
+export const NO_FILTERS: Filters = { open: false, price: null, halal: false, card: false, categories: [], subs: [] };
 
-export function filtersActive(f: Filters): boolean {
-  return f.open || f.band != null || f.halal || f.card || f.categories.length > 0;
+/** Price slider: ₩0 – ₩20,000+ in ₩1,000 steps (street-stall prices cluster in this span). */
+export const PRICE_MIN = 0;
+export const PRICE_MAX = 20000;
+export const PRICE_STEP = 1000;
+
+/** The full span means "any price" → no filter. */
+export function normalizeRange(r: PriceRange): PriceRange | null {
+  const min = Math.max(PRICE_MIN, Math.min(r.min, r.max));
+  const max = Math.min(PRICE_MAX, Math.max(r.min, r.max));
+  return min <= PRICE_MIN && max >= PRICE_MAX ? null : { min, max };
 }
 
-export function inBand(price: number, band: number): boolean {
-  const [lo, hi] = PRICE_BANDS[band];
-  return band === 0 ? price <= hi : price > lo && price <= hi;
+export function filtersActive(f: Filters): boolean {
+  return f.open || f.price != null || f.halal || f.card || f.categories.length > 0;
+}
+
+/** Inclusive on both ends; the top of the slider is open-ended ("₩20,000 이상"). */
+export function inRange(price: number, r: PriceRange): boolean {
+  return price >= r.min && (r.max >= PRICE_MAX || price <= r.max);
 }
 
 export function matchesFilters(s: StallCard, f: Filters, defaults: DayHours[], now?: Date): boolean {
   if (f.categories.length && !f.categories.includes(s.category_code)) return false;
   if (f.categories.length === 1 && f.subs.length && !s.items.some((i) => i.sub && f.subs.includes(i.sub))) return false;
   if (f.open && !isOpenNow(effectiveHours(s.hours_mode, s.hours, defaults), now)) return false;
-  if (f.band != null) {
+  if (f.price) {
     const prices = s.items.map((i) => minKnownPrice(i.price)).filter((x): x is number => x != null);
-    if (!prices.some((p) => inBand(p, f.band!))) return false;
+    if (!prices.some((p) => inRange(p, f.price!))) return false; // unknown prices never match a price filter
   }
   if (f.halal && !s.halal) return false;
   if (f.card && s.card !== true) return false;

@@ -8,7 +8,7 @@ const zhCN: Messages = {
   filters: {
     open: "营业中", price: "价格", priceUnder: "{p}以下", priceAny: "不限价格", halal: "清真", card: "可刷卡", clear: "清除",
     sheetTitle: "筛选", reset: "重置", foodType: "类别", nSelected: "已选{n}项", status: "营业状态", all: "全部", extra: "其他条件", halalOk: "有清真", cardOk: "可刷卡", priceBand: "价格",
-    bands: ["3,000韩元以下", "3,000–5,000韩元", "5,000–10,000韩元", "10,000韩元以上"], apply: "应用（显示{n}个摊位）",
+    priceFrom: "{p}以上", priceMinLabel: "最低价格", priceMaxLabel: "最高价格", apply: "应用（显示{n}个摊位）",
   },
   stall: {
     details: "查看详情", repMenu: "招牌", otherMenu: "其他", others: "{list}等", openNow: "营业中", closedNow: "未营业",

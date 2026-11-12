@@ -7,7 +7,7 @@ const ko = {
   filters: {
     open: "영업 중", price: "가격", priceUnder: "{p} 이하", priceAny: "전체 가격", halal: "할랄", card: "카드", clear: "필터 해제",
     sheetTitle: "필터", reset: "초기화", foodType: "음식 종류", nSelected: "{n}개 선택됨", status: "영업 상태", all: "전체", extra: "기타 조건", halalOk: "할랄 가능", cardOk: "카드 결제 가능", priceBand: "가격대",
-    bands: ["~3,000원", "3,000~5,000원", "5,000~10,000원", "10,000원~"], apply: "적용하기 (총 {n}개 노점 표시)",
+    priceFrom: "{p} 이상", priceMinLabel: "최저 가격", priceMaxLabel: "최고 가격", apply: "적용하기 (총 {n}개 노점 표시)",
   },
   stall: {
     details: "상세 보기", repMenu: "대표 메뉴", otherMenu: "기타 메뉴", others: "{list} 외", openNow: "영업 중", closedNow: "영업 전·종료",

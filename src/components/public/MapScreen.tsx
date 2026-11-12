@@ -10,7 +10,9 @@ import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
 import { layoutLines, streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
-import { filtersActive, matchesFilters, NO_FILTERS, PRICE_BANDS, type Filters } from "@/lib/domain/filters";
+import { filtersActive, matchesFilters, NO_FILTERS, normalizeRange, PRICE_MAX, type Filters, type PriceRange } from "@/lib/domain/filters";
+import { won } from "@/lib/domain/price";
+import { PriceRangeSlider } from "./PriceRangeSlider";
 import { directionsUrl, hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
 import { IconCheck, IconChevronDown, IconChevronRight, IconCrosshair, IconImage, IconPin, IconRefresh, IconStore, IconWalk, IconX, Star } from "@/components/ui/icons";
 import { distanceM, walkEstimate } from "@/lib/domain/walk";
@@ -156,8 +158,8 @@ export function MapScreen(props: {
           <button className="chip chip--on" aria-pressed={filters.open} onClick={() => setFilters((f) => ({ ...f, open: !f.open }))}>
             {t.filters.open}{filters.open && <IconCheck size={14} strokeWidth={2.6} />}
           </button>
-          <button className="chip chip--on" aria-pressed={filters.band != null} aria-haspopup="dialog" aria-expanded={sheetOpen} onClick={() => setSheetOpen(true)}>
-            {filters.band != null ? t.filters.bands[filters.band] : t.filters.price}<IconChevronDown size={14} />
+          <button className="chip chip--on" aria-pressed={filters.price != null} aria-haspopup="dialog" aria-expanded={sheetOpen} onClick={() => setSheetOpen(true)}>
+            {filters.price ? priceLabel(filters.price, t) : t.filters.price}<IconChevronDown size={14} />
           </button>
           <button className="chip chip--on" aria-pressed={filters.halal} onClick={() => setFilters((f) => ({ ...f, halal: !f.halal }))}>
             {t.filters.halal}{filters.halal && <IconCheck size={14} strokeWidth={2.6} />}
@@ -382,6 +384,13 @@ function RouteChip({ to, pos, t, onClose }: { to: StallCard; pos: { lat: number;
   );
 }
 
+/** "₩3,000–₩8,000" · "₩8,000 이하" · "₩10,000 이상" */
+function priceLabel(r: PriceRange, t: Messages): string {
+  if (r.min <= 0) return fmt(t.filters.priceUnder, { p: won(r.max) });
+  if (r.max >= PRICE_MAX) return fmt(t.filters.priceFrom, { p: won(r.min) });
+  return r.min === r.max ? won(r.min) : `${won(r.min)}–${won(r.max)}`;
+}
+
 /** Filter bottom sheet (operator reference): category · open status · other · price band, with a live result count. */
 function FilterSheet({ initial, t, locale, reference, catColor, countFor, onApply, onClose }: {
   initial: Filters; t: Messages; locale: string; reference: Reference; catColor: Map<string, string>;
@@ -434,11 +443,9 @@ function FilterSheet({ initial, t, locale, reference, catColor, countFor, onAppl
           </section>
         </div>
         <section>
-          <h3>{t.filters.priceBand}</h3>
-          <div className="filtersheet__opts">
-            <Opt on={f.band == null} onClick={() => setF({ ...f, band: null })}>{t.filters.all}</Opt>
-            {PRICE_BANDS.map((_, i) => <Opt key={i} on={f.band === i} onClick={() => setF({ ...f, band: i })}>{t.filters.bands[i]}</Opt>)}
-          </div>
+          <h3>{t.filters.priceBand} <span className="filtersheet__value">{f.price ? priceLabel(f.price, t) : t.filters.all}</span></h3>
+          <PriceRangeSlider value={f.price} onChange={(r) => setF({ ...f, price: normalizeRange(r) })}
+            minLabel={t.filters.priceMinLabel} maxLabel={t.filters.priceMaxLabel} />
         </section>
         <button className="btn btn--primary btn--block filtersheet__apply" onClick={() => onApply(f)}>{fmt(t.filters.apply, { n: count })}</button>
       </div>

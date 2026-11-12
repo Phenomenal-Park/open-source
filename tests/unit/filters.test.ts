@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filtersActive, inBand, matchesFilters, NO_FILTERS } from "@/lib/domain/filters";
+import { filtersActive, inRange, matchesFilters, NO_FILTERS, normalizeRange, PRICE_MAX } from "@/lib/domain/filters";
 import { AREA_DEFAULT_HOURS } from "@/lib/domain/hours";
 import type { StallCard } from "@/lib/domain/types";
 
@@ -31,17 +31,23 @@ describe("filters (§17: OR within a group, AND across groups)", () => {
     expect(matchesFilters(s, { ...NO_FILTERS, categories: ["snack"], subs: ["hotteok", "egg_bread"] }, D)).toBe(true);
     expect(matchesFilters(s, { ...NO_FILTERS, categories: ["snack", "dessert_fruit"], subs: ["egg_bread"] }, D)).toBe(true);
   });
-  it("price bands: ~3,000 | 3,000–5,000 | 5,000–10,000 | 10,000~", () => {
-    expect([inBand(3000, 0), inBand(3000, 1), inBand(3001, 1), inBand(5000, 1), inBand(10000, 2), inBand(10001, 3)]).toEqual([true, false, true, true, true, true]);
+  it("price range: inclusive, top of the slider is open-ended, unknown never matches", () => {
+    const r = { min: 3000, max: 8000 };
+    expect([inRange(3000, r), inRange(8000, r), inRange(2999, r), inRange(8001, r)]).toEqual([true, true, false, false]);
+    expect(inRange(50000, { min: 10000, max: PRICE_MAX })).toBe(true); // "₩10,000 이상"
     const s = stall({ items: [item(2000), item(15000)] });
-    expect(matchesFilters(s, { ...NO_FILTERS, band: 0 }, D)).toBe(true);
-    expect(matchesFilters(s, { ...NO_FILTERS, band: 3 }, D)).toBe(true);
-    expect(matchesFilters(s, { ...NO_FILTERS, band: 1 }, D)).toBe(false);
-    expect(matchesFilters(stall({ items: [item(null)] }), { ...NO_FILTERS, band: 0 }, D)).toBe(false); // unknown price never claims a band
+    expect(matchesFilters(s, { ...NO_FILTERS, price: { min: 0, max: 3000 } }, D)).toBe(true);
+    expect(matchesFilters(s, { ...NO_FILTERS, price: { min: 12000, max: PRICE_MAX } }, D)).toBe(true);
+    expect(matchesFilters(s, { ...NO_FILTERS, price: { min: 4000, max: 9000 } }, D)).toBe(false);
+    expect(matchesFilters(stall({ items: [item(null)] }), { ...NO_FILTERS, price: { min: 0, max: 3000 } }, D)).toBe(false);
+  });
+  it("full span = no price filter; reversed handles are fixed", () => {
+    expect(normalizeRange({ min: 0, max: PRICE_MAX })).toBeNull();
+    expect(normalizeRange({ min: 9000, max: 4000 })).toEqual({ min: 4000, max: 9000 });
   });
   it("groups are AND", () => {
     const s = stall({ category_code: "snack", halal: true, card: true, items: [item(4000)] });
-    const f = { ...NO_FILTERS, categories: ["snack"], band: 1, halal: true, card: true, open: true };
+    const f = { ...NO_FILTERS, categories: ["snack"], price: { min: 3000, max: 5000 }, halal: true, card: true, open: true };
     expect(matchesFilters(s, f, D, MON_17)).toBe(true);
     expect(matchesFilters({ ...s, card: null }, f, D, MON_17)).toBe(false); // unknown card ≠ card accepted
     expect(matchesFilters(s, f, D, new Date("2026-11-16T03:00:00Z"))).toBe(false); // Monday 12:00 KST, before 16:00
