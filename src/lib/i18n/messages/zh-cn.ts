@@ -39,6 +39,8 @@ const zhCN: Messages = {
   },
   rankings: { title: "本周评分排行", basis: "根据最近7天的游客评分", overall: "总榜", byCategory: "分类", empty: "本周评分还不够多。", reviews: "{n}条评分" },
   map: {
+    quickRoute: "步行导航", myLocation: "我的位置", findOnMap: "在地图上查看", walkEta: "步行约{min}分钟 · {m}米", openInApp: "用地图应用打开", arrived: "已到达！", routeNote: "按直线距离估算", stopRoute: "结束导航",
+    hiddenMore: "还有{n}个摊位 — 点击放大",
     locate: "我的位置", locationWhy: "我们使用你的位置来显示到附近摊位的距离，不会保存位置信息。", allow: "使用位置",
     locationDenied: "位置权限已关闭，请在浏览器设置中允许。", zoomIn: "放大", zoomOut: "缩小",
     schematic: "未配置地图密钥，显示简易地图", stallsShown: "{n}个摊位", noResults: "没有符合条件的摊位", visited: "评价去过的摊位",

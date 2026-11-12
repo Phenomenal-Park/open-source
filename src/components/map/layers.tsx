@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, type ReactNode } from "react";
-import { layoutMarkers, type LayoutInput, type LayoutLine, type LayoutOptions, type Placed } from "@/lib/map/layout";
+import { layoutMarkersDetailed, type HiddenBubble, type LayoutInput, type LayoutLine, type LayoutOptions, type Placed } from "@/lib/map/layout";
 import { pick } from "@/lib/i18n/config";
 import type { Landmark } from "@/lib/domain/types";
 import { IconBag } from "@/components/ui/icons";
@@ -15,6 +15,11 @@ export const SELECTED_SCALE = 1.25;
 export const SELECTED_BORDER = 3;
 
 export function useLayout(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = ""): Map<string, Placed> {
+  return useLayoutDetailed(view, items, lines, stateOf, stateKey).placed;
+}
+
+/** Layout plus the markers hidden at this zoom (for "+n" bubbles). */
+export function useLayoutDetailed(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = ""): { placed: Map<string, Placed>; hidden: Placed[] } {
   return useMemo(() => {
     const opts: LayoutOptions = stateOf
       ? {
@@ -23,8 +28,8 @@ export function useLayout(view: MapViewState, items: LayoutInput[], lines: Layou
           padOf: (id) => (stateOf(id) === "selected" ? SELECTED_BORDER : 0),
         }
       : {};
-    const placed = layoutMarkers(items, lines, view.project, view.mpp, opts);
-    return new Map(placed.map((p) => [p.id, p]));
+    const r = layoutMarkersDetailed(items, lines, view.project, view.mpp, opts);
+    return { placed: new Map(r.placed.map((p) => [p.id, p])), hidden: r.hidden };
     // view.version changes on every pan/zoom; stateKey changes with selection/filters
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.version, items, lines, stateKey]);
@@ -53,6 +58,20 @@ export function StallMarkers({
     );
   }
   return <>{nodes}</>;
+}
+
+/** "+n" bubbles for stalls hidden at this zoom; tapping zooms in on that stretch. */
+export function HiddenBubbles({ bubbles, labelOf, onOpen }: { bubbles: HiddenBubble[]; labelOf: (n: number) => string; onOpen: (b: HiddenBubble) => void }) {
+  return (
+    <>
+      {bubbles.map((b) => (
+        <button key={b.ids[0]} className="hiddenbubble" style={{ left: b.x, top: b.y, height: b.h, minWidth: b.w }} aria-label={labelOf(b.count)}
+          onClick={(e) => { e.stopPropagation(); onOpen(b); }} onPointerDown={(e) => e.stopPropagation()}>
+          +{b.count}
+        </button>
+      ))}
+    </>
+  );
 }
 
 /** Major landmarks stay readable (§37); minor ones appear only when zoomed in. */

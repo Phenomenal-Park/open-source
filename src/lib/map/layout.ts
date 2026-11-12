@@ -140,6 +140,27 @@ export function spaceAlongLine(s: number[], d: number): number[] {
 export const EDGE_INSET_PX = 1;
 export const ROW_MID_GAP_PX = 2;
 
+/**
+ * Upright squares on an angled line: f = along-line distance needed between centres per px of width
+ * (1 on horizontal/vertical lines, √2 at 45°); e = the square's extent across the line per px of width.
+ */
+export function uprightFactors(tx: number, ty: number): { f: number; e: number } {
+  const len = Math.hypot(tx, ty) || 1;
+  const c = Math.abs(tx / len), s = Math.abs(ty / len);
+  return { f: 1 / Math.max(c, s, 1e-6), e: c + s };
+}
+
+/** Worst-case factors over a [[lat,lng]] polyline (screen angles ≈ geographic angles in Web Mercator). */
+function pathFactors(path: [number, number][]): { f: number; e: number } {
+  let f = 1, e = 1;
+  for (let i = 1; i < path.length; i++) {
+    const k = 111320 * Math.cos((path[i][0] * Math.PI) / 180);
+    const u = uprightFactors((path[i][1] - path[i - 1][1]) * k, (path[i][0] - path[i - 1][0]) * 110574);
+    f = Math.max(f, u.f); e = Math.max(e, u.e);
+  }
+  return { f, e };
+}
+
 function lengthM(path: [number, number][]): number {
   let m = 0;
   for (let i = 1; i < path.length; i++) m += metersBetween(path[i - 1], path[i]);
@@ -157,7 +178,8 @@ function streetRows(items: LayoutInput[], lines: LayoutLine[], metersPerPx: numb
   const extra: LayoutLine[] = [];
   for (const [g, edges] of groups) {
     const roadPx = edges[0].roadWidthM! / metersPerPx;
-    if (roadPx >= 2 * MIN_MARKER_PX + 2 * EDGE_INSET_PX + ROW_MID_GAP_PX) continue; // two rows fit
+    const { f, e } = pathFactors(edges[0].centerPath!);
+    if (roadPx >= MIN_MARKER_PX * (e + f) + 2 * EDGE_INSET_PX + ROW_MID_GAP_PX) continue; // two rows of upright squares fit
     const center = edges[0].centerPath!;
     const id = `street:${g}`;
     extra.push({ id, path: center, outward: 0, roadWidthM: edges[0].roadWidthM, group: g, centerPath: center });
@@ -190,6 +212,11 @@ export type LayoutOptions = {
  *    lower-priority ones (they reappear when zooming in).
  */
 export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): Placed[] {
+  return layoutMarkersDetailed(itemsIn, linesIn, project, metersPerPx, opts).placed;
+}
+
+/** Same as layoutMarkers, plus the markers that had to be hidden at this zoom (for "+n" bubbles). */
+export function layoutMarkersDetailed(itemsIn: LayoutInput[], linesIn: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): { placed: Placed[]; hidden: Placed[] } {
   const { items, lines } = streetRows(itemsIn, linesIn, metersPerPx);
   const base = markerMetrics(metersPerPx);
   const scaleOf = opts.scaleOf ?? (() => 1);
@@ -218,10 +245,13 @@ export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], pro
     const s0 = arr.map((a) => metersToPx(sl, a.progress!));
     const scales = arr.map((a) => scaleOf(a.id));
     const pads = arr.map((a) => padOf(a.id));
-    return { line, sl, arr, s0, scales, pads };
+    const ups = s0.map((v) => { const t = tangentAtPx(sl, v); return uprightFactors(t.x, t.y); });
+    const worst = line.centerPath ? pathFactors(line.centerPath) : pathFactors(line.path);
+    return { line, sl, arr, s0, scales, pads, ups, worst };
   });
-  const fit = (s0: number[], scales: number[], pads: number[], size: number, gap: number) => {
-    const placed = spaceAlongLineVar(s0, scales.map((k, i) => size * k + 2 * pads[i]), gap);
+  const fit = (s0: number[], scales: number[], pads: number[], ups: { f: number }[], size: number, gap: number) => {
+    // along-line footprint of an upright square grows on angled streets (×√2 at 45°)
+    const placed = spaceAlongLineVar(s0, scales.map((k, i) => (size * k + 2 * pads[i] + gap) * ups[i].f - gap), gap);
     const shift = Math.max(0, ...placed.map((v, i) => Math.abs(v - s0[i])));
     return { placed, ok: shift <= Math.max(4, size * 1.5) };
   };
@@ -230,18 +260,18 @@ export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], pro
   // two rows must fit across the street: cap the size by the narrowest two-row street in view
   for (const pr of prepared) {
     if (pr.line.outward && pr.line.roadWidthM) {
-      const cap = (pr.line.roadWidthM / metersPerPx - 2 * EDGE_INSET_PX - ROW_MID_GAP_PX) / 2;
+      const cap = (pr.line.roadWidthM / metersPerPx - 2 * EDGE_INSET_PX - ROW_MID_GAP_PX) / (pr.worst.e + pr.worst.f);
       size = Math.max(MIN_MARKER_PX, Math.min(size, cap));
     }
   }
   for (const pr of prepared) {
-    while (!fit(pr.s0, pr.scales, pr.pads, size, gap).ok && size > MIN_MARKER_PX) {
+    while (!fit(pr.s0, pr.scales, pr.pads, pr.ups, size, gap).ok && size > MIN_MARKER_PX) {
       size = Math.max(MIN_MARKER_PX, size * 0.9);
       gap = Math.max(1, gap * 0.9);
     }
   }
-  for (const { line, sl, arr, s0, scales, pads } of prepared) {
-    const f = fit(s0, scales, pads, size, gap);
+  for (const { line, sl, arr, s0, scales, pads, ups } of prepared) {
+    const f = fit(s0, scales, pads, ups, size, gap);
     // Still too crowded at minimum size: don't drag markers far from their street — keep true positions;
     // the global pass below hides whichever lower-priority markers would overlap.
     const placed = f.ok ? f.placed : s0;
@@ -253,7 +283,8 @@ export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], pro
         // screen coords (y down): left normal of travel (tx, ty) is (ty, -tx). Move INWARD (−outward):
         // the square sits fully inside the street, its outer edge EDGE_INSET_PX from the street edge.
         const t = tangentAtPx(sl, sPos);
-        const d = w / 2 + pads[i] + EDGE_INSET_PX;
+        // half the square's extent across an angled street, so its corners stay inside too
+        const d = (w / 2 + pads[i]) * ups[i].e + EDGE_INSET_PX;
         p.x -= outward * t.y * d;
         p.y -= outward * -t.x * d;
       }
@@ -262,16 +293,21 @@ export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], pro
   }
   // markers without a display line use the same uniform size
   for (let i = 0; i < rawCount; i++) candidates[i].size = size * scaleOf(candidates[i].id);
-  return removeOverlaps(candidates, priorityOf, 1);
+  return removeOverlapsDetailed(candidates, priorityOf, 1);
 }
 
 /** Final guarantee: no two (upright, square) markers overlap. Higher priority wins; ties keep the earlier one. */
 export function removeOverlaps(cands: Placed[], priorityOf: (id: string) => number, minGap: number): Placed[] {
+  return removeOverlapsDetailed(cands, priorityOf, minGap).placed;
+}
+
+export function removeOverlapsDetailed(cands: Placed[], priorityOf: (id: string) => number, minGap: number): { placed: Placed[]; hidden: Placed[] } {
   const order = cands.map((c, i) => ({ c, i, p: priorityOf(c.id) })).sort((a, b) => b.p - a.p || a.i - b.i);
   const cell = Math.max(8, ...cands.map((c) => c.size)) + minGap;
   const grid = new Map<string, Placed[]>();
   const key = (x: number, y: number) => `${Math.floor(x / cell)},${Math.floor(y / cell)}`;
   const kept: Placed[] = [];
+  const hidden: Placed[] = [];
   for (const { c } of order) {
     let hit = false;
     const gx = Math.floor(c.x / cell), gy = Math.floor(c.y / cell);
@@ -283,14 +319,58 @@ export function removeOverlaps(cands: Placed[], priorityOf: (id: string) => numb
         }
       }
     }
-    if (hit) continue;
+    if (hit) { hidden.push(c); continue; }
     kept.push(c);
     const k = key(c.x, c.y);
     const arr = grid.get(k) ?? [];
     arr.push(c);
     grid.set(k, arr);
   }
-  return kept;
+  return { placed: kept, hidden };
+}
+
+export type HiddenBubble = { x: number; y: number; count: number; ids: string[]; w: number; h: number };
+
+/**
+ * Group hidden markers into "+n" bubbles: one per crowded stretch (markers within `radius` px chain together).
+ * Each bubble is placed where it covers no visible marker and no other bubble (searching outward from the
+ * group's centre); if nothing is free nearby it stays at the centre, drawn above the markers.
+ */
+export function hiddenBubbles(hidden: Placed[], visible: Placed[], radius = 44): HiddenBubble[] {
+  if (!hidden.length) return [];
+  // single-link clustering on a grid
+  const parent = hidden.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const cellOf = (p: Placed) => `${Math.floor(p.x / radius)},${Math.floor(p.y / radius)}`;
+  const grid = new Map<string, number[]>();
+  hidden.forEach((p, i) => { const k = cellOf(p); grid.set(k, [...(grid.get(k) ?? []), i]); });
+  hidden.forEach((p, i) => {
+    const gx = Math.floor(p.x / radius), gy = Math.floor(p.y / radius);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++)
+      for (const j of grid.get(`${gx + dx},${gy + dy}`) ?? [])
+        if (j !== i && Math.hypot(hidden[j].x - p.x, hidden[j].y - p.y) <= radius) parent[find(i)] = find(j);
+  });
+  const groups = new Map<number, Placed[]>();
+  hidden.forEach((p, i) => { const r = find(i); groups.set(r, [...(groups.get(r) ?? []), p]); });
+
+  const boxes = visible.map((v) => ({ x: v.x, y: v.y, hw: v.size / 2 + (v.pad ?? 0) + 1, hh: v.size / 2 + (v.pad ?? 0) + 1 }));
+  const out: HiddenBubble[] = [];
+  const free = (x: number, y: number, hw: number, hh: number) =>
+    boxes.every((b) => Math.abs(b.x - x) >= b.hw + hw || Math.abs(b.y - y) >= b.hh + hh) &&
+    out.every((o) => Math.abs(o.x - x) >= o.w / 2 + hw + 2 || Math.abs(o.y - y) >= o.h / 2 + hh + 2);
+  for (const g of groups.values()) {
+    const cx = g.reduce((a, p) => a + p.x, 0) / g.length, cy = g.reduce((a, p) => a + p.y, 0) / g.length;
+    const w = 14 + 7 * `+${g.length}`.length, h = 18;
+    let pos = { x: cx, y: cy };
+    search: for (let r = 0; r <= 48; r += 6) {
+      for (let a = 0; a < (r ? 16 : 1); a++) {
+        const x = cx + r * Math.cos((a * Math.PI) / 8), y = cy + r * Math.sin((a * Math.PI) / 8);
+        if (free(x, y, w / 2, h / 2)) { pos = { x, y }; break search; }
+      }
+    }
+    out.push({ x: pos.x, y: pos.y, count: g.length, ids: g.map((p) => p.id), w, h });
+  }
+  return out;
 }
 
 /** Web-Mercator helpers for the schematic (no-key) map. */

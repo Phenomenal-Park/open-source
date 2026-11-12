@@ -3,15 +3,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MapView, type MapHandle, type MapViewState } from "@/components/map/MapView";
-import { Landmarks, StallMarkers, UserLocation, useLayout, type MarkerState } from "@/components/map/layers";
+import { HiddenBubbles, Landmarks, StallMarkers, UserLocation, useLayoutDetailed, type MarkerState } from "@/components/map/layers";
+import { hiddenBubbles } from "@/lib/map/layout";
 import { locationGranted, useGeolocation } from "@/components/map/useGeolocation";
 import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
 import { layoutLines, streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
 import { filtersActive, matchesFilters, NO_FILTERS, PRICE_BANDS, type Filters } from "@/lib/domain/filters";
-import { hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
-import { IconCheck, IconChevronDown, IconChevronRight, IconImage, IconRefresh, IconStore, IconX, Star } from "@/components/ui/icons";
+import { directionsUrl, hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
+import { IconCheck, IconChevronDown, IconChevronRight, IconCrosshair, IconImage, IconPin, IconRefresh, IconStore, IconWalk, IconX, Star } from "@/components/ui/icons";
+import { distanceM, walkEstimate } from "@/lib/domain/walk";
 import { RankingTicker } from "./RankingTicker";
 import { postJson } from "./api";
 
@@ -34,6 +36,9 @@ export function MapScreen(props: {
   const [visited, setVisited] = useState<StallCard[] | null>(null);
   const [search, setSearch] = useState<{ q: string; foods: { code: string; name_i18n: Record<string, string> }[]; ids: Set<string> } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // in-app quick walking directions (walking first): dashed guide from my location to the stall
+  const [routeSlug, setRouteSlug] = useState<string | null>(null);
+  const needFit = useRef(false);
   const geo = useGeolocation();
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loaded = useRef<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null);
@@ -42,6 +47,9 @@ export function MapScreen(props: {
   const stallList = useMemo(() => [...stalls.values()], [stalls]);
   const lineList = useMemo(() => [...lines.values()], [lines]);
   const selected = selectedSlug ? stallList.find((s) => s.slug === selectedSlug) ?? null : null;
+  const routeTo = routeSlug ? stallList.find((s) => s.slug === routeSlug) ?? null : null;
+  // opened from search / detail page with a stall: start zoomed in on it
+  const initialZoom = useRef(params.get("s") ? Math.min(19, reference.area.default_zoom + 2) : reference.area.default_zoom).current;
 
   // ── data loading by viewport (§130: bounded queries only) ──
   const loadViewport = useCallback((b: { minLat: number; minLng: number; maxLat: number; maxLng: number }) => {
@@ -92,6 +100,32 @@ export function MapScreen(props: {
     else setLocPrompt(true);
   };
 
+  const startRoute = async (s: StallCard) => {
+    setRouteSlug(s.slug);
+    needFit.current = true;
+    geo.setFollow(false);
+    if (!geo.pos) {
+      if (await locationGranted()) geo.start();
+      else setLocPrompt(true);
+    }
+  };
+  // once both points are known: show me and the stall together
+  useEffect(() => {
+    if (!routeTo || !geo.pos || !needFit.current) return;
+    needFit.current = false;
+    geo.setFollow(false);
+    mapRef.current?.fitPoints([geo.pos.lat, geo.pos.lng], [routeTo.lat, routeTo.lng], 120, 19); // room for the route chip + callout
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeTo, geo.pos]);
+  // ?route=1 (from the stall page's "빠른 길찾기")
+  const routeParamDone = useRef(false);
+  useEffect(() => {
+    if (routeParamDone.current || params.get("route") !== "1" || !selected) return;
+    routeParamDone.current = true;
+    startRoute(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   // ── filters ──
   const filterActive = filtersActive(filters) || !!search;
   const matches = useCallback((st: StallCard): boolean => {
@@ -105,6 +139,7 @@ export function MapScreen(props: {
 
   const select = (slug: string | null) => {
     setSelectedSlug(slug);
+    if (slug !== routeSlug) setRouteSlug(null);
     const u = new URL(window.location.href);
     if (slug) u.searchParams.set("s", slug); else u.searchParams.delete("s");
     window.history.replaceState(null, "", u.toString());
@@ -158,25 +193,29 @@ export function MapScreen(props: {
           onApply={(f) => { setFilters(f); setSheetOpen(false); }} onClose={() => setSheetOpen(false)} />
       )}
 
-      <MapView ref={mapRef} center={selected ? [selected.lat, selected.lng] : [reference.area.center_lat, reference.area.center_lng]} zoom={reference.area.default_zoom}
+      <div className="mapzone">
+      <MapView ref={mapRef} center={selected ? [selected.lat, selected.lng] : [reference.area.center_lat, reference.area.center_lng]} zoom={initialZoom}
         apiKey={props.mapsKey} mapId={props.mapId} labels={labels} onViewChange={onViewChange}
         onUserPan={() => geo.setFollow(false)} onTap={() => select(null)} onLocate={onLocate} locateActive={geo.follow}
         decorLines={streetDecor(lineList)}>
         {(view) => (
           <MapLayers view={view} t={t} locale={locale} landmarks={reference.landmarks} stalls={stallList} lines={lineList} catColor={catColor} selected={selected}
             stateOf={(s) => (selected?.id === s.id ? "selected" : filterActive ? (matches(s) ? "match" : "muted") : "default")}
-            onSelect={(s) => select(s.slug)} userPos={geo.pos} />
+            onSelect={(s) => select(s.slug)} userPos={geo.pos} onZoomTo={(lat, lng, z) => mapRef.current?.panTo(lat, lng, z)} routeTo={routeTo} />
         )}
       </MapView>
-      {filterActive && matchCount === 0 && <div className="mapnote" role="status" style={{ top: "auto", bottom: 150 }}>{t.map.noResults}</div>}
+      {filterActive && matchCount === 0 && <div className="mapnote" role="status" style={{ top: "auto", bottom: 70 }}>{t.map.noResults}</div>}
+      {routeTo && <RouteChip to={routeTo} pos={geo.pos} t={t} onClose={() => setRouteSlug(null)} />}
+      </div>
 
       <div className="sheet">
         <span className="sheet__handle" aria-hidden />
         {selected ? (
-          <SelectedSheet s={selected} locale={locale} t={t} defaults={reference.default_hours} />
+          <SelectedSheet s={selected} locale={locale} t={t} defaults={reference.default_hours}
+            onRoute={() => startRoute(selected)} onLocate={onLocate} routing={routeTo?.id === selected.id} />
         ) : search ? (
           <SearchSheet search={search} stalls={stallList.filter((s) => search.ids.has(s.id))} locale={locale} t={t}
-            onPick={(s) => { select(s.slug); mapRef.current?.panTo(s.lat, s.lng, 18); }} onClose={() => router.replace(`/${locale}`)} />
+            onPick={(s) => { select(s.slug); mapRef.current?.panTo(s.lat, s.lng, 19); }} onClose={() => router.replace(`/${locale}`)} />
         ) : (
           <div className="sheet__summary">
             <span>{fmt(t.map.stallsShown, { n: filterActive ? matchCount : stallList.length })}</span>
@@ -235,17 +274,24 @@ function clampCallout(x: number, width: number): number {
   return Math.max(half + 16, Math.min(width - half - 16, x));
 }
 
-function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, selected, stateOf, onSelect, userPos }: {
+function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, selected, stateOf, onSelect, userPos, onZoomTo, routeTo }: {
   view: MapViewState; t: Messages; locale: string; landmarks: Reference["landmarks"]; stalls: StallCard[]; lines: DisplayLine[]; catColor: Map<string, string>;
   selected: StallCard | null; stateOf: (s: StallCard) => MarkerState; onSelect: (s: StallCard) => void;
   userPos: { lat: number; lng: number; accuracy: number; heading: number | null } | null;
+  onZoomTo: (lat: number, lng: number, zoom: number) => void;
+  routeTo: StallCard | null;
 }) {
   const byId = useMemo(() => new Map(stalls.map((s) => [s.id, s])), [stalls]);
   const items = useMemo(() => stalls.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng, line_id: s.line_id, progress: s.progress })), [stalls]);
   const layout = useMemo(() => layoutLines(lines), [lines]);
   const stateById = (id: string) => stateOf(byId.get(id)!);
-  const stateKey = stalls.map((x) => stateOf(x)[0]).join("");
-  const placed = useLayout(view, items, layout, stateById, stateKey);
+  const STATE_CODE: Record<MarkerState, string> = { selected: "s", match: "a", default: "d", muted: "u" };
+  const stateKey = stalls.map((x) => STATE_CODE[stateOf(x)]).join("");
+  const { placed, hidden } = useLayoutDetailed(view, items, layout, stateById, stateKey);
+  // "+n" counts only stalls the user would see: with a filter, hidden non-matching (grey) stalls are not counted
+  const bubbles = useMemo(() => hiddenBubbles(hidden.filter((h) => stateById(h.id) !== "muted"), [...placed.values()]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placed, hidden]);
   const sel = selected ? placed.get(selected.id) : null;
   const img = selected ? photoUrl(selected.photo) : null;
   return (
@@ -254,6 +300,17 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
       <StallMarkers view={view} placed={placed} colorOf={(id) => catColor.get(byId.get(id)?.category_code ?? "") ?? "#999"}
         stateOf={(id) => stateOf(byId.get(id)!)} onSelect={(id) => onSelect(byId.get(id)!)}
         ariaLabelOf={(id) => { const s = byId.get(id)!; return `${stallTitle(s, locale)} ${hintText(s.hint, locale, t)}`; }} />
+      <HiddenBubbles bubbles={bubbles} labelOf={(n) => fmt(t.map.hiddenMore, { n })}
+        onOpen={(b) => { const [lat, lng] = view.unproject(b.x, b.y); onZoomTo(lat, lng, Math.min(21, Math.round(view.zoom) + 2)); }} />
+      {routeTo && userPos && (() => {
+        const a = view.project(userPos.lat, userPos.lng);
+        const pb = placed.get(routeTo.id) ?? view.project(routeTo.lat, routeTo.lng);
+        return (
+          <svg className="routeline" width={view.width} height={view.height} aria-hidden>
+            <line x1={a.x} y1={a.y} x2={pb.x} y2={pb.y} />
+          </svg>
+        );
+      })()}
       <UserLocation view={view} pos={userPos} />
       {selected && sel && (
         <Link href={`/${locale}/stalls/${selected.slug}`} className="callout"
@@ -268,12 +325,15 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
   );
 }
 
-function SelectedSheet({ s, locale, t, defaults }: { s: StallCard; locale: string; t: Messages; defaults: Reference["default_hours"] }) {
+function SelectedSheet({ s, locale, t, onRoute, onLocate, routing }: {
+  s: StallCard; locale: string; t: Messages; defaults: Reference["default_hours"]; onRoute: () => void; onLocate: () => void; routing: boolean;
+}) {
   const rep = s.items.find((i) => i.rep) ?? s.items[0];
   const others = s.items.filter((i) => i !== rep);
   const img = photoUrl(s.photo);
   const hint = hintText(s.hint, locale, t);
   return (
+    <>
     <div className="sel">
       <Thumb className="sel__img" src={img} color={`var(--c-${s.category_code})`} size={30} />
       <div className="sel__body">
@@ -297,6 +357,27 @@ function SelectedSheet({ s, locale, t, defaults }: { s: StallCard; locale: strin
           </div>
         )}
       </div>
+    </div>
+    <div className="sel__actions">
+      <button className="btn btn--primary" onClick={onRoute} aria-pressed={routing}><IconWalk size={19} />{t.map.quickRoute}</button>
+      <button className="btn btn--outline" onClick={onLocate}><IconCrosshair size={19} />{t.map.myLocation}</button>
+    </div>
+    </>
+  );
+}
+
+/** In-app quick walking directions: live distance/time from my location; full route opens in a maps app. */
+function RouteChip({ to, pos, t, onClose }: { to: StallCard; pos: { lat: number; lng: number } | null; t: Messages; onClose: () => void }) {
+  const est = pos ? walkEstimate(distanceM(pos, to)) : null;
+  return (
+    <div className="routechip" role="status">
+      <IconWalk size={18} />
+      <span className="routechip__main">
+        {!est ? t.common.loading : est.arrived ? t.map.arrived : fmt(t.map.walkEta, { min: est.minutes, m: est.meters })}
+        {est && !est.arrived && <span className="routechip__note">{t.map.routeNote}</span>}
+      </span>
+      <a className="routechip__app" href={directionsUrl(to.lat, to.lng)} target="_blank" rel="noopener">{t.map.openInApp}</a>
+      <button className="header__btn" style={{ width: 30, height: 30 }} onClick={onClose} aria-label={t.map.stopRoute}><IconX size={16} /></button>
     </div>
   );
 }
@@ -397,7 +478,7 @@ function SearchSheet({ search, stalls, locale, t, onPick, onClose }: {
             <button className="row" style={{ width: "100%", textAlign: "left" }} onClick={() => onPick(s)}>
               <IconImage size={18} className="muted" />
               <span className="ellipsis" style={{ flex: 1 }}><b>{stallTitle(s, locale)}</b> <span className="muted small">{hintText(s.hint, locale, t)}</span></span>
-              <IconChevronRight size={16} />
+              <span className="chip chip--sm" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}><IconPin size={14} />{t.map.findOnMap}</span>
             </button>
           </li>
         ))}

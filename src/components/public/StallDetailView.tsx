@@ -5,9 +5,9 @@ import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
 import type { MenuEntry, Reference, Review, StallDetail } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
-import { directionsUrl, hintText, hoursLines, itemName, photoUrl, priceText, spiceLabel, stallTitle, timeAgo } from "@/lib/domain/display";
+import { hintText, hoursLines, itemName, photoUrl, priceText, spiceLabel, stallTitle, timeAgo } from "@/lib/domain/display";
 import { Chilis } from "@/components/ui/Chili";
-import { IconDirections, IconMap, Star } from "@/components/ui/icons";
+import { IconMap, IconWalk, Star } from "@/components/ui/icons";
 import { AdSlot } from "./AdSlot";
 import { ApiError, postJson } from "./api";
 
@@ -49,7 +49,7 @@ export function StallDetailView({ s, locale, t, reference }: { s: StallDetail; l
       </div>
       {!s.is_active && <p className="card small" style={{ marginTop: 12 }}>{t.stall.notActive}</p>}
       <div className="detail__actions">
-        <a className="btn btn--outline" href={directionsUrl(s.raw_lat ?? s.lat, s.raw_lng ?? s.lng)} target="_blank" rel="noopener"><IconDirections size={18} />{t.stall.directions}</a>
+        <Link className="btn btn--primary" href={`/${locale}?s=${s.slug}&route=1`}><IconWalk size={18} />{t.map.quickRoute}</Link>
         <Link className="btn btn--outline" href={`/${locale}?s=${s.slug}`}><IconMap size={18} />{t.stall.showOnMap}</Link>
       </div>
 

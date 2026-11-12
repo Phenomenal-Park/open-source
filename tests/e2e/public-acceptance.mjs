@@ -67,10 +67,10 @@ try {
   });
   await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
   for (const z of ["확대", "축소", "축소"]) {
-    await page.getByRole("button", { name: z }).click(); await page.waitForTimeout(250);
+    await page.getByRole("button", { name: z, exact: true }).click(); await page.waitForTimeout(250);
     ok((await overlaps()) === 0, `no overlapping stall squares after ${z}`);
   }
-  await page.getByRole("button", { name: "확대" }).click(); await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "확대", exact: true }).click(); await page.waitForTimeout(250);
 
   // selection + filters
   await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
@@ -79,7 +79,7 @@ try {
   const callout = await page.locator(".callout").boundingBox();
   ok(callout && callout.height < 60 && callout.width < 320, "selected callout is compact");
   const sheet = await page.locator(".sheet").boundingBox();
-  ok(sheet.height < 230, `bottom sheet stays compact (${Math.round(sheet.height)}px)`);
+  ok(sheet.height < 300, `bottom sheet stays compact incl. 빠른 길찾기/현위치 buttons (${Math.round(sheet.height)}px)`);
   ok(await page.getByRole("link", { name: /상세 보기/ }).isVisible(), "sheet has 상세 보기");
   await page.getByRole("button", { name: "꼬치·구이" }).click();
   const st2 = await page.locator(".marker").evaluateAll((els) => els.map((e) => e.dataset.state));
@@ -129,6 +129,43 @@ try {
     const titleClipped = await page.locator(".header__title").evaluate((el) => el.scrollWidth > el.clientWidth + 1);
     ok(!titleClipped, `${l}: service name not truncated in header`);
   }
+
+  // "+n" bubbles for stalls hidden when zoomed far out; tapping one zooms in on that stretch
+  await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
+  for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "축소", exact: true }).click(); await page.waitForTimeout(200); }
+  const bubbles = page.locator(".hiddenbubble");
+  ok((await bubbles.count()) > 0, `zoomed out: "+n" bubbles shown for hidden stalls (${await bubbles.count()})`);
+  ok(/^\+\d+$/.test((await bubbles.first().innerText()).trim()), "bubble reads +n");
+  const scaleM = async () => { const t = (await page.locator(".scalebar").innerText()).trim(); return t.endsWith("km") ? parseFloat(t) * 1000 : parseFloat(t); };
+  const beforeM = await scaleM();
+  await bubbles.first().click();
+  await page.waitForTimeout(400);
+  const afterM = await scaleM();
+  ok(afterM < beforeM, `tapping a bubble zooms in (scale ${beforeM} m → ${afterM} m)`);
+
+  // search → 위치 찾기 → zoomed in on the stall, 빠른 길찾기 + 현위치 visible; quick walking guide from my location
+  const target = sql("select st.slug || '|' || m.display_name || '|' || coalesce(s.display_lat, s.raw_lat) || '|' || coalesce(s.display_lng, s.raw_lng) from stalls st join stall_spot_assignments a on a.stall_id = st.id and a.ended_at is null join spots s on s.id = a.spot_id join stall_menu_items m on m.stall_id = st.id and m.is_representative where m.display_name = '호떡' limit 1").split("|");
+  const geoCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    geolocation: { latitude: +target[2] - 0.0015, longitude: +target[3] }, permissions: ["geolocation"] });
+  const gp = await geoCtx.newPage();
+  await gp.goto(`${BASE}/ko?q=${encodeURIComponent(target[1])}`, { waitUntil: "networkidle" });
+  await gp.getByText("위치 찾기").first().click();
+  await gp.waitForTimeout(400);
+  ok((await gp.locator('.marker[data-state="selected"]').count()) === 1, "위치 찾기 selects the stall on the map");
+  const selW = await gp.locator('.marker[data-state="selected"]').evaluate((e) => parseFloat(e.style.width));
+  ok(selW >= 12, `map is zoomed in on it (square ${selW}px)`);
+  ok(await gp.getByRole("button", { name: "빠른 길찾기" }).isVisible() && await gp.getByRole("button", { name: "현위치" }).isVisible(), "빠른 길찾기 and 현위치 buttons visible");
+  await gp.getByRole("button", { name: "빠른 길찾기" }).click();
+  await gp.locator(".routechip").getByText(/도보 약 \d+분 · \d+m/).waitFor();
+  ok(true, `walking guide shows "${(await gp.locator(".routechip__main").innerText()).split("\n")[0]}"`);
+  ok((await gp.locator(".routeline line").count()) === 1 && (await gp.locator(".userdot").count()) === 1, "dashed guide from my location to the stall is drawn");
+  ok(await gp.getByRole("link", { name: "지도 앱으로" }).getAttribute("href").then((h) => h.includes("travelmode=walking")), "maps-app link uses walking mode");
+  // from the stall page
+  await gp.goto(`${BASE}/ko/stalls/${target[0]}`, { waitUntil: "networkidle" });
+  await gp.getByRole("link", { name: "빠른 길찾기" }).click();
+  await gp.locator(".routechip").getByText(/도보 약/).waitFor();
+  ok(true, "stall page 빠른 길찾기 opens the map with the walking guide running");
+  await geoCtx.close();
 
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });

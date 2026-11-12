@@ -29,6 +29,8 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Search (multilingual synonyms → normalized concepts, broadened not fabricated)
 - ✅ Light/dark mode (spec palette), language switch + persistence
 - ✅ "Rate a stall you visited": GPS proposes nearest ≤6, user chooses
+- ✅ "+n" bubbles for stalls hidden at a zoom (tap to zoom in)
+- ✅ Search "위치 찾기" → zoom to stall; selected sheet [빠른 길찾기] (in-app walking guide + maps-app link) and [현위치]
 
 ## Phase 4 — Content pages / SEO
 - ✅ Stall detail (tabs, menu with chilis, community spice, hours, payment, dietary, reviews, photos, report, directions)

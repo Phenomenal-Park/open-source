@@ -33,6 +33,9 @@ export const IconInfo = ({ size, ...r }: P) => (<svg {...base(size, r)}><circle 
 export const IconDirections = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M12 2.8l9.2 9.2-9.2 9.2L2.8 12z" /><path d="M9 13.5V11h6M13 9l2 2-2 2" /></svg>);
 export const IconStore = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M4 9.5L5.5 4.5h13L20 9.5M4 9.5v10h16v-10M4 9.5c0 1.4 1.1 2.5 2.7 2.5S9.3 10.9 9.3 9.5c0 1.4 1.1 2.5 2.7 2.5s2.7-1.1 2.7-2.5c0 1.4 1.1 2.5 2.6 2.5S20 10.9 20 9.5" /></svg>);
 
+export const IconWalk = ({ size, ...r }: P) => (<svg {...base(size, r)}><circle cx="13" cy="4.5" r="1.8" /><path d="M10 21l2-6-2.5-2.5 1-4.5 3.5 3 3 1M9.5 8.5L6.5 10l-1 3.5M12 15l3 2 1 4" /></svg>);
+export const IconCrosshair = ({ size, ...r }: P) => (<svg {...base(size, r)}><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.2" fill="currentColor" /><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5" /></svg>);
+
 export function Star({ size = 16, filled = true }: { size?: number; filled?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="star">

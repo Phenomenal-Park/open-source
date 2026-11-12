@@ -39,6 +39,8 @@ const ja: Messages = {
   },
   rankings: { title: "今週の評価ランキング", basis: "直近7日間の利用者評価にもとづく", overall: "総合", byCategory: "カテゴリー別", empty: "今週はまだ評価が十分ではありません。", reviews: "{n}件の評価" },
   map: {
+    quickRoute: "徒歩ルート", myLocation: "現在地", findOnMap: "地図で見る", walkEta: "徒歩約{min}分・{m}m", openInApp: "地図アプリで", arrived: "到着しました！", routeNote: "直線距離からの目安", stopRoute: "案内を終了",
+    hiddenMore: "ほか{n}件の屋台 — タップで拡大",
     locate: "現在地", locationWhy: "近くの屋台までの距離を表示するために現在地を使います。位置情報は保存しません。", allow: "現在地を使う",
     locationDenied: "位置情報がオフになっています。ブラウザの設定で許可してください。", zoomIn: "拡大", zoomOut: "縮小",
     schematic: "地図キー未設定のため簡易表示中", stallsShown: "屋台{n}件", noResults: "条件に合う屋台がありません", visited: "訪れた屋台を評価する",

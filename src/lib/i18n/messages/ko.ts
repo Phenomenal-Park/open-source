@@ -38,6 +38,8 @@ const ko = {
   },
   rankings: { title: "이번 주 평점 랭킹", basis: "최근 7일 이용자 평가 기준", overall: "전체", byCategory: "카테고리별", empty: "아직 이번 주 평가가 충분하지 않아요.", reviews: "{n}개 평가" },
   map: {
+    quickRoute: "빠른 길찾기", myLocation: "현위치", findOnMap: "위치 찾기", walkEta: "도보 약 {min}분 · {m}m", openInApp: "지도 앱으로", arrived: "도착했어요!", routeNote: "직선 거리 기준 예상", stopRoute: "길찾기 종료",
+    hiddenMore: "숨겨진 노점 {n}곳 — 눌러서 확대",
     locate: "내 위치", locationWhy: "주변 노점까지의 거리를 보여드리기 위해 현재 위치를 사용해요. 위치는 저장하지 않아요.", allow: "위치 사용",
     locationDenied: "위치 권한이 꺼져 있어요. 브라우저 설정에서 허용해 주세요.", zoomIn: "확대", zoomOut: "축소",
     schematic: "지도 키가 없어 간략 지도로 표시 중", stallsShown: "노점 {n}곳", noResults: "조건에 맞는 노점이 없어요", visited: "방문한 노점 평가하기",

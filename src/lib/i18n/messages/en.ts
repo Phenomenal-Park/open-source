@@ -39,6 +39,8 @@ const en: Messages = {
   },
   rankings: { title: "Top This Week", basis: "Based on visitor ratings from the last 7 days", overall: "Overall", byCategory: "By category", empty: "Not enough ratings this week yet.", reviews: "{n} ratings" },
   map: {
+    quickRoute: "Directions", myLocation: "My location", findOnMap: "Show on map", walkEta: "~{min} min walk · {m} m", openInApp: "Open in maps", arrived: "You're here!", routeNote: "Estimated from straight-line distance", stopRoute: "End directions",
+    hiddenMore: "{n} more stalls — tap to zoom in",
     locate: "My location", locationWhy: "We use your location to show distances to nearby stalls. It is not stored.", allow: "Use location",
     locationDenied: "Location is blocked. Please allow it in your browser settings.", zoomIn: "Zoom in", zoomOut: "Zoom out",
     schematic: "Simplified map (no map key configured)", stallsShown: "{n} stalls", noResults: "No stalls match these filters", visited: "Rate a stall you visited",

@@ -19,6 +19,8 @@ export type MapHandle = {
   panTo: (lat: number, lng: number, zoom?: number) => void;
   zoomBy: (d: number) => void;
   bounds: () => { minLat: number; minLng: number; maxLat: number; maxLng: number } | null;
+  /** Show both points with some padding (px); never zooms closer than maxZoom. */
+  fitPoints: (a: [number, number], b: [number, number], padding?: number, maxZoom?: number) => void;
 };
 
 type Props = {
@@ -190,6 +192,15 @@ function GoogleBackend(props: BackendProps & { onFail: () => void }) {
       if (!b) return null;
       return { minLat: b.getSouthWest().lat(), minLng: b.getSouthWest().lng(), maxLat: b.getNorthEast().lat(), maxLng: b.getNorthEast().lng() };
     },
+    fitPoints: (a, b, padding = 60, maxZoom = 19) => {
+      const m = mapRef.current;
+      if (!m) return;
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend({ lat: a[0], lng: a[1] });
+      bounds.extend({ lat: b[0], lng: b[1] });
+      m.fitBounds(bounds, padding);
+      google.maps.event.addListenerOnce(m, "idle", () => { if ((m.getZoom() ?? 0) > maxZoom) m.setZoom(maxZoom); });
+    },
   }));
 
   return (
@@ -244,6 +255,12 @@ function SchematicBackend(props: BackendProps) {
       const [maxLat, minLng] = state.unproject(0, 0);
       const [minLat, maxLng] = state.unproject(w, h);
       return { minLat, minLng, maxLat, maxLng };
+    },
+    fitPoints: (a, b, padding = 60, maxZoom = 19) => {
+      const dx = Math.abs(mercX(a[1], 0) - mercX(b[1], 0)) || 1e-9;
+      const dy = Math.abs(mercY(a[0], 0) - mercY(b[0], 0)) || 1e-9;
+      const z = Math.min(maxZoom, Math.log2(Math.max(40, w - 2 * padding) / dx), Math.log2(Math.max(40, h - 2 * padding) / dy));
+      setView({ lat: (a[0] + b[0]) / 2, lng: (a[1] + b[1]) / 2, zoom: Math.max(14, Math.min(21, z)) });
     },
   }));
 

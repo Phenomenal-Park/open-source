@@ -102,7 +102,7 @@ try {
   ok(sql("select max(m_number) from spots") === "3", "next real save gets M-003");
 
   // 26 nearby-duplicate warning: zoom in and tap ~3 m from M-001 (which is at the map centre)
-  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "확대" }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "확대", exact: true }).click();
   await page.waitForTimeout(200);
   await page.mouse.click(cx + 32, cy + 4);
   await page.getByText("근처 등록 위치").waitFor();

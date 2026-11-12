@@ -47,3 +47,14 @@ describe("filters (§17: OR within a group, AND across groups)", () => {
     expect(matchesFilters(s, f, D, new Date("2026-11-16T03:00:00Z"))).toBe(false); // Monday 12:00 KST, before 16:00
   });
 });
+
+import { distanceM, walkEstimate } from "@/lib/domain/walk";
+describe("walking estimate", () => {
+  it("distance and minutes", () => {
+    const d = distanceM({ lat: 37.5600, lng: 126.9850 }, { lat: 37.5620, lng: 126.9850 });
+    expect(d).toBeCloseTo(221, 0);
+    expect(walkEstimate(d)).toEqual({ meters: 220, minutes: 4, arrived: false });
+    expect(walkEstimate(10).arrived).toBe(true);
+    expect(walkEstimate(30).minutes).toBe(1);
+  });
+});
