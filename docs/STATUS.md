@@ -19,7 +19,7 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Patrol: 그대로 / 변경 / 오늘 없음 / 확인 어려움, auto-advance, change sheet (menu/price/spice/hours/category/hint/new occupant), observation history
 - ✅ Duplicate proximity warning (blocks save until acknowledged), merge
 - ✅ Streets with stalls on both sides: draw centre line + width → left/right display lines (SQL `admin_save_street`), single-side lines too; drag vertices, undo, delete; automatic re-projection
-- ✅ Marker size scales with the map (≈10 m per square, 6–22 px, one uniform size per view); squares never overlap (layout + final collision pass, unit- and E2E-tested) and never sit on the road
+- ✅ Marker size scales with the map (≈10 m per square, 6–22 px, one uniform size per view); squares never overlap (layout + final collision pass, unit- and E2E-tested) and sit inside the street in two rows (one centre row when the street is too narrow on screen)
 - ✅ Rounded-square marker rendering
 - ✅ Route management page (drag/↑↓/move-to/insert-after/remove)
 
@@ -40,6 +40,9 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - 🟡 Review translation: schema, cache RPC and "View original" UI done; **no translation provider is wired** (`TRANSLATION_PROVIDER` unset → originals shown)
 - ⬜ Photo **upload** (public and field). Schema, display, voting and representative pinning exist; storage upload flow (Supabase Storage or R2) is not built yet.
 - ⬜ Item-level ranking TOP 3 on the ranking page (food pages list stalls per item instead)
+
+## Planned next (operator)
+- ⬜ Restrict the public map to the Myeongdong stall area: no panning outside it (map bounds + min zoom). Requested 2026-11-12, not yet implemented.
 
 ## Phase 6–7 and later
 - ⬜ Confidence scoring, exception queue, owner claims, trusted contributors, report-review UI, review/photo moderation UI, translation management UI, category management UI

@@ -83,17 +83,34 @@ describe("magnetic marker layout (§33–§36)", () => {
     expect((center[0][1] - left[0][1]) * k).toBeCloseTo(6, 3); // west of a northbound street
     expect((right[0][1] - center[0][1]) * k).toBeCloseTo(6, 3);
   });
-  it("street-edge markers sit fully on the sidewalk side, never over the road", () => {
-    // northbound line drawn on screen from (0,100) up to (0,0); left = west = −x
-    const line = { id: "L", path: [[37.5600, 126.98], [37.5610, 126.98]] as [number, number][], outward: 1 as const, roadWidthM: 14 };
-    const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 100000, y: (37.561 - lat) * 100000 });
-    const [m] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [line], project, 0.95);
-    expect(m.x).toBeCloseTo(-(m.size / 2 + 1), 6); // inner edge 1 px off the road edge
-    // narrow alley far out: road only ~1.6 px wide → rows still ≥ 4 px apart (2 px each side)
-    const [n] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [{ ...line, roadWidthM: 6 }], project, 3.8);
-    expect(Math.abs(n.x) - n.size / 2).toBeGreaterThanOrEqual((4 - 6 / 3.8) / 2 - 1e-9);
-    const [r] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [{ ...line, outward: -1 as const }], project, 0.95);
-    expect(r.x).toBeCloseTo(r.size / 2 + 1, 6);
+  it("street rows sit fully INSIDE the street (never over buildings), 1 px in from each edge", () => {
+    // northbound street centred on x=0 on screen, 20 px/… projection; edges at x = ∓8 px (16 m wide at 1 m/px-ish scale below)
+    const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 88000, y: (37.561 - lat) * 110574 }); // ≈ 1 m per px
+    const mpp = 1;
+    const center: [number, number][] = [[37.5600, 126.98], [37.5610, 126.98]];
+    const left = { id: "L", path: offsetPath(center, 8), outward: 1 as const, roadWidthM: 16, group: "g", centerPath: center };
+    const right = { id: "R", path: offsetPath(center, -8), outward: -1 as const, roadWidthM: 16, group: "g", centerPath: center };
+    const placed = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }, { id: "b", lat: 0, lng: 0, line_id: "R", progress: 50 }], [left, right], project, mpp);
+    const a = placed.find((p) => p.id === "a")!, b = placed.find((p) => p.id === "b")!;
+    const leftEdgeX = project(37.5605, offsetPath(center, 8)[0][1]).x, rightEdgeX = project(37.5605, offsetPath(center, -8)[0][1]).x;
+    expect(a.x - a.size / 2).toBeCloseTo(leftEdgeX + 1, 1);   // outer edge 1 px inside the left street edge
+    expect(b.x + b.size / 2).toBeCloseTo(rightEdgeX - 1, 1);  // outer edge 1 px inside the right street edge
+    expect(b.x - b.size / 2 - (a.x + a.size / 2)).toBeGreaterThanOrEqual(1.9); // rows ≈2 px apart (test projection is ~0.4% off 1 m/px)
+    expect(a.size).toBeLessThanOrEqual(7); // (16 − 2 − 2) / 2 = 6 px cap, never wider than half the street
+  });
+  it("narrow street: both sides merge into one row on the centre line", () => {
+    const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 88000 / 2, y: (37.561 - lat) * 110574 / 2 }); // 2 m per px
+    const center: [number, number][] = [[37.5600, 126.98], [37.5610, 126.98]];
+    const lines = [
+      { id: "L", path: offsetPath(center, 3), outward: 1 as const, roadWidthM: 6, group: "g", centerPath: center },
+      { id: "R", path: offsetPath(center, -3), outward: -1 as const, roadWidthM: 6, group: "g", centerPath: center },
+    ];
+    const items = [10, 30, 50, 70].map((p, i) => ({ id: `s${i}`, lat: 0, lng: 0, line_id: i % 2 ? "R" : "L", progress: p }));
+    const placed = layoutMarkers(items, lines, project, 2);
+    const cx = project(37.5605, 126.98).x;
+    for (const p of placed) expect(p.x).toBeCloseTo(cx, 6); // all on the centre line
+    const ys = [...placed].sort((a, b) => a.id.localeCompare(b.id)).map((p) => p.y);
+    expect([...ys].sort((a, b) => b - a)).toEqual(ys); // original order along the street kept
   });
   it("markers NEVER overlap, at any zoom, even on dense crossing streets", () => {
     let seed = 7;

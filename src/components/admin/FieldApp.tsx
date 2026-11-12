@@ -195,7 +195,7 @@ export function FieldApp({ mapsKey, mapId }: { mapsKey?: string; mapId?: string 
   };
 
   const spots = data?.spots ?? [];
-  const lines: LayoutLine[] = useMemo(() => (data?.lines ?? []).filter((l) => l.is_active).map((l) => ({ id: l.id, path: l.path, outward: l.side === "left" ? 1 : l.side === "right" ? -1 : 0, roadWidthM: l.width_m })), [data]);
+  const lines: LayoutLine[] = useMemo(() => (data?.lines ?? []).filter((l) => l.is_active).map((l) => ({ id: l.id, path: l.path, outward: l.side === "left" ? 1 : l.side === "right" ? -1 : 0, roadWidthM: l.width_m, group: l.street_group, centerPath: l.center_path })), [data]);
   // Register/patrol show RAW positions (field truth); lines mode previews the public magnetic layout.
   const items = useMemo(() => spots.map((s) => mode === "lines"
     ? { id: s.id, lat: s.display_lat ?? s.raw_lat, lng: s.display_lng ?? s.raw_lng, line_id: s.display_line_id, progress: s.display_progress }

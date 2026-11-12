@@ -8,11 +8,15 @@ export type Projector = (lat: number, lng: number) => XY;
 
 export type LayoutInput = { id: string; lat: number; lng: number; line_id: string | null; progress: number | null };
 /**
- * outward: which side of the line (in its own drawing direction) is the sidewalk.
- * 1 = left, -1 = right, 0 = unknown (marker centred on the line). Street edges know their side,
- * so their markers are pushed fully onto the sidewalk and never overlap the road (§33).
+ * outward: which side of the line (in its own drawing direction) faces AWAY from the street (towards the buildings).
+ * 1 = left, -1 = right, 0 = unknown (marker centred on the line). Street-edge markers are placed fully INSIDE
+ * the street, 1 px in from the edge, so they never cover buildings (stalls stand in the pedestrian street).
  */
-export type LayoutLine = { id: string; path: [number, number][]; outward?: 1 | -1 | 0; roadWidthM?: number | null };
+export type LayoutLine = {
+  id: string; path: [number, number][]; outward?: 1 | -1 | 0; roadWidthM?: number | null;
+  /** two-sided street: both edge lines share the group and the street's centre line */
+  group?: string | null; centerPath?: [number, number][] | null;
+};
 /** size = rendered square; pad = extra ring drawn outside it (e.g. the selected stall's white border), kept clear of neighbours. */
 export type Placed = { id: string; x: number; y: number; size: number; pad?: number };
 
@@ -132,7 +136,43 @@ export function spaceAlongLine(s: number[], d: number): number[] {
   return spaceAlongLineVar(s, s.map(() => d), 0);
 }
 
-export const MIN_ROW_GAP_PX = 4;
+/** gap between a row and the street edge, and minimum gap between the two rows */
+export const EDGE_INSET_PX = 1;
+export const ROW_MID_GAP_PX = 2;
+
+function lengthM(path: [number, number][]): number {
+  let m = 0;
+  for (let i = 1; i < path.length; i++) m += metersBetween(path[i - 1], path[i]);
+  return m;
+}
+
+/**
+ * Two-sided streets: two rows inside the street when both fit at the minimum marker size;
+ * otherwise both sides merge into ONE row on the street's centre line (order kept), still inside the street.
+ */
+function streetRows(items: LayoutInput[], lines: LayoutLine[], metersPerPx: number): { items: LayoutInput[]; lines: LayoutLine[] } {
+  const groups = new Map<string, LayoutLine[]>();
+  for (const l of lines) if (l.group && l.centerPath && l.roadWidthM) groups.set(l.group, [...(groups.get(l.group) ?? []), l]);
+  const merged = new Map<string, { id: string; scale: number }>(); // edge line id → virtual centre line
+  const extra: LayoutLine[] = [];
+  for (const [g, edges] of groups) {
+    const roadPx = edges[0].roadWidthM! / metersPerPx;
+    if (roadPx >= 2 * MIN_MARKER_PX + 2 * EDGE_INSET_PX + ROW_MID_GAP_PX) continue; // two rows fit
+    const center = edges[0].centerPath!;
+    const id = `street:${g}`;
+    extra.push({ id, path: center, outward: 0, roadWidthM: edges[0].roadWidthM, group: g, centerPath: center });
+    const cLen = lengthM(center);
+    for (const e of edges) merged.set(e.id, { id, scale: cLen / (lengthM(e.path) || 1) });
+  }
+  if (!merged.size) return { items, lines };
+  return {
+    items: items.map((it) => {
+      const m = it.line_id ? merged.get(it.line_id) : undefined;
+      return m && it.progress != null ? { ...it, line_id: m.id, progress: it.progress * m.scale } : it;
+    }),
+    lines: [...lines.filter((l) => !merged.has(l.id)), ...extra],
+  };
+}
 export type LayoutOptions = {
   /** Higher = more important. Collisions are resolved in favour of higher priority (selected > match > default > muted). */
   priorityOf?: (id: string) => number;
@@ -149,7 +189,8 @@ export type LayoutOptions = {
  * 3) if they still can't fit at the minimum size, keep true positions and let the final pass hide the
  *    lower-priority ones (they reappear when zooming in).
  */
-export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): Placed[] {
+export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): Placed[] {
+  const { items, lines } = streetRows(itemsIn, linesIn, metersPerPx);
   const base = markerMetrics(metersPerPx);
   const scaleOf = opts.scaleOf ?? (() => 1);
   const priorityOf = opts.priorityOf ?? (() => 1);
@@ -186,6 +227,13 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
   };
   let size = base.size;
   let gap = base.gap;
+  // two rows must fit across the street: cap the size by the narrowest two-row street in view
+  for (const pr of prepared) {
+    if (pr.line.outward && pr.line.roadWidthM) {
+      const cap = (pr.line.roadWidthM / metersPerPx - 2 * EDGE_INSET_PX - ROW_MID_GAP_PX) / 2;
+      size = Math.max(MIN_MARKER_PX, Math.min(size, cap));
+    }
+  }
   for (const pr of prepared) {
     while (!fit(pr.s0, pr.scales, pr.pads, size, gap).ok && size > MIN_MARKER_PX) {
       size = Math.max(MIN_MARKER_PX, size * 0.9);
@@ -202,13 +250,12 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
       const w = size * scales[i];
       const p = pointAtPx(sl, sPos);
       if (outward) {
-        // screen coords (y down): left normal of travel (tx, ty) is (ty, -tx).
+        // screen coords (y down): left normal of travel (tx, ty) is (ty, -tx). Move INWARD (−outward):
+        // the square sits fully inside the street, its outer edge EDGE_INSET_PX from the street edge.
         const t = tangentAtPx(sl, sPos);
-        // narrow alleys: keep the two rows at least MIN_ROW_GAP_PX apart even when the road is only a few px wide
-        const roadPx = line.roadWidthM ? line.roadWidthM / metersPerPx : 0;
-        const d = w / 2 + pads[i] + Math.max(1, (MIN_ROW_GAP_PX - roadPx) / 2);
-        p.x += outward * t.y * d;
-        p.y += outward * -t.x * d;
+        const d = w / 2 + pads[i] + EDGE_INSET_PX;
+        p.x -= outward * t.y * d;
+        p.y -= outward * -t.x * d;
       }
       candidates.push({ id: arr[i].id, x: p.x, y: p.y, size: w, pad: pads[i] });
     });

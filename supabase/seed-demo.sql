@@ -21,7 +21,8 @@ declare
   streets jsonb := '[
     {"name":"명동길 (DEMO)","width":16,"center":[[37.56525,126.98302],[37.56385,126.98392],[37.56255,126.98472],[37.56155,126.98522]]},
     {"name":"명동8나길 (DEMO)","width":12,"center":[[37.56500,126.98520],[37.56380,126.98575],[37.56250,126.98630],[37.56170,126.98665]]},
-    {"name":"중앙로 (DEMO)","width":14,"center":[[37.56300,126.98250],[37.56290,126.98400],[37.56275,126.98560],[37.56262,126.98700]]}
+    {"name":"중앙로 (DEMO)","width":14,"center":[[37.56300,126.98250],[37.56290,126.98400],[37.56275,126.98560],[37.56262,126.98700]]},
+    {"name":"좁은 골목 (DEMO)","width":6,"center":[[37.56352,126.98640],[37.56345,126.98770]]}
   ]';
   l jsonb; pts jsonb; i int; n int; seg int; t float8; vlat float8; vlng float8;
   cats text[] := array['fried_bunsik','skewer_grill','snack','dessert_fruit','fashion_goods'];
@@ -41,7 +42,7 @@ begin
   perform setseed(0.42);
   -- stalls along both sidewalk edges of every street
   for l in select jsonb_build_object('name', name, 'path', path, 'grp', street_group) from public.stall_display_lines where deleted_at is null order by name, side loop
-    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 34 else 44 end;
+    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 34 when (l ->> 'name') like '좁은%' then 9 else 44 end;
     for i in 0 .. n - 1 loop
       t := (i + 0.5) / n * (jsonb_array_length(pts) - 1);
       seg := least(floor(t)::int, jsonb_array_length(pts) - 2); t := t - seg;
