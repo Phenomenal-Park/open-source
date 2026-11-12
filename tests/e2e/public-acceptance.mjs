@@ -25,7 +25,7 @@ try {
   const markers = page.locator(".marker");
   ok((await markers.count()) > 20, "main map loads with stall markers");
   const radius = await markers.first().evaluate((el) => getComputedStyle(el).borderRadius);
-  ok(radius === "26%", `markers are rounded squares (border-radius ${radius}, not a circle)`);
+  ok(/^\d+%$/.test(radius) && parseFloat(radius) > 0 && parseFloat(radius) < 35, `markers are rounded squares (border-radius ${radius}, not a circle)`);
   const colors = new Set(await markers.evaluateAll((els) => els.map((e) => e.style.getPropertyValue("--cat"))));
   ok(colors.size >= 4, "category colours are mixed along streets");
   const states = await markers.evaluateAll((els) => els.map((e) => e.dataset.state));

@@ -41,7 +41,7 @@ begin
   perform setseed(0.42);
   -- stalls along both sidewalk edges of every street
   for l in select jsonb_build_object('name', name, 'path', path, 'grp', street_group) from public.stall_display_lines where deleted_at is null order by name, side loop
-    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 10 else 14 end;
+    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 34 else 44 end;
     for i in 0 .. n - 1 loop
       t := (i + 0.5) / n * (jsonb_array_length(pts) - 1);
       seg := least(floor(t)::int, jsonb_array_length(pts) - 2); t := t - seg;

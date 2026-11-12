@@ -10,11 +10,11 @@ const WD = ["월", "화", "수", "목", "금", "토", "일"];
 // ───────────── categories ─────────────
 export type CategoryOpt = { code: string; name: string; color: string };
 export const CATEGORY_OPTS: CategoryOpt[] = [
-  { code: "fried_bunsik", name: "튀김·분식", color: "#E65454" },
-  { code: "skewer_grill", name: "꼬치·구이", color: "#F28A30" },
-  { code: "snack", name: "간식·스낵", color: "#2A9D8F" },
-  { code: "dessert_fruit", name: "디저트·과일", color: "#D95C9F" },
-  { code: "fashion_goods", name: "패션·잡화", color: "#625CCB" },
+  { code: "fried_bunsik", name: "튀김·분식", color: "#EF3B3B" },
+  { code: "skewer_grill", name: "꼬치·구이", color: "#FF9500" },
+  { code: "snack", name: "간식·스낵", color: "#14B8A6" },
+  { code: "dessert_fruit", name: "디저트·과일", color: "#EE5DB5" },
+  { code: "fashion_goods", name: "패션·잡화", color: "#7B61FF" },
 ];
 export const categoryColor = (code?: string | null) => (code ? `var(--c-${code}, ${CATEGORY_OPTS.find((c) => c.code === code)?.color ?? "#999"})` : "#999");
 

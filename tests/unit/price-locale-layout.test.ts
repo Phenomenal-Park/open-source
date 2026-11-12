@@ -69,12 +69,12 @@ describe("display naming (§8, §40)", () => {
 });
 
 describe("magnetic marker layout (§33–§36)", () => {
-  it("marker size scales with the map like the streets (≈10 m), clamped", () => {
+  it("marker size scales with the map like the streets (≈10 m), clamped to 6–22 px", () => {
     const z17 = metersPerPixel(37.56, 17);
     expect(markerMetrics(z17).size).toBeCloseTo(10 / z17, 6);
     expect(markerMetrics(z17 / 2).size / markerMetrics(z17).size).toBeCloseTo(2, 6); // zoom in one level → twice as big
-    expect(markerMetrics(metersPerPixel(37.56, 12)).size).toBe(3); // never disappears
-    expect(markerMetrics(metersPerPixel(37.56, 21)).size).toBe(32); // never huge
+    expect(markerMetrics(metersPerPixel(37.56, 12)).size).toBe(6); // zoomed out: 6 px minimum
+    expect(markerMetrics(metersPerPixel(37.56, 21)).size).toBe(22); // zoomed in: 22 px maximum
   });
   it("street edges are offset half the width to each side", () => {
     const center: [number, number][] = [[37.561, 126.99], [37.564, 126.99]];
@@ -85,10 +85,13 @@ describe("magnetic marker layout (§33–§36)", () => {
   });
   it("street-edge markers sit fully on the sidewalk side, never over the road", () => {
     // northbound line drawn on screen from (0,100) up to (0,0); left = west = −x
-    const line = { id: "L", path: [[37.5600, 126.98], [37.5610, 126.98]] as [number, number][], outward: 1 as const };
+    const line = { id: "L", path: [[37.5600, 126.98], [37.5610, 126.98]] as [number, number][], outward: 1 as const, roadWidthM: 14 };
     const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 100000, y: (37.561 - lat) * 100000 });
     const [m] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [line], project, 0.95);
-    expect(m.x).toBeCloseTo(-(m.size / 2 + 1), 6); // inner edge 1 px off the line
+    expect(m.x).toBeCloseTo(-(m.size / 2 + 1), 6); // inner edge 1 px off the road edge
+    // narrow alley far out: road only ~1.6 px wide → rows still ≥ 4 px apart (2 px each side)
+    const [n] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [{ ...line, roadWidthM: 6 }], project, 3.8);
+    expect(Math.abs(n.x) - n.size / 2).toBeGreaterThanOrEqual((4 - 6 / 3.8) / 2 - 1e-9);
     const [r] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [{ ...line, outward: -1 as const }], project, 0.95);
     expect(r.x).toBeCloseTo(r.size / 2 + 1, 6);
   });

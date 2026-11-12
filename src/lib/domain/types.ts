@@ -99,8 +99,8 @@ export type DisplayLine = {
 };
 
 /** Display lines for the marker layout, with the sidewalk side of two-sided streets. */
-export function layoutLines(lines: DisplayLine[]): { id: string; path: [number, number][]; outward: 1 | -1 | 0 }[] {
-  return lines.map((l) => ({ id: l.id, path: l.path, outward: l.side === "left" ? 1 : l.side === "right" ? -1 : 0 }));
+export function layoutLines(lines: DisplayLine[]): { id: string; path: [number, number][]; outward: 1 | -1 | 0; roadWidthM: number | null }[] {
+  return lines.map((l) => ({ id: l.id, path: l.path, outward: l.side === "left" ? 1 : l.side === "right" ? -1 : 0, roadWidthM: l.width_m ?? null }));
 }
 
 /** Roads to draw on the fallback map: one per street (centre + width), or the line itself for single-side lines. */

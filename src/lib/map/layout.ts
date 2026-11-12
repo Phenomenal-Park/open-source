@@ -12,19 +12,22 @@ export type LayoutInput = { id: string; lat: number; lng: number; line_id: strin
  * 1 = left, -1 = right, 0 = unknown (marker centred on the line). Street edges know their side,
  * so their markers are pushed fully onto the sidewalk and never overlap the road (§33).
  */
-export type LayoutLine = { id: string; path: [number, number][]; outward?: 1 | -1 | 0 };
+export type LayoutLine = { id: string; path: [number, number][]; outward?: 1 | -1 | 0; roadWidthM?: number | null };
 export type Placed = { id: string; x: number; y: number; size: number };
 
 /**
  * Marker size follows the map scale like the streets do (operator decision 2026-11-12, replaces the §36 px table):
  * a stall square represents ~10 m of street, so zooming in/out grows/shrinks it with the road.
- * Clamped so it never disappears when far out or becomes huge when very close.
+ * Clamped to MIN_MARKER_PX–MAX_MARKER_PX so it never disappears when far out or becomes huge when very close.
  */
+/** Visual range (operator reference): zoomed out 6–8 px, normal 10–14 px, zoomed in 18–22 px. */
+export const MIN_MARKER_PX = 6;
+export const MAX_MARKER_PX = 22;
 export const MARKER_METERS = 10;
-export const GAP_METERS = 1.5;
+export const GAP_METERS = 2.5;
 export function markerMetrics(metersPerPx: number): { size: number; gap: number } {
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-  return { size: clamp(MARKER_METERS / metersPerPx, 3, 32), gap: clamp(GAP_METERS / metersPerPx, 1, 6) };
+  return { size: clamp(MARKER_METERS / metersPerPx, MIN_MARKER_PX, MAX_MARKER_PX), gap: clamp(GAP_METERS / metersPerPx, 1, 4) };
 }
 
 /** Same algorithm as SQL private.offset_path: shift a [[lat,lng]] polyline sideways (positive = left of travel). */
@@ -128,7 +131,7 @@ export function spaceAlongLine(s: number[], d: number): number[] {
   return spaceAlongLineVar(s, s.map(() => d), 0);
 }
 
-export const MIN_MARKER_PX = 3;
+export const MIN_ROW_GAP_PX = 4;
 export type LayoutOptions = {
   /** Higher = more important. Collisions are resolved in favour of higher priority (selected > match > default > muted). */
   priorityOf?: (id: string) => number;
@@ -160,39 +163,53 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
       candidates.push({ id: it.id, x: p.x, y: p.y, size: base.size * scaleOf(it.id) });
     }
   }
-  for (const [lid, arr] of byLine) {
+  // Pass 1: the size each line can afford. Pass 2: one uniform size for the whole view (the smallest),
+  // so every square on screen looks the same — crowded streets decide, sparse ones follow.
+  const rawCount = candidates.length; // raw-position markers were pushed first
+  const prepared = [...byLine].map(([lid, arr]) => {
     const line = lineMap.get(lid)!;
     const sl = toScreenLine(line, project);
     arr.sort((a, b) => (a.progress! - b.progress!) || a.id.localeCompare(b.id));
     const s0 = arr.map((a) => metersToPx(sl, a.progress!));
     const scales = arr.map((a) => scaleOf(a.id));
-    let size = base.size;
-    let gap = base.gap;
-    const run = () => spaceAlongLineVar(s0, scales.map((k) => size * k), gap);
-    let placed = run();
-    const maxShift = () => Math.max(0, ...placed.map((v, i) => Math.abs(v - s0[i])));
-    while (maxShift() > Math.max(4, size * 1.5) && size > MIN_MARKER_PX) {
-      size = Math.max(MIN_MARKER_PX, size * 0.85);
-      gap = Math.max(1, gap * 0.85);
-      placed = run();
+    return { line, sl, arr, s0, scales };
+  });
+  const fit = (s0: number[], scales: number[], size: number, gap: number) => {
+    const placed = spaceAlongLineVar(s0, scales.map((k) => size * k), gap);
+    const shift = Math.max(0, ...placed.map((v, i) => Math.abs(v - s0[i])));
+    return { placed, ok: shift <= Math.max(4, size * 1.5) };
+  };
+  let size = base.size;
+  let gap = base.gap;
+  for (const pr of prepared) {
+    while (!fit(pr.s0, pr.scales, size, gap).ok && size > MIN_MARKER_PX) {
+      size = Math.max(MIN_MARKER_PX, size * 0.9);
+      gap = Math.max(1, gap * 0.9);
     }
+  }
+  for (const { line, sl, arr, s0, scales } of prepared) {
+    const f = fit(s0, scales, size, gap);
     // Still too crowded at minimum size: don't drag markers far from their street — keep true positions;
     // the global pass below hides whichever lower-priority markers would overlap.
-    if (maxShift() > Math.max(4, size * 1.5)) placed = s0;
+    const placed = f.ok ? f.placed : s0;
     const outward = line.outward ?? 0;
     placed.forEach((sPos, i) => {
       const w = size * scales[i];
       const p = pointAtPx(sl, sPos);
       if (outward) {
-        // screen coords (y down): left normal of travel (tx, ty) is (ty, -tx). Inner edge sits 1 px off the road edge.
+        // screen coords (y down): left normal of travel (tx, ty) is (ty, -tx).
         const t = tangentAtPx(sl, sPos);
-        const d = w / 2 + 1;
+        // narrow alleys: keep the two rows at least MIN_ROW_GAP_PX apart even when the road is only a few px wide
+        const roadPx = line.roadWidthM ? line.roadWidthM / metersPerPx : 0;
+        const d = w / 2 + Math.max(1, (MIN_ROW_GAP_PX - roadPx) / 2);
         p.x += outward * t.y * d;
         p.y += outward * -t.x * d;
       }
       candidates.push({ id: arr[i].id, x: p.x, y: p.y, size: w });
     });
   }
+  // markers without a display line use the same uniform size
+  for (let i = 0; i < rawCount; i++) candidates[i].size = size * scaleOf(candidates[i].id);
   return removeOverlaps(candidates, priorityOf, 1);
 }
 
