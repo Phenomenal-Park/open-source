@@ -5,7 +5,8 @@ import { MapView, type MapHandle, type MapViewState } from "@/components/map/Map
 import { StallMarkers, UserLocation, useLayout } from "@/components/map/layers";
 import { useGeolocation } from "@/components/map/useGeolocation";
 import { AREA_DEFAULT_HOURS, type DayHours } from "@/lib/domain/hours";
-import type { LayoutLine } from "@/lib/map/layout";
+import { offsetPath, type LayoutLine } from "@/lib/map/layout";
+import { streetDecor } from "@/lib/domain/types";
 import { IconArrowRight, IconBag, IconBack, IconChevronDown, IconClock, IconInfo, IconPin, IconRefresh, IconX } from "@/components/ui/icons";
 import { AdminHeader } from "./AdminHeader";
 import { adminCall, errorText, newRequestId } from "./api";
@@ -18,7 +19,13 @@ type FieldSpot = {
   id: string; m_number: number; status: string; raw_lat: number; raw_lng: number; display_line_id: string | null; display_progress: number | null;
   display_lat: number | null; display_lng: number | null; o_number: number | null; category_code: string | null; stall_id: string | null; rep_name: string | null;
 };
-type FieldLine = { id: string; name: string; path: [number, number][]; is_active: boolean };
+type FieldLine = {
+  id: string; name: string; path: [number, number][]; is_active: boolean;
+  street_group: string | null; side: "left" | "right" | null; center_path: [number, number][] | null; width_m: number | null;
+};
+/** Line being edited. kind "street" = centre line + width → both sidewalk edges; "line" = a single sidewalk edge. */
+type EditLine = { kind: "street" | "line"; id: string | null; group: string | null; name: string; path: [number, number][]; width: number };
+const DEFAULT_STREET_WIDTH = 14;
 type FieldMapData = {
   area: { center_lat: number; center_lng: number; default_zoom: number };
   default_hours: DayHours[];
@@ -76,7 +83,7 @@ export function FieldApp({ mapsKey, mapId }: { mapsKey?: string; mapId?: string 
   const [pendingPatrolSpot, setPendingPatrolSpot] = useState<string | null>(null);
 
   // lines
-  const [editLine, setEditLine] = useState<{ id: string | null; name: string; path: [number, number][] } | null>(null);
+  const [editLine, setEditLine] = useState<EditLine | null>(null);
 
   const showToast = (text: string, error = false) => setToast({ text, error });
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), toast.error ? 4500 : 1800); return () => clearTimeout(id); }, [toast]);
@@ -250,12 +257,12 @@ export function FieldApp({ mapsKey, mapId }: { mapsKey?: string; mapId?: string 
           apiKey={mapsKey} mapId={mapId} onTap={onTap} onUserPan={() => geo.setFollow(false)}
           onLocate={() => { if (geo.pos) { geo.setFollow(true); mapRef.current?.panTo(geo.pos.lat, geo.pos.lng); } else geo.start(); }} locateActive={geo.follow}
           labels={{ zoomIn: "확대", zoomOut: "축소", locate: "내 위치", schematic: "지도 키 없음 · 간략 지도" }}
-          decorLines={(data?.lines ?? []).map((l) => l.path)}>
+          decorLines={streetDecor(data?.lines ?? [])}>
           {(view) => (
             <FieldLayers view={view} items={items} lines={lines} spots={spots} mode={mode} candidate={candidate} nextM={nextM}
               currentSpotId={mode === "patrol" ? current?.spot_id ?? null : spotInfo?.id ?? null} onMarker={onMarker}
               onMoveCandidate={(lat, lng) => setCandidate({ lat, lng })} allLines={data?.lines ?? []} editLine={editLine}
-              onEditLine={setEditLine} onPickLine={(l) => setEditLine({ id: l.id, name: l.name, path: l.path })} userPos={geo.pos} />
+              onEditLine={setEditLine} onPickLine={(l) => setEditLine(lineToEdit(l))} userPos={geo.pos} />
           )}
         </MapView>
       </div>
@@ -396,8 +403,8 @@ function FieldLayers(p: {
   view: MapViewState; items: { id: string; lat: number; lng: number; line_id: string | null; progress: number | null }[]; lines: LayoutLine[];
   spots: FieldSpot[]; mode: Mode; candidate: { lat: number; lng: number } | null; nextM: number; currentSpotId: string | null;
   onMarker: (id: string) => void; onMoveCandidate: (lat: number, lng: number) => void;
-  allLines: FieldLine[]; editLine: { id: string | null; name: string; path: [number, number][] } | null;
-  onEditLine: (l: { id: string | null; name: string; path: [number, number][] }) => void; onPickLine: (l: FieldLine) => void;
+  allLines: FieldLine[]; editLine: EditLine | null;
+  onEditLine: (l: EditLine) => void; onPickLine: (l: FieldLine) => void;
   userPos: { lat: number; lng: number; accuracy: number; heading: number | null } | null;
 }) {
   const { view } = p;
@@ -415,13 +422,16 @@ function FieldLayers(p: {
     <>
       {p.mode === "lines" && (
         <svg width={view.width} height={view.height} style={{ position: "absolute", inset: 0, overflow: "visible" }}>
-          {p.allLines.filter((l) => l.id !== p.editLine?.id).map((l) => (
+          {p.allLines.filter((l) => !(p.editLine && (l.id === p.editLine.id || (l.street_group && l.street_group === p.editLine.group)))).map((l) => (
             <polyline key={l.id} points={toPts(l.path)} fill="none" stroke="var(--accent)" strokeOpacity={0.45} strokeWidth={5} strokeLinecap="round"
-              style={{ pointerEvents: "stroke", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); p.onPickLine(l); }} onPointerDown={(e) => e.stopPropagation()} />
+              style={{ pointerEvents: p.editLine ? "none" : "stroke", cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); p.onPickLine(l); }} onPointerDown={(e) => e.stopPropagation()} />
           ))}
           {p.editLine && p.editLine.path.length > 0 && (
-            <polyline points={toPts(p.editLine.path)} fill="none" stroke="var(--danger)" strokeWidth={4} strokeDasharray="8 5" strokeLinecap="round" />
+            <polyline points={toPts(p.editLine.path)} fill="none" stroke="var(--danger)" strokeWidth={p.editLine.kind === "street" ? 2 : 4} strokeDasharray="8 5" strokeLinecap="round" />
           )}
+          {p.editLine?.kind === "street" && p.editLine.path.length > 1 && [1, -1].map((sgn) => (
+            <polyline key={sgn} points={toPts(offsetPath(p.editLine!.path, (sgn * p.editLine!.width) / 2))} fill="none" stroke="var(--accent)" strokeWidth={4} strokeLinecap="round" />
+          ))}
         </svg>
       )}
       <StallMarkers view={view} placed={placed} colorOf={(id) => categoryColor(byId.get(id)?.category_code)}
@@ -464,31 +474,50 @@ function FieldLayers(p: {
 }
 
 // ───────────── display lines panel (§31) ─────────────
+function lineToEdit(l: FieldLine): EditLine {
+  return l.street_group && l.center_path
+    ? { kind: "street", id: null, group: l.street_group, name: l.name, path: l.center_path, width: l.width_m ?? DEFAULT_STREET_WIDTH }
+    : { kind: "line", id: l.id, group: null, name: l.name, path: l.path, width: DEFAULT_STREET_WIDTH };
+}
+
 function LinesPanel({ lines, edit, setEdit, onSaved, onError }: {
-  lines: FieldLine[]; edit: { id: string | null; name: string; path: [number, number][] } | null;
-  setEdit: (e: { id: string | null; name: string; path: [number, number][] } | null) => void; onSaved: () => void; onError: (e: unknown) => void;
+  lines: FieldLine[]; edit: EditLine | null; setEdit: (e: EditLine | null) => void; onSaved: () => void; onError: (e: unknown) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!edit || edit.path.length < 2) return;
     setBusy(true);
-    try { await adminCall("admin_save_display_line", { p_id: edit.id, p_name: edit.name, p_path: edit.path }); onSaved(); } catch (e) { onError(e); } finally { setBusy(false); }
+    try {
+      if (edit.kind === "street") await adminCall("admin_save_street", { p_group: edit.group, p_name: edit.name, p_center: edit.path, p_width: edit.width });
+      else await adminCall("admin_save_display_line", { p_id: edit.id, p_name: edit.name, p_path: edit.path });
+      onSaved();
+    } catch (e) { onError(e); } finally { setBusy(false); }
   };
   const remove = async () => {
-    if (!edit?.id || !confirm("이 표시선을 삭제할까요? (기록은 보존돼요)")) return;
+    if (!edit || (!edit.id && !edit.group) || !confirm("삭제할까요? (기록은 보존돼요)")) return;
     setBusy(true);
-    try { await adminCall("admin_delete_display_line", { p_id: edit.id }); onSaved(); } catch (e) { onError(e); } finally { setBusy(false); }
+    try {
+      if (edit.group) await adminCall("admin_delete_street", { p_group: edit.group });
+      else await adminCall("admin_delete_display_line", { p_id: edit.id });
+      onSaved();
+    } catch (e) { onError(e); } finally { setBusy(false); }
   };
+  // one row per street (its two edges share a group), plus single-side lines
+  const items = lines.filter((l, i) => !l.street_group || lines.findIndex((x) => x.street_group === l.street_group) === i);
   if (!edit) {
     return (
       <div className="sheet" style={{ maxHeight: "45dvh", overflowY: "auto" }}>
         <span className="sheet__handle" aria-hidden />
-        <p className="small muted" style={{ margin: "0 0 8px" }}>표시선은 노점이 늘어선 보도 가장자리예요. 노점 마커가 이 선을 따라 정렬돼요. 기존 선을 탭하면 편집할 수 있어요.</p>
-        <button className="btn btn--primary btn--block" onClick={() => setEdit({ id: null, name: "", path: [] })}>새 표시선 그리기</button>
+        <p className="small muted" style={{ margin: "0 0 8px" }}>길 가운데를 따라 그리고 폭을 정하면 양쪽 보도에 노점 줄이 생겨요. 기존 길을 탭하면 편집할 수 있어요.</p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn--primary" style={{ flex: 2 }} onClick={() => setEdit({ kind: "street", id: null, group: null, name: "", path: [], width: DEFAULT_STREET_WIDTH })}>길 그리기 (양쪽 노점)</button>
+          <button className="btn btn--outline" style={{ flex: 1, fontSize: 14 }} onClick={() => setEdit({ kind: "line", id: null, group: null, name: "", path: [], width: DEFAULT_STREET_WIDTH })}>한쪽 선만</button>
+        </div>
         <ul className="list" style={{ marginTop: 8 }}>
-          {lines.map((l) => (
-            <li key={l.id}><button className="row" style={{ width: "100%", textAlign: "left" }} onClick={() => setEdit({ id: l.id, name: l.name, path: l.path })}>
-              <span style={{ flex: 1 }}>{l.name || "이름 없는 선"}</span><span className="small muted">점 {l.path.length}개</span></button></li>
+          {items.map((l) => (
+            <li key={l.id}><button className="row" style={{ width: "100%", textAlign: "left" }} onClick={() => setEdit(lineToEdit(l))}>
+              <span style={{ flex: 1 }}>{l.name || "이름 없는 길"}</span>
+              <span className="small muted">{l.street_group ? `양쪽 · 폭 ${l.width_m}m` : "한쪽"}</span></button></li>
           ))}
         </ul>
       </div>
@@ -497,13 +526,21 @@ function LinesPanel({ lines, edit, setEdit, onSaved, onError }: {
   return (
     <div className="sheet">
       <span className="sheet__handle" aria-hidden />
-      <p className="small" style={{ margin: "0 0 8px" }}>지도를 탭해 점을 추가하고, 점은 끌어서 옮기세요. 보도의 노점 쪽 가장자리를 따라 그려 주세요.</p>
-      <input className="input" placeholder="선 이름 (예: 명동8길 서쪽)" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+      <p className="small" style={{ margin: "0 0 8px" }}>
+        {edit.kind === "street" ? "지도를 탭해 길 가운데를 따라 점을 찍으세요. 파란 선 두 개가 양쪽 노점 줄이에요." : "지도를 탭해 노점이 늘어선 보도 가장자리를 따라 점을 찍으세요."} 점은 끌어서 옮길 수 있어요.
+      </p>
+      <input className="input" placeholder="길 이름 (예: 명동8길)" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+      {edit.kind === "street" && (
+        <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, fontSize: 14 }}>
+          <span style={{ whiteSpace: "nowrap", fontWeight: 600 }}>길 폭 {edit.width}m</span>
+          <input type="range" min={6} max={30} step={1} value={edit.width} onChange={(e) => setEdit({ ...edit, width: Number(e.target.value) })} style={{ flex: 1 }} aria-label="길 폭(미터)" />
+        </label>
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
         <button className="btn btn--outline" style={{ height: 42, flex: 1 }} disabled={!edit.path.length} onClick={() => setEdit({ ...edit, path: edit.path.slice(0, -1) })}>마지막 점 삭제</button>
-        {edit.id && <button className="btn btn--outline" style={{ height: 42, flex: 1, color: "var(--danger)" }} disabled={busy} onClick={remove}>선 삭제</button>}
+        {(edit.id || edit.group) && <button className="btn btn--outline" style={{ height: 42, flex: 1, color: "var(--danger)" }} disabled={busy} onClick={remove}>삭제</button>}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div className="sheet__actions">
         <button className="btn btn--outline" style={{ flex: 1 }} onClick={() => setEdit(null)}>취소</button>
         <button className="btn btn--primary" style={{ flex: 2 }} disabled={busy || edit.path.length < 2} onClick={save}>저장 (점 {edit.path.length}개)</button>
       </div>

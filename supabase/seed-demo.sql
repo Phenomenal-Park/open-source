@@ -4,11 +4,10 @@
 do $$
 declare
   owner constant text := '{"sub":"00000000-0000-0000-0000-0000000000aa","role":"authenticated"}';
-  lines jsonb := '[
-    {"name":"명동길 서쪽 (DEMO)","path":[[37.56520,126.98290],[37.56380,126.98380],[37.56250,126.98460],[37.56150,126.98510]]},
-    {"name":"명동길 동쪽 (DEMO)","path":[[37.56530,126.98314],[37.56390,126.98404],[37.56260,126.98484],[37.56160,126.98534]]},
-    {"name":"명동8나길 (DEMO)","path":[[37.56500,126.98520],[37.56380,126.98575],[37.56250,126.98630],[37.56170,126.98665]]},
-    {"name":"중앙로 횡단 (DEMO)","path":[[37.56300,126.98250],[37.56290,126.98400],[37.56275,126.98560],[37.56262,126.98700]]}
+  streets jsonb := '[
+    {"name":"명동길 (DEMO)","width":16,"center":[[37.56525,126.98302],[37.56385,126.98392],[37.56255,126.98472],[37.56155,126.98522]]},
+    {"name":"명동8나길 (DEMO)","width":12,"center":[[37.56500,126.98520],[37.56380,126.98575],[37.56250,126.98630],[37.56170,126.98665]]},
+    {"name":"중앙로 (DEMO)","width":14,"center":[[37.56300,126.98250],[37.56290,126.98400],[37.56275,126.98560],[37.56262,126.98700]]}
   ]';
   l jsonb; pts jsonb; i int; n int; seg int; t float8; vlat float8; vlng float8;
   cats text[] := array['fried_bunsik','skewer_grill','snack','dessert_fruit','fashion_goods'];
@@ -22,17 +21,18 @@ declare
   c text; m jsonb; it jsonb; items jsonb; res jsonb; k int := 0; sid uuid; j int;
 begin
   perform set_config('request.jwt.claims', owner, true);
-  for l in select * from jsonb_array_elements(lines) loop
-    perform public.admin_save_display_line(null, l ->> 'name', l -> 'path');
+  for l in select * from jsonb_array_elements(streets) loop
+    perform public.admin_save_street(null, l ->> 'name', l -> 'center', (l ->> 'width')::real);
   end loop;
   perform setseed(0.42);
-  for l in select * from jsonb_array_elements(lines) loop
-    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 14 else 20 end;
+  -- stalls along both sidewalk edges of every street
+  for l in select jsonb_build_object('name', name, 'path', path) from public.stall_display_lines where deleted_at is null order by name, side loop
+    pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 10 else 14 end;
     for i in 0 .. n - 1 loop
       t := (i + 0.5) / n * (jsonb_array_length(pts) - 1);
       seg := least(floor(t)::int, jsonb_array_length(pts) - 2); t := t - seg;
-      vlat := (pts -> seg ->> 0)::float8 * (1 - t) + (pts -> (seg + 1) ->> 0)::float8 * t + (random() - 0.5) * 0.00003;
-      vlng := (pts -> seg ->> 1)::float8 * (1 - t) + (pts -> (seg + 1) ->> 1)::float8 * t + (random() - 0.5) * 0.00003;
+      vlat := (pts -> seg ->> 0)::float8 * (1 - t) + (pts -> (seg + 1) ->> 0)::float8 * t + (random() - 0.5) * 0.00002;
+      vlng := (pts -> seg ->> 1)::float8 * (1 - t) + (pts -> (seg + 1) ->> 1)::float8 * t + (random() - 0.5) * 0.00002;
       c := cats[1 + floor(random() * 5)::int];
       m := (menus -> c) -> floor(random() * jsonb_array_length(menus -> c))::int;
       items := '[]';

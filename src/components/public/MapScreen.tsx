@@ -7,7 +7,7 @@ import { Landmarks, StallMarkers, UserLocation, useLayout, type MarkerState } fr
 import { locationGranted, useGeolocation } from "@/components/map/useGeolocation";
 import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
-import type { DisplayLine, Reference, StallCard } from "@/lib/domain/types";
+import { streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
 import { minKnownPrice, won } from "@/lib/domain/price";
 import { hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
@@ -173,7 +173,7 @@ export function MapScreen(props: {
       <MapView ref={mapRef} center={selected ? [selected.lat, selected.lng] : [reference.area.center_lat, reference.area.center_lng]} zoom={reference.area.default_zoom}
         apiKey={props.mapsKey} mapId={props.mapId} labels={labels} onViewChange={onViewChange}
         onUserPan={() => geo.setFollow(false)} onTap={() => select(null)} onLocate={onLocate} locateActive={geo.follow}
-        decorLines={lineList.map((l) => l.path)}>
+        decorLines={streetDecor(lineList)}>
         {(view) => (
           <MapLayers view={view} t={t} locale={locale} landmarks={reference.landmarks} stalls={stallList} lines={lineList} catColor={catColor} selected={selected}
             stateOf={(s) => (selected?.id === s.id ? "selected" : filterActive ? (matches(s) ? "match" : "muted") : "default")}

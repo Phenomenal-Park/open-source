@@ -2,7 +2,7 @@
 
 ## Before the first survey
 1. Verify the 9 seeded **landmark coordinates** on site (`landmarks` table — they are approximate). Fix any that are off; hints are generated from them.
-2. Draw **Stall Display Lines** (mode 표시선) along the stall-side sidewalk edge of every stall street. One line per sidewalk side. Lines can be drawn later — saving a line re-projects all spots automatically.
+2. Draw the stall streets (mode 표시선 → **길 그리기 (양쪽 노점)**): tap along the **middle of the street**, set the width with the slider (the two blue lines should sit on the stall rows), save. Both sidewalk rows are created at once. Use **한쪽 선만** for a street with stalls on one side only. Stop a street before intersections so rows don't run through the crossing. Saving re-projects all spots automatically, and streets can be drawn before or after registering stalls.
 3. Log in on the phone, enable location when prompted by tapping the locate button.
 
 ## 현장 등록 (initial registration) — the 200+ spot loop

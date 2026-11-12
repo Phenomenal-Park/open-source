@@ -119,5 +119,11 @@ Acceptance tests §135 (field creation, 28 steps), §136 (patrol), §137 (public
 - Final report: Implemented / Self-corrected / Validated / Remaining limitations / Requires real-world field testing. Never claim untested things were tested.
 - Before adding anything: does it help a tourist find/understand/choose a stall, substantially improve data maintenance, or create sensible monetization without hurting those? If none — don't add it.
 
+## Operator decisions after v5.0 (these override the sections noted)
+- **2026-11-12 — Streets have stalls on both sides (§31–§35).** A street is drawn once as a centre line + width; the two sidewalk-edge Stall Display Lines (left/right) are generated from it and every spot projects onto its own side, so each street shows two rows. Single-side lines remain available. Raw coordinates are still never modified.
+- **2026-11-12 — Marker size scales with the map like the streets (replaces the §36 px table).** A stall square represents ~10 m of street (size = 10 m ÷ metres-per-pixel, clamped 3–32 px; gap ≈ 1.5 m, clamped 1–6 px), so zooming in/out grows/shrinks markers together with the roads. Dense streets still shrink markers / shift them along the line as in §34.
+- **2026-11-12 — Hosting on Cloudflare Workers** (commercial use), via OpenNext.
+- **2026-11-12 — Main map visuals tuned to the approved mockup:** Pretendard typeface; ~28 pt filter chips with all five categories on one row; bottom sheet always shows a small photo slot (neutral tile until a photo exists).
+
 ## Security requirements (operator addendum)
 Admin requires Supabase Auth + explicit owner/admin authorization + MFA-ready architecture; RLS on all mutable tables; never expose secret/service-role keys to the client; public users get only minimum read/write needed; soft deletion and audit logging for important operational data; rate-limited login and mutation endpoints; recoverable backups before production launch. See `docs/SECURITY.md`.

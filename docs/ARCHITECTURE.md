@@ -29,7 +29,7 @@ The database is the system of record **and** the business-logic boundary: M allo
 | `categories` / `subcategories` / `tags` | 5 categories (palette + dark palette), ≤10 public subcategories each, cross-category tags (seafood). |
 | `area_default_hours` / `weekly_hours_overrides` | Area defaults inherited by `hours_mode = DEFAULT`; minutes with `close_min` up to 2880. |
 | `patrol_routes` / `patrol_route_spots` | Ordered route; O numbers are `row_number()` over `order_position`, never stored. |
-| `stall_display_lines` | Admin polylines (`path` = `[[lat,lng],…]`). |
+| `stall_display_lines` | Sidewalk-edge polylines (`path` = `[[lat,lng],…]`). Two-sided streets share `street_group` with `side` left/right, generated from `center_path` + `width_m` by `private.offset_path`. |
 | `landmarks` | Curated map labels and hint anchors (name + short name per locale, priority). |
 | `menu_spice_votes`, `photos`, `photo_votes`, `reviews`, `review_translations`, `reports`, `payment_observations`, `dietary_claims`, `anonymous_devices` | Community evidence. |
 | `admin_profiles`, `audit_logs`, `app_settings`, `rate_limit_buckets` | Security/operations. |
@@ -41,6 +41,7 @@ Public (server secret): `public_reference`, `public_map_stalls` (bbox), `public_
 
 ## Map & markers
 - `src/components/map/MapView.tsx`: one component, two backends with the same projection API — **Google Maps JS** (quiet style hiding business POIs, `clickableIcons:false`) and a **schematic Web-Mercator canvas** used when no API key is configured (local dev/tests). Overlays (markers, callout, user dot, field tools) are React elements positioned with the backend's projection.
+- Marker size = 10 m ÷ metres-per-pixel (3–32 px), so squares scale with the streets.
 - `src/lib/map/layout.ts`: projection to display lines happens in SQL (`private.project_spot`, nearest active line within 30 m) → client converts progress (m) to screen distance along the line → **minimum-displacement spacing along the tangent** (pool-adjacent-violators on `s_i − i·d`) → shrink markers first when the required shift is large → place on the polyline, unrotated. Spots without a line render at their raw position.
 - Field Mode shows **raw** positions while registering/patrolling (field truth) and the **public layout** while editing display lines.
 

@@ -93,4 +93,21 @@ export type Reference = {
   landmarks: Landmark[];
 };
 
-export type DisplayLine = { id: string; path: [number, number][]; name?: string; is_active?: boolean };
+export type DisplayLine = {
+  id: string; path: [number, number][]; name?: string; is_active?: boolean;
+  street_group?: string | null; side?: "left" | "right" | null; center_path?: [number, number][] | null; width_m?: number | null;
+};
+
+/** Roads to draw on the fallback map: one per street (centre + width), or the line itself for single-side lines. */
+export function streetDecor(lines: DisplayLine[]): { path: [number, number][]; widthM: number }[] {
+  const seen = new Set<string>();
+  const out: { path: [number, number][]; widthM: number }[] = [];
+  for (const l of lines) {
+    if (l.street_group && l.center_path && l.width_m) {
+      if (seen.has(l.street_group)) continue;
+      seen.add(l.street_group);
+      out.push({ path: l.center_path, widthM: l.width_m });
+    } else out.push({ path: l.path, widthM: 8 });
+  }
+  return out;
+}

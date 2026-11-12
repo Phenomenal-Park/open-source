@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatPrice, formatPriceInput, minKnownPrice, parsePriceInput } from "@/lib/domain/price";
 import { detectLocale, pick } from "@/lib/i18n/config";
-import { layoutMarkers, markerMetrics, spaceAlongLine } from "@/lib/map/layout";
+import { layoutMarkers, markerMetrics, metersPerPixel, offsetPath, spaceAlongLine } from "@/lib/map/layout";
 import { getMessages } from "@/lib/i18n";
 import { hintText, stallTitle } from "@/lib/domain/display";
 import ko from "@/lib/i18n/messages/ko";
@@ -69,10 +69,19 @@ describe("display naming (§8, §40)", () => {
 });
 
 describe("magnetic marker layout (§33–§36)", () => {
-  it("size targets by zoom", () => {
-    expect(markerMetrics(14).size).toBe(4);
-    expect(markerMetrics(17).size).toBe(12);
-    expect(markerMetrics(20).size).toBe(24);
+  it("marker size scales with the map like the streets (≈10 m), clamped", () => {
+    const z17 = metersPerPixel(37.56, 17);
+    expect(markerMetrics(z17).size).toBeCloseTo(10 / z17, 6);
+    expect(markerMetrics(z17 / 2).size / markerMetrics(z17).size).toBeCloseTo(2, 6); // zoom in one level → twice as big
+    expect(markerMetrics(metersPerPixel(37.56, 12)).size).toBe(3); // never disappears
+    expect(markerMetrics(metersPerPixel(37.56, 21)).size).toBe(32); // never huge
+  });
+  it("street edges are offset half the width to each side", () => {
+    const center: [number, number][] = [[37.561, 126.99], [37.564, 126.99]];
+    const left = offsetPath(center, 6), right = offsetPath(center, -6);
+    const k = 111320 * Math.cos((37.561 * Math.PI) / 180);
+    expect((center[0][1] - left[0][1]) * k).toBeCloseTo(6, 3); // west of a northbound street
+    expect((right[0][1] - center[0][1]) * k).toBeCloseTo(6, 3);
   });
   it("spacing keeps order and min distance with minimal displacement", () => {
     const out = spaceAlongLine([0, 1, 2, 50], 10);
@@ -84,7 +93,7 @@ describe("magnetic marker layout (§33–§36)", () => {
     const line = { id: "L", path: [[37.5600, 126.9800], [37.5610, 126.9810]] as [number, number][] };
     const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 100000, y: (37.561 - lat) * 100000 });
     const items = [0, 0.5, 1, 1.5].map((p, i) => ({ id: `s${i}`, lat: 0, lng: 0, line_id: "L", progress: p }));
-    const placed = layoutMarkers(items, [line], project, 17);
+    const placed = layoutMarkers(items, [line], project, 0.95);
     for (const p of placed) {
       // on the segment from (0,100) to (100,0): x + y = 100
       expect(p.x + p.y).toBeCloseTo(100, 6);

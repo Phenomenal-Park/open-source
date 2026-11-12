@@ -12,6 +12,7 @@ const ALLOWED: Record<string, string[]> = {
   admin_route_move: ["p_route", "p_spot", "p_to_position"], admin_route_insert: ["p_route", "p_spot", "p_after"], admin_route_remove: ["p_route", "p_spot"],
   admin_set_spot_status: ["p_spot", "p_status"], admin_merge_spots: ["p_duplicate", "p_target"],
   admin_save_display_line: ["p_id", "p_name", "p_path"], admin_delete_display_line: ["p_id"], admin_whoami: [],
+  admin_save_street: ["p_group", "p_name", "p_center", "p_width"], admin_delete_street: ["p_group"],
 };
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ fn: string }> }) {

@@ -18,7 +18,8 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Single-transaction save: spot, stall, assignment, observation, menu, prices, spice, hours, route insertion, O order; idempotent retry
 - ✅ Patrol: 그대로 / 변경 / 오늘 없음 / 확인 어려움, auto-advance, change sheet (menu/price/spice/hours/category/hint/new occupant), observation history
 - ✅ Duplicate proximity warning (blocks save until acknowledged), merge
-- ✅ Stall Display Line creation/editing (draw, drag vertices, undo, delete) with automatic re-projection
+- ✅ Streets with stalls on both sides: draw centre line + width → left/right display lines (SQL `admin_save_street`), single-side lines too; drag vertices, undo, delete; automatic re-projection
+- ✅ Marker size scales with the map (≈10 m per square, 3–32 px)
 - ✅ Rounded-square marker rendering
 - ✅ Route management page (drag/↑↓/move-to/insert-after/remove)
 

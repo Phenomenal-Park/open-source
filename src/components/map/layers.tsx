@@ -10,7 +10,7 @@ export type MarkerState = "default" | "muted" | "match" | "selected";
 
 export function useLayout(view: MapViewState, items: LayoutInput[], lines: LayoutLine[]): Map<string, Placed> {
   return useMemo(() => {
-    const placed = layoutMarkers(items, lines, view.project, view.zoom);
+    const placed = layoutMarkers(items, lines, view.project, view.mpp);
     return new Map(placed.map((p) => [p.id, p]));
     // view.version changes on every pan/zoom
     // eslint-disable-next-line react-hooks/exhaustive-deps

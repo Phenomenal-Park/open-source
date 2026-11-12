@@ -10,23 +10,29 @@ export type LayoutInput = { id: string; lat: number; lng: number; line_id: strin
 export type LayoutLine = { id: string; path: [number, number][] };
 export type Placed = { id: string; x: number; y: number; size: number };
 
-/** Marker size/gap targets by zoom (§36), smoothly interpolated. */
-const SIZE_STOPS: [number, number, number][] = [
-  // zoom, size px, gap px
-  [14, 4, 1], [15, 7, 1.5], [16, 10, 3], [17, 12, 3.5], [18, 18, 5], [19, 22, 5.5], [20, 24, 6],
-];
-export function markerMetrics(zoom: number): { size: number; gap: number } {
-  if (zoom <= SIZE_STOPS[0][0]) return { size: SIZE_STOPS[0][1], gap: SIZE_STOPS[0][2] };
-  for (let i = 1; i < SIZE_STOPS.length; i++) {
-    const [z1, s1, g1] = SIZE_STOPS[i];
-    const [z0, s0, g0] = SIZE_STOPS[i - 1];
-    if (zoom <= z1) {
-      const t = (zoom - z0) / (z1 - z0);
-      return { size: s0 + (s1 - s0) * t, gap: g0 + (g1 - g0) * t };
-    }
-  }
-  const last = SIZE_STOPS[SIZE_STOPS.length - 1];
-  return { size: last[1], gap: last[2] };
+/**
+ * Marker size follows the map scale like the streets do (operator decision 2026-11-12, replaces the §36 px table):
+ * a stall square represents ~10 m of street, so zooming in/out grows/shrinks it with the road.
+ * Clamped so it never disappears when far out or becomes huge when very close.
+ */
+export const MARKER_METERS = 10;
+export const GAP_METERS = 1.5;
+export function markerMetrics(metersPerPx: number): { size: number; gap: number } {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  return { size: clamp(MARKER_METERS / metersPerPx, 3, 32), gap: clamp(GAP_METERS / metersPerPx, 1, 6) };
+}
+
+/** Same algorithm as SQL private.offset_path: shift a [[lat,lng]] polyline sideways (positive = left of travel). */
+export function offsetPath(path: [number, number][], meters: number): [number, number][] {
+  if (path.length < 2) return path;
+  const k = 111320 * Math.cos((path[0][0] * Math.PI) / 180);
+  return path.map(([la, ln], i) => {
+    const [pa, pn] = path[Math.max(i - 1, 0)];
+    const [na, nn] = path[Math.min(i + 1, path.length - 1)];
+    const dx = (nn - pn) * k, dy = (na - pa) * 110574, len = Math.hypot(dx, dy);
+    if (!len) return [la, ln];
+    return [la + (dx / len) * meters / 110574, ln + (-dy / len) * meters / k];
+  });
 }
 
 function metersBetween(a: [number, number], b: [number, number]): number {
@@ -100,8 +106,8 @@ export function spaceAlongLine(s: number[], d: number): number[] {
   return out.map((v, i) => v + i * d);
 }
 
-export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project: Projector, zoom: number): Placed[] {
-  const base = markerMetrics(zoom);
+export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project: Projector, metersPerPx: number): Placed[] {
+  const base = markerMetrics(metersPerPx);
   const lineMap = new Map(lines.map((l) => [l.id, l]));
   const byLine = new Map<string, LayoutInput[]>();
   const out: Placed[] = [];

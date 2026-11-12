@@ -29,8 +29,8 @@ type Props = {
   onTap?: (lat: number, lng: number) => void;
   onViewChange?: (s: MapViewState) => void;
   onUserPan?: () => void;
-  /** Light street strokes for the schematic backend (display lines). */
-  decorLines?: [number, number][][];
+  /** Streets for the schematic backend: polyline + real width in metres. */
+  decorLines?: { path: [number, number][]; widthM: number }[];
   children?: (s: MapViewState) => ReactNode;
   labels: { zoomIn: string; zoomOut: string; locate: string; schematic: string };
   onLocate?: () => void;
@@ -300,16 +300,15 @@ function SchematicBackend(props: BackendProps) {
     zoomAround(view.zoom - e.deltaY * 0.0025, e.clientX - r.left, e.clientY - r.top);
   };
 
-  const streetW = Math.max(6, 14 / state.mpp);
   return (
     <>
       <div ref={elRef} className="schematic" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onWheel={onWheel}
         role="application" aria-label="map">
         <svg width={w} height={h} style={{ display: "block" }} aria-hidden>
           <rect width={w} height={h} fill="var(--map-bg)" />
-          {w > 0 && (props.decorLines ?? []).map((pts, i) => (
-            <polyline key={i} points={pts.map(([la, ln]) => { const p = state.project(la, ln); return `${p.x},${p.y}`; }).join(" ")}
-              fill="none" stroke="var(--map-line)" strokeWidth={streetW} strokeLinecap="round" strokeLinejoin="round" />
+          {w > 0 && (props.decorLines ?? []).map((d, i) => (
+            <polyline key={i} points={d.path.map(([la, ln]) => { const p = state.project(la, ln); return `${p.x},${p.y}`; }).join(" ")}
+              fill="none" stroke="var(--map-line)" strokeWidth={Math.max(3, d.widthM / state.mpp)} strokeLinecap="round" strokeLinejoin="round" />
           ))}
         </svg>
         <div className="schematic__badge">{props.labels.schematic}</div>
