@@ -125,7 +125,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   transition: width .15s, height .15s, opacity .15s, filter .15s; }
 /* all rings are drawn INSIDE the square so markers never visually touch each other */
 .marker::after { content: ""; position: absolute; inset: -8px; } /* touch target */
-.marker[data-state="default"] { opacity: 1; }
+/* no filter (initial view): every stall in a light tint of its category colour */
+.marker[data-state="default"] { background: color-mix(in srgb, var(--cat) 55%, var(--map-bg)); }
 /* filter active: non-matching stalls stay visible as a pale tint (no see-through overlap), matches stand out */
 /* filter active (operator reference): non-matching = grey at ~30% opacity; matching = full category colour */
 .marker[data-state="muted"] { background: var(--marker-off); opacity: .32; box-shadow: none; z-index: 0; }
