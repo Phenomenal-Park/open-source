@@ -119,12 +119,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .landmark--direction { font-size: 11.5px; color: var(--muted); }
 
 .marker { position: absolute; transform: translate(-50%, -50%); border-radius: 26%; background: var(--cat); pointer-events: auto; cursor: pointer;
-  transition: width .15s, height .15s, opacity .15s, filter .15s; box-shadow: 0 0 0 1px rgba(255,255,255,.55); }
+  transition: width .15s, height .15s, opacity .15s, filter .15s; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
+/* all rings are drawn INSIDE the square so markers never visually touch each other */
 .marker::after { content: ""; position: absolute; inset: -8px; } /* touch target */
 .marker[data-state="default"] { opacity: .95; filter: saturate(.92); }
-.marker[data-state="muted"] { opacity: .38; filter: saturate(.35); }
-.marker[data-state="match"] { opacity: 1; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,.25); z-index: 2; }
-.marker[data-state="selected"] { opacity: 1; z-index: 5; box-shadow: 0 0 0 2.5px #fff, 0 0 0 5px color-mix(in srgb, var(--cat) 30%, transparent), 0 2px 8px rgba(0,0,0,.3); }
+/* filter active: non-matching stalls stay visible as a pale tint (no see-through overlap), matches stand out */
+.marker[data-state="muted"] { background: color-mix(in srgb, var(--cat) 26%, var(--map-bg)); box-shadow: none; z-index: 0; }
+.marker[data-state="match"] { opacity: 1; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.95); z-index: 3; }
+.marker[data-state="selected"] { opacity: 1; z-index: 5; box-shadow: inset 0 0 0 2.5px #fff, inset 0 0 0 3.5px rgba(0,0,0,.18); }
 .marker[data-state="candidate"] { opacity: 1; z-index: 6; background: var(--danger); box-shadow: 0 0 0 2.5px #fff, 0 0 0 6px rgba(217,58,58,.25), 0 2px 8px rgba(0,0,0,.3); cursor: grab; touch-action: none; }
 .marker--patrol { outline: 2px dashed var(--accent); outline-offset: 3px; }
 

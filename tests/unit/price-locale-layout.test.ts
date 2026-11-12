@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatPrice, formatPriceInput, minKnownPrice, parsePriceInput } from "@/lib/domain/price";
 import { detectLocale, pick } from "@/lib/i18n/config";
-import { layoutMarkers, markerMetrics, metersPerPixel, offsetPath, spaceAlongLine } from "@/lib/map/layout";
+import { layoutMarkers, markerMetrics, metersPerPixel, offsetPath, removeOverlaps, spaceAlongLine } from "@/lib/map/layout";
 import { getMessages } from "@/lib/i18n";
 import { hintText, stallTitle } from "@/lib/domain/display";
 import ko from "@/lib/i18n/messages/ko";
@@ -82,6 +82,45 @@ describe("magnetic marker layout (§33–§36)", () => {
     const k = 111320 * Math.cos((37.561 * Math.PI) / 180);
     expect((center[0][1] - left[0][1]) * k).toBeCloseTo(6, 3); // west of a northbound street
     expect((right[0][1] - center[0][1]) * k).toBeCloseTo(6, 3);
+  });
+  it("street-edge markers sit fully on the sidewalk side, never over the road", () => {
+    // northbound line drawn on screen from (0,100) up to (0,0); left = west = −x
+    const line = { id: "L", path: [[37.5600, 126.98], [37.5610, 126.98]] as [number, number][], outward: 1 as const };
+    const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 100000, y: (37.561 - lat) * 100000 });
+    const [m] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [line], project, 0.95);
+    expect(m.x).toBeCloseTo(-(m.size / 2 + 1), 6); // inner edge 1 px off the line
+    const [r] = layoutMarkers([{ id: "a", lat: 0, lng: 0, line_id: "L", progress: 50 }], [{ ...line, outward: -1 as const }], project, 0.95);
+    expect(r.x).toBeCloseTo(r.size / 2 + 1, 6);
+  });
+  it("markers NEVER overlap, at any zoom, even on dense crossing streets", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const lines = [
+      { id: "A", path: [[37.5600, 126.9800], [37.5640, 126.9840]] as [number, number][], outward: 1 as const },
+      { id: "B", path: [[37.5600, 126.9800], [37.5640, 126.9840]] as [number, number][], outward: -1 as const },
+      { id: "C", path: [[37.5620, 126.9790], [37.5620, 126.9850]] as [number, number][], outward: 0 as const },
+    ];
+    const items = Array.from({ length: 240 }, (_, i) => ({
+      id: `s${i}`, lat: 37.56 + rnd() * 0.004, lng: 126.98 + rnd() * 0.004,
+      line_id: i % 4 === 3 ? null : ["A", "B", "C"][i % 3], progress: rnd() * 500,
+    }));
+    for (const zoom of [14, 15, 16, 17, 18, 19, 20]) {
+      const mpp = metersPerPixel(37.562, zoom), scale = 1 / mpp;
+      const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 88000 * scale, y: (37.564 - lat) * 110574 * scale });
+      const placed = layoutMarkers(items, lines, project, mpp, {
+        priorityOf: (id) => (id === "s5" ? 3 : 1), scaleOf: (id) => (id === "s5" ? 1.4 : 1),
+      });
+      for (let i = 0; i < placed.length; i++)
+        for (let j = i + 1; j < placed.length; j++) {
+          const a = placed[i], b = placed[j], need = (a.size + b.size) / 2;
+          expect(Math.abs(a.x - b.x) >= need || Math.abs(a.y - b.y) >= need).toBe(true);
+        }
+      expect(placed.some((p) => p.id === "s5")).toBe(true); // selected is always shown
+    }
+  });
+  it("collisions are resolved in favour of filter matches", () => {
+    const kept = removeOverlaps([{ id: "muted", x: 0, y: 0, size: 10 }, { id: "match", x: 3, y: 0, size: 10 }], (id) => (id === "match" ? 2 : 0), 1);
+    expect(kept.map((k) => k.id)).toEqual(["match"]);
   });
   it("spacing keeps order and min distance with minimal displacement", () => {
     const out = spaceAlongLine([0, 1, 2, 50], 10);

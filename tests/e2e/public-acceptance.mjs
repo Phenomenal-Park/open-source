@@ -56,6 +56,20 @@ try {
   await page.waitForURL(/\/ko\/stalls\//);
   ok(true, "rotating ranked entry opens that Stall Detail page");
 
+  // markers never overlap (operator rule) — check on screen at three zoom levels
+  const overlaps = () => page.$$eval(".marker", (els) => {
+    const r = els.map((e) => e.getBoundingClientRect()); let n = 0;
+    for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++)
+      if (r[i].left < r[j].right - 0.5 && r[j].left < r[i].right - 0.5 && r[i].top < r[j].bottom - 0.5 && r[j].top < r[i].bottom - 0.5) n++;
+    return n;
+  });
+  await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
+  for (const z of ["확대", "축소", "축소"]) {
+    await page.getByRole("button", { name: z }).click(); await page.waitForTimeout(250);
+    ok((await overlaps()) === 0, `no overlapping stall squares after ${z}`);
+  }
+  await page.getByRole("button", { name: "확대" }).click(); await page.waitForTimeout(250);
+
   // selection + filters
   await page.goto(`${BASE}/ko`, { waitUntil: "networkidle" });
   await page.locator(".marker").nth(10).click({ force: true });
@@ -68,6 +82,7 @@ try {
   await page.getByRole("button", { name: "꼬치·구이" }).click();
   const st2 = await page.locator(".marker").evaluateAll((els) => els.map((e) => e.dataset.state));
   ok(st2.includes("match") && st2.includes("muted"), "filter: matches vivid, others muted but present");
+  ok((await overlaps()) === 0, "no overlaps with a selected stall and an active filter");
   const sub = page.locator(".chiprow").nth(2).locator("button");
   ok((await sub.count()) > 0 && (await sub.count()) <= 10, "category shows ≤10 public subcategories");
 

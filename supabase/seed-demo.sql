@@ -1,6 +1,20 @@
 -- ⚠️ LOCAL DEVELOPMENT DEMO DATA ONLY — NEVER APPLY TO PRODUCTION.
 -- Fabricated stalls, menus, prices and reviews for UI testing. Street geometry is a rough approximation.
 -- Real data comes only from the field survey (/admin/field).
+
+-- distance (m) from a point to a [[lat,lng],…] polyline — used to keep demo stalls out of intersections
+create function pg_temp.dist_to_path(p_lat float8, p_lng float8, p_path jsonb) returns float8 language plpgsql immutable as $f$
+declare i int; k float8 := 111320 * cos(radians(p_lat)); ax float8; ay float8; bx float8; by_ float8; t float8; d float8 := 1e9;
+begin
+  for i in 0 .. jsonb_array_length(p_path) - 2 loop
+    ax := ((p_path -> i ->> 1)::float8 - p_lng) * k; ay := ((p_path -> i ->> 0)::float8 - p_lat) * 110574;
+    bx := ((p_path -> (i + 1) ->> 1)::float8 - p_lng) * k; by_ := ((p_path -> (i + 1) ->> 0)::float8 - p_lat) * 110574;
+    t := greatest(0, least(1, -(ax * (bx - ax) + ay * (by_ - ay)) / nullif(power(bx - ax, 2) + power(by_ - ay, 2), 0)));
+    d := least(d, sqrt(power(ax + t * (bx - ax), 2) + power(ay + t * (by_ - ay), 2)));
+  end loop;
+  return d;
+end $f$;
+
 do $$
 declare
   owner constant text := '{"sub":"00000000-0000-0000-0000-0000000000aa","role":"authenticated"}';
@@ -26,13 +40,17 @@ begin
   end loop;
   perform setseed(0.42);
   -- stalls along both sidewalk edges of every street
-  for l in select jsonb_build_object('name', name, 'path', path) from public.stall_display_lines where deleted_at is null order by name, side loop
+  for l in select jsonb_build_object('name', name, 'path', path, 'grp', street_group) from public.stall_display_lines where deleted_at is null order by name, side loop
     pts := l -> 'path'; n := case when (l ->> 'name') like '중앙로%' then 10 else 14 end;
     for i in 0 .. n - 1 loop
       t := (i + 0.5) / n * (jsonb_array_length(pts) - 1);
       seg := least(floor(t)::int, jsonb_array_length(pts) - 2); t := t - seg;
       vlat := (pts -> seg ->> 0)::float8 * (1 - t) + (pts -> (seg + 1) ->> 0)::float8 * t + (random() - 0.5) * 0.00002;
       vlng := (pts -> seg ->> 1)::float8 * (1 - t) + (pts -> (seg + 1) ->> 1)::float8 * t + (random() - 0.5) * 0.00002;
+      -- real stalls don't stand inside crossings: skip positions within another street's road + 8 m
+      continue when exists (select 1 from public.stall_display_lines o
+                            where o.deleted_at is null and o.side = 'left' and o.street_group <> (l ->> 'grp')::uuid
+                              and pg_temp.dist_to_path(vlat, vlng, o.center_path) < o.width_m / 2 + 8);
       c := cats[1 + floor(random() * 5)::int];
       m := (menus -> c) -> floor(random() * jsonb_array_length(menus -> c))::int;
       items := '[]';

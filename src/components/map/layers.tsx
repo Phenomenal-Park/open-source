@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, type ReactNode } from "react";
-import { layoutMarkers, type LayoutInput, type LayoutLine, type Placed } from "@/lib/map/layout";
+import { layoutMarkers, type LayoutInput, type LayoutLine, type LayoutOptions, type Placed } from "@/lib/map/layout";
 import { pick } from "@/lib/i18n/config";
 import type { Landmark } from "@/lib/domain/types";
 import { IconBag } from "@/components/ui/icons";
@@ -8,13 +8,20 @@ import type { MapViewState } from "./MapView";
 
 export type MarkerState = "default" | "muted" | "match" | "selected";
 
-export function useLayout(view: MapViewState, items: LayoutInput[], lines: LayoutLine[]): Map<string, Placed> {
+/** Marker priority + rendered scale per state: selected is drawn larger with space reserved, and wins collisions. */
+export const STATE_PRIORITY: Record<MarkerState, number> = { selected: 3, match: 2, default: 1, muted: 0 };
+export const SELECTED_SCALE = 1.4;
+
+export function useLayout(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = ""): Map<string, Placed> {
   return useMemo(() => {
-    const placed = layoutMarkers(items, lines, view.project, view.mpp);
+    const opts: LayoutOptions = stateOf
+      ? { priorityOf: (id) => STATE_PRIORITY[stateOf(id)], scaleOf: (id) => (stateOf(id) === "selected" ? SELECTED_SCALE : 1) }
+      : {};
+    const placed = layoutMarkers(items, lines, view.project, view.mpp, opts);
     return new Map(placed.map((p) => [p.id, p]));
-    // view.version changes on every pan/zoom
+    // view.version changes on every pan/zoom; stateKey changes with selection/filters
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.version, items, lines]);
+  }, [view.version, items, lines, stateKey]);
 }
 
 export function StallMarkers({
@@ -31,7 +38,7 @@ export function StallMarkers({
   for (const [id, p] of placed) {
     if (p.x < -30 || p.y < -30 || p.x > view.width + 30 || p.y > view.height + 30) continue;
     const st = stateOf(id);
-    const s = st === "selected" ? Math.max(p.size * 1.45, 16) : st === "match" ? p.size * 1.12 : p.size;
+    const s = p.size; // final size from the layout (space already reserved — never covers neighbours)
     nodes.push(
       <button key={id} className="marker" data-state={st} aria-label={ariaLabelOf?.(id) ?? id}
         style={{ left: p.x, top: p.y, width: s, height: s, ["--cat" as string]: colorOf(id) }}

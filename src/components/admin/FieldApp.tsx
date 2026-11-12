@@ -195,7 +195,7 @@ export function FieldApp({ mapsKey, mapId }: { mapsKey?: string; mapId?: string 
   };
 
   const spots = data?.spots ?? [];
-  const lines: LayoutLine[] = useMemo(() => (data?.lines ?? []).filter((l) => l.is_active).map((l) => ({ id: l.id, path: l.path })), [data]);
+  const lines: LayoutLine[] = useMemo(() => (data?.lines ?? []).filter((l) => l.is_active).map((l) => ({ id: l.id, path: l.path, outward: l.side === "left" ? 1 : l.side === "right" ? -1 : 0 })), [data]);
   // Register/patrol show RAW positions (field truth); lines mode previews the public magnetic layout.
   const items = useMemo(() => spots.map((s) => mode === "lines"
     ? { id: s.id, lat: s.display_lat ?? s.raw_lat, lng: s.display_lng ?? s.raw_lng, line_id: s.display_line_id, progress: s.display_progress }
@@ -408,7 +408,8 @@ function FieldLayers(p: {
   userPos: { lat: number; lng: number; accuracy: number; heading: number | null } | null;
 }) {
   const { view } = p;
-  const placed = useLayout(view, p.items, p.mode === "lines" ? p.lines : []);
+  const fieldState = (id: string) => (id === p.currentSpotId ? "selected" : p.mode === "patrol" ? "muted" : "default") as "selected" | "muted" | "default";
+  const placed = useLayout(view, p.items, p.mode === "lines" ? p.lines : [], fieldState, `${p.currentSpotId}|${p.mode}`);
   const byId = useMemo(() => new Map(p.spots.map((s) => [s.id, s])), [p.spots]);
   const dragging = useRef<null | { kind: "cand" } | { kind: "vertex"; i: number }>(null);
   const rel = (e: React.PointerEvent) => {

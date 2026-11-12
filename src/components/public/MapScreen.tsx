@@ -7,7 +7,7 @@ import { Landmarks, StallMarkers, UserLocation, useLayout, type MarkerState } fr
 import { locationGranted, useGeolocation } from "@/components/map/useGeolocation";
 import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
-import { streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
+import { layoutLines, streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
 import { minKnownPrice, won } from "@/lib/domain/price";
 import { hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
@@ -248,7 +248,10 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
 }) {
   const byId = useMemo(() => new Map(stalls.map((s) => [s.id, s])), [stalls]);
   const items = useMemo(() => stalls.map((s) => ({ id: s.id, lat: s.lat, lng: s.lng, line_id: s.line_id, progress: s.progress })), [stalls]);
-  const placed = useLayout(view, items, lines);
+  const layout = useMemo(() => layoutLines(lines), [lines]);
+  const stateById = (id: string) => stateOf(byId.get(id)!);
+  const stateKey = stalls.map((x) => stateOf(x)[0]).join("");
+  const placed = useLayout(view, items, layout, stateById, stateKey);
   const sel = selected ? placed.get(selected.id) : null;
   const img = selected ? photoUrl(selected.photo) : null;
   return (
@@ -259,7 +262,7 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
         ariaLabelOf={(id) => { const s = byId.get(id)!; return `${stallTitle(s, locale)} ${hintText(s.hint, locale, t)}`; }} />
       <UserLocation view={view} pos={userPos} />
       {selected && sel && (
-        <Link href={`/${locale}/stalls/${selected.slug}`} className="callout" style={{ left: sel.x, top: sel.y - Math.max(sel.size * 1.45, 16) / 2 }}>
+        <Link href={`/${locale}/stalls/${selected.slug}`} className="callout" style={{ left: sel.x, top: sel.y - sel.size / 2 }}>
           <Thumb className="callout__img" src={img} color={catColor.get(selected.category_code)} size={18} />
           <span className="callout__name ellipsis">{stallTitle(selected, locale)}</span>
           {hintText(selected.hint, locale, t) && <span className="callout__hint ellipsis">{hintText(selected.hint, locale, t)}</span>}

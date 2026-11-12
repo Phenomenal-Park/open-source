@@ -50,3 +50,11 @@ do $$ begin
 end $$;
 commit;
 \echo 'street tests passed'
+
+-- public map exposes the side of each street edge (needed to keep markers off the road)
+update public.app_settings set server_secret_hash = encode(sha256('s'::bytea), 'hex');
+do $$ begin
+  assert (select count(*) from jsonb_array_elements(public.public_map_stalls('s', 37.560, 126.988, 37.566, 126.992) -> 'lines') l
+          where l ->> 'side' in ('left', 'right')) = 2, 'public lines include side';
+end $$;
+\echo 'public line side passed'
