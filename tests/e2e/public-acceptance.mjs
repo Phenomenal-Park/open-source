@@ -58,7 +58,9 @@ try {
 
   // markers never overlap (operator rule) — check on screen at three zoom levels
   const overlaps = () => page.$$eval(".marker", (els) => {
-    const r = els.map((e) => e.getBoundingClientRect()); let n = 0;
+    // the selected stall's 3 px white border counts as part of it
+    const r = els.map((e) => { const b = e.getBoundingClientRect(), p = e.dataset.state === "selected" ? 3 : 0;
+      return { left: b.left - p, right: b.right + p, top: b.top - p, bottom: b.bottom + p }; }); let n = 0;
     for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++)
       if (r[i].left < r[j].right - 0.5 && r[j].left < r[i].right - 0.5 && r[i].top < r[j].bottom - 0.5 && r[j].top < r[i].bottom - 0.5) n++;
     return n;

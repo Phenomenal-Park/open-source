@@ -5,7 +5,11 @@ const zhCN: Messages = {
   metaDescription: "在地图上查看明洞街摊的位置、菜单、价格、辣度、营业时间和游客评分。",
   nav: { map: "地图", rankings: "排行", guides: "指南", search: "搜索", language: "语言", theme: "显示模式", themeSystem: "跟随设备", themeLight: "浅色", themeDark: "深色", menu: "菜单", close: "关闭", back: "返回" },
   ticker: { label: "本周评分排行", rank: "第{n}名", empty: "正在收集本周评分" },
-  filters: { open: "营业中", price: "价格", priceUnder: "{p}以下", priceAny: "不限价格", halal: "清真", card: "可刷卡", clear: "清除" },
+  filters: {
+    open: "营业中", price: "价格", priceUnder: "{p}以下", priceAny: "不限价格", halal: "清真", card: "可刷卡", clear: "清除",
+    sheetTitle: "筛选", reset: "重置", foodType: "类别", nSelected: "已选{n}项", status: "营业状态", all: "全部", extra: "其他条件", halalOk: "有清真", cardOk: "可刷卡", priceBand: "价格",
+    bands: ["3,000韩元以下", "3,000–5,000韩元", "5,000–10,000韩元", "10,000韩元以上"], apply: "应用（显示{n}个摊位）",
+  },
   stall: {
     details: "查看详情", repMenu: "招牌", otherMenu: "其他", others: "{list}等", openNow: "营业中", closedNow: "未营业",
     usualHours: "一般营业时间", usualHoursNote: "明洞街摊的一般营业时间", verifiedHours: "已确认的营业时间", closed: "休息", nextDay: "次日{t}",

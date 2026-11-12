@@ -5,7 +5,11 @@ const ja: Messages = {
   metaDescription: "明洞の屋台の場所、メニュー、価格、辛さ、営業時間、口コミ評価を地図でまとめてチェック。",
   nav: { map: "地図", rankings: "ランキング", guides: "ガイド", search: "検索", language: "言語", theme: "表示", themeSystem: "端末設定", themeLight: "ライト", themeDark: "ダーク", menu: "メニュー", close: "閉じる", back: "戻る" },
   ticker: { label: "今週の評価ランキング", rank: "{n}位", empty: "今週の評価を集計中です" },
-  filters: { open: "営業中", price: "価格", priceUnder: "{p}以下", priceAny: "すべての価格", halal: "ハラール", card: "カード可", clear: "解除" },
+  filters: {
+    open: "営業中", price: "価格", priceUnder: "{p}以下", priceAny: "すべての価格", halal: "ハラール", card: "カード可", clear: "解除",
+    sheetTitle: "絞り込み", reset: "リセット", foodType: "カテゴリー", nSelected: "{n}件選択中", status: "営業状況", all: "すべて", extra: "その他", halalOk: "ハラールあり", cardOk: "カード可", priceBand: "価格帯",
+    bands: ["〜3,000ウォン", "3,000〜5,000ウォン", "5,000〜10,000ウォン", "10,000ウォン〜"], apply: "適用する（{n}件の屋台を表示）",
+  },
   stall: {
     details: "詳細を見る", repMenu: "代表メニュー", otherMenu: "その他", others: "{list} ほか", openNow: "営業中", closedNow: "営業時間外",
     usualHours: "通常の営業時間", usualHoursNote: "明洞の屋台の一般的な営業時間です", verifiedHours: "確認済みの営業時間", closed: "定休", nextDay: "翌{t}",

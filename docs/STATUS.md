@@ -24,7 +24,7 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Route management page (drag/↑↓/move-to/insert-after/remove)
 
 ## Phase 3 — Public map
-- ✅ Header, one-line ticker with two click zones, utility filters (영업 중 / 가격 / 할랄 / 카드), 5 category chips + ≤10 subcategories (OR within, AND across)
+- ✅ Header, one-line ticker with two click zones, utility filters (영업 중 / 가격 / 할랄 / 카드), multi-select category chips + ≤10 subcategories (OR within, AND across), filter bottom sheet with price bands and live count
 - ✅ Magnetic marker layout along display lines; default/match/muted/selected states; compact callout; compact bottom sheet
 - ✅ Search (multilingual synonyms → normalized concepts, broadened not fabricated)
 - ✅ Light/dark mode (spec palette), language switch + persistence

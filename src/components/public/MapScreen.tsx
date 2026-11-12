@@ -9,15 +9,12 @@ import { fmt, type Messages } from "@/lib/i18n";
 import { pick } from "@/lib/i18n/config";
 import { layoutLines, streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
-import { minKnownPrice, won } from "@/lib/domain/price";
+import { filtersActive, matchesFilters, NO_FILTERS, PRICE_BANDS, type Filters } from "@/lib/domain/filters";
 import { hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
-import { IconChevronDown, IconChevronRight, IconImage, IconStore, IconX, Star } from "@/components/ui/icons";
+import { IconCheck, IconChevronDown, IconChevronRight, IconImage, IconRefresh, IconStore, IconX, Star } from "@/components/ui/icons";
 import { RankingTicker } from "./RankingTicker";
 import { postJson } from "./api";
 
-type Filters = { open: boolean; priceMax: number | null; halal: boolean; card: boolean; category: string | null; subs: string[] };
-const NO_FILTERS: Filters = { open: false, priceMax: null, halal: false, card: false, category: null, subs: [] };
-const PRICE_STEPS = [3000, 5000, 10000];
 
 export function MapScreen(props: {
   locale: string; t: Messages; reference: Reference; initialStalls: StallCard[]; initialLines: DisplayLine[]; ranking: StallCard[];
@@ -31,7 +28,7 @@ export function MapScreen(props: {
   const [lines, setLines] = useState<Map<string, DisplayLine>>(() => new Map(props.initialLines.map((l) => [l.id, l])));
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(params.get("s"));
-  const [priceOpen, setPriceOpen] = useState<{ left: number; top: number } | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [wantVisited, setWantVisited] = useState(false);
   const [locPrompt, setLocPrompt] = useState(false);
   const [visited, setVisited] = useState<StallCard[] | null>(null);
@@ -96,21 +93,15 @@ export function MapScreen(props: {
   };
 
   // ── filters ──
-  const filterActive = filters.open || filters.priceMax != null || filters.halal || filters.card || !!filters.category || !!search;
-  const matches = useCallback((s: StallCard): boolean => {
-    if (search && !search.ids.has(s.id)) return false;
-    if (filters.category && s.category_code !== filters.category) return false;
-    if (filters.category && filters.subs.length && !s.items.some((i) => i.sub && filters.subs.includes(i.sub))) return false;
-    if (filters.open && !isOpenNow(effectiveHours(s.hours_mode, s.hours, reference.default_hours))) return false;
-    if (filters.priceMax != null) {
-      const prices = s.items.map((i) => minKnownPrice(i.price)).filter((x): x is number => x != null);
-      if (!prices.length || Math.min(...prices) > filters.priceMax) return false;
-    }
-    if (filters.halal && !s.halal) return false;
-    if (filters.card && s.card !== true) return false;
-    return true;
+  const filterActive = filtersActive(filters) || !!search;
+  const matches = useCallback((st: StallCard): boolean => {
+    if (search && !search.ids.has(st.id)) return false;
+    return matchesFilters(st, filters, reference.default_hours);
   }, [filters, search, reference.default_hours]);
   const matchCount = useMemo(() => stallList.filter(matches).length, [stallList, matches]);
+  const toggleCategory = (code: string) => setFilters((f) => ({
+    ...f, subs: [], categories: f.categories.includes(code) ? f.categories.filter((c) => c !== code) : [...f.categories, code],
+  }));
 
   const select = (slug: string | null) => {
     setSelectedSlug(slug);
@@ -119,7 +110,7 @@ export function MapScreen(props: {
     window.history.replaceState(null, "", u.toString());
   };
 
-  const subcats = filters.category ? reference.subcategories.filter((s) => s.category_code === filters.category) : [];
+  const subcats = filters.categories.length === 1 ? reference.subcategories.filter((x) => x.category_code === filters.categories[0]) : [];
   const labels = { zoomIn: t.map.zoomIn, zoomOut: t.map.zoomOut, locate: t.map.locate, schematic: t.map.schematic };
 
   return (
@@ -127,47 +118,44 @@ export function MapScreen(props: {
       <RankingTicker items={props.ranking} locale={locale} t={t} />
       <div className="filters">
         <div className="chiprow" role="group">
-          <button className="chip" aria-pressed={filters.open} onClick={() => setFilters((f) => ({ ...f, open: !f.open }))}>{t.filters.open}</button>
-          <div style={{ position: "relative", flex: "none" }}>
-            <button className="chip" aria-pressed={filters.priceMax != null} aria-haspopup="menu" aria-expanded={!!priceOpen}
-              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPriceOpen((v) => (v ? null : { left: r.left, top: r.bottom + 6 })); }}>
-              {filters.priceMax != null ? fmt(t.filters.priceUnder, { p: won(filters.priceMax) }) : t.filters.price}<IconChevronDown size={14} />
-            </button>
-          </div>
-          <button className="chip" aria-pressed={filters.halal} onClick={() => setFilters((f) => ({ ...f, halal: !f.halal }))}>{t.filters.halal}</button>
-          <button className="chip" aria-pressed={filters.card} onClick={() => setFilters((f) => ({ ...f, card: !f.card }))}>{t.filters.card}</button>
+          <button className="chip chip--on" aria-pressed={filters.open} onClick={() => setFilters((f) => ({ ...f, open: !f.open }))}>
+            {t.filters.open}{filters.open && <IconCheck size={14} strokeWidth={2.6} />}
+          </button>
+          <button className="chip chip--on" aria-pressed={filters.band != null} aria-haspopup="dialog" aria-expanded={sheetOpen} onClick={() => setSheetOpen(true)}>
+            {filters.band != null ? t.filters.bands[filters.band] : t.filters.price}<IconChevronDown size={14} />
+          </button>
+          <button className="chip chip--on" aria-pressed={filters.halal} onClick={() => setFilters((f) => ({ ...f, halal: !f.halal }))}>
+            {t.filters.halal}{filters.halal && <IconCheck size={14} strokeWidth={2.6} />}
+          </button>
+          <button className="chip chip--on" aria-pressed={filters.card} onClick={() => setFilters((f) => ({ ...f, card: !f.card }))}>
+            {t.filters.card}{filters.card && <IconCheck size={14} strokeWidth={2.6} />}
+          </button>
         </div>
         <div className="chiprow chiprow--cats" role="group">
-          {reference.categories.map((c) => (
-            <button key={c.code} className="chip chip--cat" style={{ ["--cat" as string]: catColor.get(c.code) }} aria-pressed={filters.category === c.code}
-              onClick={() => setFilters((f) => ({ ...f, category: f.category === c.code ? null : c.code, subs: [] }))}>
-              {pick(c.name_i18n, locale)}
-            </button>
-          ))}
+          {reference.categories.map((c) => {
+            const on = filters.categories.includes(c.code);
+            return (
+              <button key={c.code} className="chip chip--cat" style={{ ["--cat" as string]: catColor.get(c.code) }} aria-pressed={on} onClick={() => toggleCategory(c.code)}>
+                {pick(c.name_i18n, locale)}{on && <IconCheck size={13} strokeWidth={2.6} />}
+              </button>
+            );
+          })}
         </div>
         {subcats.length > 0 && (
           <div className="chiprow" role="group">
-            {subcats.map((s) => (
-              <button key={s.code} className="chip chip--sm" aria-pressed={filters.subs.includes(s.code)}
-                onClick={() => setFilters((f) => ({ ...f, subs: f.subs.includes(s.code) ? f.subs.filter((x) => x !== s.code) : [...f.subs, s.code] }))}>
-                {pick(s.name_i18n, locale)}
+            {subcats.map((x) => (
+              <button key={x.code} className="chip chip--sm" aria-pressed={filters.subs.includes(x.code)}
+                onClick={() => setFilters((f) => ({ ...f, subs: f.subs.includes(x.code) ? f.subs.filter((y) => y !== x.code) : [...f.subs, x.code] }))}>
+                {pick(x.name_i18n, locale)}
               </button>
             ))}
           </div>
         )}
       </div>
-      {priceOpen && (
-        <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 55 }} onClick={() => setPriceOpen(null)} />
-          <div className="popover" role="menu" style={{ left: priceOpen.left, top: priceOpen.top, position: "fixed" }}>
-            <button role="menuitemradio" aria-checked={filters.priceMax == null} aria-pressed={filters.priceMax == null}
-              onClick={() => { setFilters((f) => ({ ...f, priceMax: null })); setPriceOpen(null); }}>{t.filters.priceAny}</button>
-            {PRICE_STEPS.map((p) => (
-              <button key={p} role="menuitemradio" aria-checked={filters.priceMax === p} aria-pressed={filters.priceMax === p}
-                onClick={() => { setFilters((f) => ({ ...f, priceMax: p })); setPriceOpen(null); }}>{fmt(t.filters.priceUnder, { p: won(p) })}</button>
-            ))}
-          </div>
-        </>
+      {sheetOpen && (
+        <FilterSheet initial={filters} t={t} locale={locale} reference={reference} catColor={catColor}
+          countFor={(f) => stallList.filter((st) => (!search || search.ids.has(st.id)) && matchesFilters(st, f, reference.default_hours)).length}
+          onApply={(f) => { setFilters(f); setSheetOpen(false); }} onClose={() => setSheetOpen(false)} />
       )}
 
       <MapView ref={mapRef} center={selected ? [selected.lat, selected.lng] : [reference.area.center_lat, reference.area.center_lng]} zoom={reference.area.default_zoom}
@@ -241,6 +229,12 @@ export function MapScreen(props: {
   );
 }
 
+/** Keep the callout (≤300 px wide, centred) on screen; its arrow still points at the stall. */
+function clampCallout(x: number, width: number): number {
+  const half = Math.min(150, (width - 32) / 2);
+  return Math.max(half + 16, Math.min(width - half - 16, x));
+}
+
 function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, selected, stateOf, onSelect, userPos }: {
   view: MapViewState; t: Messages; locale: string; landmarks: Reference["landmarks"]; stalls: StallCard[]; lines: DisplayLine[]; catColor: Map<string, string>;
   selected: StallCard | null; stateOf: (s: StallCard) => MarkerState; onSelect: (s: StallCard) => void;
@@ -262,7 +256,8 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
         ariaLabelOf={(id) => { const s = byId.get(id)!; return `${stallTitle(s, locale)} ${hintText(s.hint, locale, t)}`; }} />
       <UserLocation view={view} pos={userPos} />
       {selected && sel && (
-        <Link href={`/${locale}/stalls/${selected.slug}`} className="callout" style={{ left: sel.x, top: sel.y - sel.size / 2 }}>
+        <Link href={`/${locale}/stalls/${selected.slug}`} className="callout"
+          style={{ left: clampCallout(sel.x, view.width), top: sel.y - sel.size / 2 - 3, ["--arrow-dx" as string]: `${sel.x - clampCallout(sel.x, view.width)}px` }}>
           <Thumb className="callout__img" src={img} color={catColor.get(selected.category_code)} size={18} />
           <span className="callout__name ellipsis">{stallTitle(selected, locale)}</span>
           {hintText(selected.hint, locale, t) && <span className="callout__hint ellipsis">{hintText(selected.hint, locale, t)}</span>}
@@ -303,6 +298,70 @@ function SelectedSheet({ s, locale, t, defaults }: { s: StallCard; locale: strin
         )}
       </div>
     </div>
+  );
+}
+
+/** Filter bottom sheet (operator reference): category · open status · other · price band, with a live result count. */
+function FilterSheet({ initial, t, locale, reference, catColor, countFor, onApply, onClose }: {
+  initial: Filters; t: Messages; locale: string; reference: Reference; catColor: Map<string, string>;
+  countFor: (f: Filters) => number; onApply: (f: Filters) => void; onClose: () => void;
+}) {
+  const [f, setF] = useState<Filters>(initial);
+  const count = countFor(f);
+  const Opt = ({ on, onClick, children, color }: { on: boolean; onClick: () => void; children: React.ReactNode; color?: string }) => (
+    <button type="button" className={`chip chip--sm ${color ? "chip--cat" : "chip--on"}`} style={color ? { ["--cat" as string]: color } : undefined} aria-pressed={on} onClick={onClick}>
+      {children}{on && <IconCheck size={13} strokeWidth={2.6} />}
+    </button>
+  );
+  return (
+    <>
+      <div className="backdrop" onClick={onClose} />
+      <div className="sheet sheet--overlay filtersheet" role="dialog" aria-modal="true" aria-label={t.filters.sheetTitle}>
+        <span className="sheet__handle" aria-hidden />
+        <div className="filtersheet__head">
+          <h2>{t.filters.sheetTitle}</h2>
+          <button className="linkbtn" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-2)" }} onClick={() => setF(NO_FILTERS)}>
+            <IconRefresh size={15} />{t.filters.reset}
+          </button>
+        </div>
+        <section>
+          <h3>{t.filters.foodType} {f.categories.length > 0 && <span className="muted">({fmt(t.filters.nSelected, { n: f.categories.length })})</span>}</h3>
+          <div className="filtersheet__opts">
+            <Opt on={f.categories.length === 0} onClick={() => setF({ ...f, categories: [], subs: [] })}>{t.filters.all}</Opt>
+            {reference.categories.map((c) => (
+              <Opt key={c.code} color={catColor.get(c.code)} on={f.categories.includes(c.code)}
+                onClick={() => setF({ ...f, subs: [], categories: f.categories.includes(c.code) ? f.categories.filter((x) => x !== c.code) : [...f.categories, c.code] })}>
+                {pick(c.name_i18n, locale)}
+              </Opt>
+            ))}
+          </div>
+        </section>
+        <div className="filtersheet__row">
+          <section>
+            <h3>{t.filters.status}</h3>
+            <div className="filtersheet__opts">
+              <Opt on={!f.open} onClick={() => setF({ ...f, open: false })}>{t.filters.all}</Opt>
+              <Opt on={f.open} onClick={() => setF({ ...f, open: true })}>{t.filters.open}</Opt>
+            </div>
+          </section>
+          <section>
+            <h3>{t.filters.extra}</h3>
+            <div className="filtersheet__opts">
+              <label className="filtersheet__check"><input type="checkbox" checked={f.halal} onChange={(e) => setF({ ...f, halal: e.target.checked })} />{t.filters.halalOk}</label>
+              <label className="filtersheet__check"><input type="checkbox" checked={f.card} onChange={(e) => setF({ ...f, card: e.target.checked })} />{t.filters.cardOk}</label>
+            </div>
+          </section>
+        </div>
+        <section>
+          <h3>{t.filters.priceBand}</h3>
+          <div className="filtersheet__opts">
+            <Opt on={f.band == null} onClick={() => setF({ ...f, band: null })}>{t.filters.all}</Opt>
+            {PRICE_BANDS.map((_, i) => <Opt key={i} on={f.band === i} onClick={() => setF({ ...f, band: i })}>{t.filters.bands[i]}</Opt>)}
+          </div>
+        </section>
+        <button className="btn btn--primary btn--block filtersheet__apply" onClick={() => onApply(f)}>{fmt(t.filters.apply, { n: count })}</button>
+      </div>
+    </>
   );
 }
 

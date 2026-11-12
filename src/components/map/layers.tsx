@@ -10,12 +10,18 @@ export type MarkerState = "default" | "muted" | "match" | "selected";
 
 /** Marker priority + rendered scale per state: selected is drawn larger with space reserved, and wins collisions. */
 export const STATE_PRIORITY: Record<MarkerState, number> = { selected: 3, match: 2, default: 1, muted: 0 };
-export const SELECTED_SCALE = 1.4;
+export const SELECTED_SCALE = 1.25;
+/** width of the selected stall's white border (CSS box-shadow 3px) */
+export const SELECTED_BORDER = 3;
 
 export function useLayout(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = ""): Map<string, Placed> {
   return useMemo(() => {
     const opts: LayoutOptions = stateOf
-      ? { priorityOf: (id) => STATE_PRIORITY[stateOf(id)], scaleOf: (id) => (stateOf(id) === "selected" ? SELECTED_SCALE : 1) }
+      ? {
+          priorityOf: (id) => STATE_PRIORITY[stateOf(id)],
+          scaleOf: (id) => (stateOf(id) === "selected" ? SELECTED_SCALE : 1),
+          padOf: (id) => (stateOf(id) === "selected" ? SELECTED_BORDER : 0),
+        }
       : {};
     const placed = layoutMarkers(items, lines, view.project, view.mpp, opts);
     return new Map(placed.map((p) => [p.id, p]));

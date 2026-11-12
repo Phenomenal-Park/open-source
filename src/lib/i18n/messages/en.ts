@@ -5,7 +5,11 @@ const en: Messages = {
   metaDescription: "Find Myeongdong street stalls on a map: menus, prices, spice levels, opening hours and visitor ratings.",
   nav: { map: "Map", rankings: "Rankings", guides: "Guide", search: "Search", language: "Language", theme: "Display", themeSystem: "Device", themeLight: "Light", themeDark: "Dark", menu: "Menu", close: "Close", back: "Back" },
   ticker: { label: "Top This Week", rank: "#{n}", empty: "Collecting this week’s ratings" },
-  filters: { open: "Open now", price: "Price", priceUnder: "Under {p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters" },
+  filters: {
+    open: "Open now", price: "Price", priceUnder: "Under {p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters",
+    sheetTitle: "Filters", reset: "Reset", foodType: "Category", nSelected: "{n} selected", status: "Open status", all: "All", extra: "Other", halalOk: "Halal options", cardOk: "Card accepted", priceBand: "Price",
+    bands: ["Under ₩3,000", "₩3,000–5,000", "₩5,000–10,000", "₩10,000+"], apply: "Show {n} stalls",
+  },
   stall: {
     details: "Details", repMenu: "Signature", otherMenu: "Also", others: "{list} & more", openNow: "Open now", closedNow: "Closed now",
     usualHours: "Usual hours", usualHoursNote: "Typical hours for Myeongdong stalls", verifiedHours: "Confirmed hours", closed: "Closed", nextDay: "{t} next day",

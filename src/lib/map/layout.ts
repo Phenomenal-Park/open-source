@@ -13,7 +13,8 @@ export type LayoutInput = { id: string; lat: number; lng: number; line_id: strin
  * so their markers are pushed fully onto the sidewalk and never overlap the road (§33).
  */
 export type LayoutLine = { id: string; path: [number, number][]; outward?: 1 | -1 | 0; roadWidthM?: number | null };
-export type Placed = { id: string; x: number; y: number; size: number };
+/** size = rendered square; pad = extra ring drawn outside it (e.g. the selected stall's white border), kept clear of neighbours. */
+export type Placed = { id: string; x: number; y: number; size: number; pad?: number };
 
 /**
  * Marker size follows the map scale like the streets do (operator decision 2026-11-12, replaces the §36 px table):
@@ -135,8 +136,10 @@ export const MIN_ROW_GAP_PX = 4;
 export type LayoutOptions = {
   /** Higher = more important. Collisions are resolved in favour of higher priority (selected > match > default > muted). */
   priorityOf?: (id: string) => number;
-  /** Rendered size multiplier (e.g. 1.35 for the selected stall). Space is reserved for it, so it never covers neighbours. */
+  /** Rendered size multiplier (e.g. 1.25 for the selected stall). Space is reserved for it, so it never covers neighbours. */
   scaleOf?: (id: string) => number;
+  /** Extra border width (px) drawn outside the square; also reserved. */
+  padOf?: (id: string) => number;
 };
 
 /**
@@ -150,6 +153,7 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
   const base = markerMetrics(metersPerPx);
   const scaleOf = opts.scaleOf ?? (() => 1);
   const priorityOf = opts.priorityOf ?? (() => 1);
+  const padOf = opts.padOf ?? (() => 0);
   const lineMap = new Map(lines.map((l) => [l.id, l]));
   const byLine = new Map<string, LayoutInput[]>();
   const candidates: Placed[] = [];
@@ -160,7 +164,7 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
       byLine.set(it.line_id, arr);
     } else {
       const p = project(it.lat, it.lng);
-      candidates.push({ id: it.id, x: p.x, y: p.y, size: base.size * scaleOf(it.id) });
+      candidates.push({ id: it.id, x: p.x, y: p.y, size: base.size * scaleOf(it.id), pad: padOf(it.id) });
     }
   }
   // Pass 1: the size each line can afford. Pass 2: one uniform size for the whole view (the smallest),
@@ -172,23 +176,24 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
     arr.sort((a, b) => (a.progress! - b.progress!) || a.id.localeCompare(b.id));
     const s0 = arr.map((a) => metersToPx(sl, a.progress!));
     const scales = arr.map((a) => scaleOf(a.id));
-    return { line, sl, arr, s0, scales };
+    const pads = arr.map((a) => padOf(a.id));
+    return { line, sl, arr, s0, scales, pads };
   });
-  const fit = (s0: number[], scales: number[], size: number, gap: number) => {
-    const placed = spaceAlongLineVar(s0, scales.map((k) => size * k), gap);
+  const fit = (s0: number[], scales: number[], pads: number[], size: number, gap: number) => {
+    const placed = spaceAlongLineVar(s0, scales.map((k, i) => size * k + 2 * pads[i]), gap);
     const shift = Math.max(0, ...placed.map((v, i) => Math.abs(v - s0[i])));
     return { placed, ok: shift <= Math.max(4, size * 1.5) };
   };
   let size = base.size;
   let gap = base.gap;
   for (const pr of prepared) {
-    while (!fit(pr.s0, pr.scales, size, gap).ok && size > MIN_MARKER_PX) {
+    while (!fit(pr.s0, pr.scales, pr.pads, size, gap).ok && size > MIN_MARKER_PX) {
       size = Math.max(MIN_MARKER_PX, size * 0.9);
       gap = Math.max(1, gap * 0.9);
     }
   }
-  for (const { line, sl, arr, s0, scales } of prepared) {
-    const f = fit(s0, scales, size, gap);
+  for (const { line, sl, arr, s0, scales, pads } of prepared) {
+    const f = fit(s0, scales, pads, size, gap);
     // Still too crowded at minimum size: don't drag markers far from their street — keep true positions;
     // the global pass below hides whichever lower-priority markers would overlap.
     const placed = f.ok ? f.placed : s0;
@@ -201,11 +206,11 @@ export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project
         const t = tangentAtPx(sl, sPos);
         // narrow alleys: keep the two rows at least MIN_ROW_GAP_PX apart even when the road is only a few px wide
         const roadPx = line.roadWidthM ? line.roadWidthM / metersPerPx : 0;
-        const d = w / 2 + Math.max(1, (MIN_ROW_GAP_PX - roadPx) / 2);
+        const d = w / 2 + pads[i] + Math.max(1, (MIN_ROW_GAP_PX - roadPx) / 2);
         p.x += outward * t.y * d;
         p.y += outward * -t.x * d;
       }
-      candidates.push({ id: arr[i].id, x: p.x, y: p.y, size: w });
+      candidates.push({ id: arr[i].id, x: p.x, y: p.y, size: w, pad: pads[i] });
     });
   }
   // markers without a display line use the same uniform size
@@ -226,7 +231,7 @@ export function removeOverlaps(cands: Placed[], priorityOf: (id: string) => numb
     for (let dx = -1; dx <= 1 && !hit; dx++) {
       for (let dy = -1; dy <= 1 && !hit; dy++) {
         for (const o of grid.get(`${gx + dx},${gy + dy}`) ?? []) {
-          const need = (c.size + o.size) / 2 + minGap;
+          const need = (c.size + o.size) / 2 + (c.pad ?? 0) + (o.pad ?? 0) + minGap;
           if (Math.abs(c.x - o.x) < need && Math.abs(c.y - o.y) < need) { hit = true; break; }
         }
       }
