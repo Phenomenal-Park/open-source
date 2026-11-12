@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LOCALE_COOKIE, LOCALE_REGISTRY, LOCALES, localeInfo } from "@/lib/i18n/config";
 import type { Messages } from "@/lib/i18n";
 import { IconBack, IconChevronDown, IconGlobe, IconMenu, IconSearch, IconX } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 
 export function switchLocalePath(pathname: string, next: string): string {
   const parts = pathname.split("/");
@@ -29,7 +30,10 @@ export function PublicHeader({ locale, t, title, backHref }: { locale: string; t
       {title ? (
         <h1 className="header__title ellipsis">{title}</h1>
       ) : (
-        <Link href={`/${locale}`} className="header__title ellipsis">{t.siteName}</Link>
+        <Link href={`/${locale}`} className="header__brand" aria-label={t.siteName}>
+          <Logo size={24} />
+          <span className="header__title ellipsis">{t.siteName}</span>
+        </Link>
       )}
       <div style={{ position: "relative" }}>
         <button className={`header__lang ${t.siteName.length > 12 ? "header__lang--compact" : ""}`} onClick={() => setLangOpen((v) => !v)} aria-haspopup="menu" aria-expanded={langOpen} aria-label={t.nav.language}>

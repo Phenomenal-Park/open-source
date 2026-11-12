@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { IconMenu, IconX } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 
 export function AdminHeader({ badge, children }: { badge?: ReactNode; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <header className="header">
-      <Link href="/admin" className="header__title" style={{ flex: "none", fontSize: 20 }}>관리자 모드</Link>
+      <Link href="/admin" className="header__brand" style={{ flex: "none" }}><Logo size={24} /><span className="header__title" style={{ fontSize: 20 }}>관리자 모드</span></Link>
       {badge && <><span className="header__div" aria-hidden /><span style={{ flex: 1, minWidth: 0 }}>{badge}</span></>}
       {!badge && <span style={{ flex: 1 }} />}
       {children}

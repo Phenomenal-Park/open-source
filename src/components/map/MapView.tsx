@@ -2,6 +2,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import { invMercX, invMercY, mercX, mercY, metersPerPixel, niceScale, type XY } from "@/lib/map/layout";
 import { IconLocate, IconMinus, IconPlus } from "@/components/ui/icons";
+import { useIsDark } from "@/components/ui/useIsDark";
 
 export type MapViewState = {
   zoom: number;
@@ -68,10 +69,28 @@ const QUIET_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "transit.station.bus", stylers: [{ visibility: "off" }] },
 ];
 
+// Dark base map for eye comfort (§13): muted, no neon, matches the app's dark palette.
+const DARK_STYLE: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1d2025" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#121417" }] },
+  { featureType: "landscape.man_made", elementType: "geometry", stylers: [{ color: "#23272d" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#22262c" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1e2a24" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2e333b" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1d2025" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#353b44" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3b424c" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#262a31" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f1a24" }] },
+  ...QUIET_STYLE,
+];
+
 export const MapView = forwardRef<MapHandle, Props>(function MapView(props, ref) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [useGoogle, setUseGoogle] = useState(!!props.apiKey);
+  const isDark = useIsDark();
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -85,7 +104,8 @@ export const MapView = forwardRef<MapHandle, Props>(function MapView(props, ref)
   return (
     <div className="mapwrap" ref={wrapRef}>
       {useGoogle && props.apiKey ? (
-        <GoogleBackend {...props} innerRef={ref} size={size} onFail={() => setUseGoogle(false)} />
+        // a cloud-styled map (mapId) can only set its colour scheme at creation → remount on theme change
+        <GoogleBackend key={props.mapId ? (isDark ? "dark" : "light") : "map"} {...props} isDark={isDark} innerRef={ref} size={size} onFail={() => setUseGoogle(false)} />
       ) : (
         <SchematicBackend {...props} innerRef={ref} size={size} />
       )}
@@ -121,7 +141,7 @@ function Controls({ state, props, zoomBy }: { state: MapViewState | null; props:
 }
 
 // ───────────── Google backend ─────────────
-function GoogleBackend(props: BackendProps & { onFail: () => void }) {
+function GoogleBackend(props: BackendProps & { onFail: () => void; isDark: boolean }) {
   const divRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
@@ -162,7 +182,9 @@ function GoogleBackend(props: BackendProps & { onFail: () => void }) {
       const map = new google.maps.Map(divRef.current, {
         center: { lat: props.center[0], lng: props.center[1] }, zoom: props.zoom,
         disableDefaultUI: true, clickableIcons: false, gestureHandling: "greedy", keyboardShortcuts: false,
-        ...(props.mapId ? { mapId: props.mapId } : { styles: QUIET_STYLE }),
+        ...(props.mapId
+          ? { mapId: props.mapId, colorScheme: (props.isDark ? "DARK" : "LIGHT") as unknown as google.maps.MapOptions["colorScheme"] }
+          : { styles: props.isDark ? DARK_STYLE : QUIET_STYLE }),
       });
       mapRef.current = map;
       class Proj extends google.maps.OverlayView { onAdd() {} draw() { compute(); } onRemove() {} }
@@ -182,6 +204,8 @@ function GoogleBackend(props: BackendProps & { onFail: () => void }) {
   }, []);
 
   useEffect(() => { compute(); }, [props.size.w, props.size.h, compute]);
+  // switch the base-map style live when the display mode changes
+  useEffect(() => { if (!props.mapId) mapRef.current?.setOptions({ styles: props.isDark ? DARK_STYLE : QUIET_STYLE }); }, [props.isDark, props.mapId]);
 
   const zoomBy = (d: number) => { const m = mapRef.current; if (m) m.setZoom((m.getZoom() ?? 17) + d); };
   useImperativeHandle(props.innerRef, () => ({

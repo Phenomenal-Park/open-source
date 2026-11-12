@@ -27,7 +27,9 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Header, one-line ticker with two click zones, utility filters (영업 중 / 가격 / 할랄 / 카드), multi-select category chips + ≤10 subcategories (OR within, AND across), filter bottom sheet with price bands and live count
 - ✅ Magnetic marker layout along display lines; default/match/muted/selected states; compact callout; compact bottom sheet
 - ✅ Search (multilingual synonyms → normalized concepts, broadened not fabricated)
-- ✅ Light/dark mode (spec palette), language switch + persistence
+- ✅ Light/dark mode (spec palette): device setting or manual toggle (menu), all public pages, filter sheet, route guide and admin; dark Google base-map style switches live (🟡 not verifiable here — Google Maps is blocked in the build sandbox); active chips use dark text in dark mode for contrast
+- ✅ Temporary "MD" logo (rounded square like the stall markers, inverts in dark mode) + favicon; a professional logo can replace `src/components/ui/Logo.tsx` and `src/app/icon.svg` later
+- ✅ Language switch + persistence
 - ✅ "Rate a stall you visited": GPS proposes nearest ≤6, user chooses
 - ✅ "+n" bubbles for stalls hidden at a zoom (tap to zoom in)
 - ✅ Search "위치 찾기" → zoom to stall; selected sheet [빠른 길찾기] (in-app walking guide + maps-app link) and [현위치]
