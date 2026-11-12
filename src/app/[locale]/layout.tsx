@@ -35,7 +35,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   if (!isLocale(locale)) notFound();
   return (
     <html lang={localeInfo(locale).htmlLang} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <head><link rel="stylesheet" href="/fonts/pretendard/pretendard.css" /><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>{children}</body>
     </html>
   );

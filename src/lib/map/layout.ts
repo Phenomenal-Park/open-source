@@ -13,7 +13,7 @@ export type Placed = { id: string; x: number; y: number; size: number };
 /** Marker size/gap targets by zoom (§36), smoothly interpolated. */
 const SIZE_STOPS: [number, number, number][] = [
   // zoom, size px, gap px
-  [14, 4, 1], [15, 7, 1.5], [16, 11, 3], [17, 14, 3.5], [18, 18, 5], [19, 22, 5.5], [20, 24, 6],
+  [14, 4, 1], [15, 7, 1.5], [16, 10, 3], [17, 12, 3.5], [18, 18, 5], [19, 22, 5.5], [20, 24, 6],
 ];
 export function markerMetrics(zoom: number): { size: number; gap: number } {
   if (zoom <= SIZE_STOPS[0][0]) return { size: SIZE_STOPS[0][1], gap: SIZE_STOPS[0][2] };

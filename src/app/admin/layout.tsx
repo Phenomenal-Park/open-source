@@ -8,7 +8,7 @@ const themeScript = `try{var t=localStorage.getItem('msm_theme');if(t==='light'|
 export default function AdminRoot({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <head><link rel="stylesheet" href="/fonts/pretendard/pretendard.css" /><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>{children}</body>
     </html>
   );

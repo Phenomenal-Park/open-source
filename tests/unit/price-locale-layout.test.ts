@@ -71,7 +71,7 @@ describe("display naming (§8, §40)", () => {
 describe("magnetic marker layout (§33–§36)", () => {
   it("size targets by zoom", () => {
     expect(markerMetrics(14).size).toBe(4);
-    expect(markerMetrics(17).size).toBe(14);
+    expect(markerMetrics(17).size).toBe(12);
     expect(markerMetrics(20).size).toBe(24);
   });
   it("spacing keeps order and min distance with minimal displacement", () => {

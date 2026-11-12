@@ -11,7 +11,7 @@ import type { DisplayLine, Reference, StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
 import { minKnownPrice, won } from "@/lib/domain/price";
 import { hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
-import { IconChevronDown, IconChevronRight, IconImage, IconX, Star } from "@/components/ui/icons";
+import { IconChevronDown, IconChevronRight, IconImage, IconStore, IconX, Star } from "@/components/ui/icons";
 import { RankingTicker } from "./RankingTicker";
 import { postJson } from "./api";
 
@@ -137,7 +137,7 @@ export function MapScreen(props: {
           <button className="chip" aria-pressed={filters.halal} onClick={() => setFilters((f) => ({ ...f, halal: !f.halal }))}>{t.filters.halal}</button>
           <button className="chip" aria-pressed={filters.card} onClick={() => setFilters((f) => ({ ...f, card: !f.card }))}>{t.filters.card}</button>
         </div>
-        <div className="chiprow" role="group">
+        <div className="chiprow chiprow--cats" role="group">
           {reference.categories.map((c) => (
             <button key={c.code} className="chip chip--cat" style={{ ["--cat" as string]: catColor.get(c.code) }} aria-pressed={filters.category === c.code}
               onClick={() => setFilters((f) => ({ ...f, category: f.category === c.code ? null : c.code, subs: [] }))}>
@@ -260,7 +260,7 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
       <UserLocation view={view} pos={userPos} />
       {selected && sel && (
         <Link href={`/${locale}/stalls/${selected.slug}`} className="callout" style={{ left: sel.x, top: sel.y - Math.max(sel.size * 1.45, 16) / 2 }}>
-          {img ? <img className="callout__img" src={img} alt="" /> : null}
+          <Thumb className="callout__img" src={img} color={catColor.get(selected.category_code)} size={18} />
           <span className="callout__name ellipsis">{stallTitle(selected, locale)}</span>
           {hintText(selected.hint, locale, t) && <span className="callout__hint ellipsis">{hintText(selected.hint, locale, t)}</span>}
           <IconChevronRight size={16} strokeWidth={2.2} />
@@ -274,18 +274,16 @@ function SelectedSheet({ s, locale, t, defaults }: { s: StallCard; locale: strin
   const rep = s.items.find((i) => i.rep) ?? s.items[0];
   const others = s.items.filter((i) => i !== rep);
   const img = photoUrl(s.photo);
-  const open = isOpenNow(effectiveHours(s.hours_mode, s.hours, defaults));
   const hint = hintText(s.hint, locale, t);
   return (
     <div className="sel">
-      {img ? <img className="sel__img" src={img} alt="" /> : null}
+      <Thumb className="sel__img" src={img} color={`var(--c-${s.category_code})`} size={30} />
       <div className="sel__body">
         <div className="sel__top">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ellipsis"><span className="sel__title">{stallTitle(s, locale)}</span>{hint && <span className="sel__hint"> · {hint}</span>}</div>
+            <div className="sel__name"><span className="sel__title">{stallTitle(s, locale)}</span>{hint && <span className="sel__hint"> · {hint}</span>}</div>
             <div className="sel__rating">
               {s.rating.count > 0 ? (<><Star size={17} />{s.rating.avg?.toFixed(1)} <span className="muted">({s.rating.count})</span></>) : null}
-              <span className={`sel__open ${open ? "sel__open--on" : "sel__open--off"}`}>{open ? t.stall.openNow : t.stall.closedNow}</span>
             </div>
           </div>
           <Link href={`/${locale}/stalls/${s.slug}`} className="btn-outline">{t.stall.details}<IconChevronRight size={16} strokeWidth={2.2} /></Link>
@@ -302,6 +300,16 @@ function SelectedSheet({ s, locale, t, defaults }: { s: StallCard; locale: strin
         )}
       </div>
     </div>
+  );
+}
+
+/** Photo thumbnail; when no photo exists yet, a small neutral tile keeps the mockup layout (never a large empty placeholder). */
+function Thumb({ src, className, color, size }: { src: string | null; className: string; color?: string; size: number }) {
+  if (src) return <img className={className} src={src} alt="" />;
+  return (
+    <span className={className} aria-hidden style={{ background: `color-mix(in srgb, ${color ?? "var(--muted)"} 12%, var(--surface-2))`, color: color ?? "var(--muted)" }}>
+      <IconStore size={size} />
+    </span>
   );
 }
 
