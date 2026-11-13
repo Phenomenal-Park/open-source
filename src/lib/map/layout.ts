@@ -161,40 +161,6 @@ function pathFactors(path: [number, number][]): { f: number; e: number } {
   return { f, e };
 }
 
-function lengthM(path: [number, number][]): number {
-  let m = 0;
-  for (let i = 1; i < path.length; i++) m += metersBetween(path[i - 1], path[i]);
-  return m;
-}
-
-/**
- * Two-sided streets: two rows inside the street when both fit at the minimum marker size;
- * otherwise both sides merge into ONE row on the street's centre line (order kept), still inside the street.
- */
-function streetRows(items: LayoutInput[], lines: LayoutLine[], metersPerPx: number): { items: LayoutInput[]; lines: LayoutLine[] } {
-  const groups = new Map<string, LayoutLine[]>();
-  for (const l of lines) if (l.group && l.centerPath && l.roadWidthM) groups.set(l.group, [...(groups.get(l.group) ?? []), l]);
-  const merged = new Map<string, { id: string; scale: number }>(); // edge line id → virtual centre line
-  const extra: LayoutLine[] = [];
-  for (const [g, edges] of groups) {
-    const roadPx = edges[0].roadWidthM! / metersPerPx;
-    const { f, e } = pathFactors(edges[0].centerPath!);
-    if (roadPx >= MIN_MARKER_PX * (e + f) + 2 * EDGE_INSET_PX + ROW_MID_GAP_PX) continue; // two rows of upright squares fit
-    const center = edges[0].centerPath!;
-    const id = `street:${g}`;
-    extra.push({ id, path: center, outward: 0, roadWidthM: edges[0].roadWidthM, group: g, centerPath: center });
-    const cLen = lengthM(center);
-    for (const e of edges) merged.set(e.id, { id, scale: cLen / (lengthM(e.path) || 1) });
-  }
-  if (!merged.size) return { items, lines };
-  return {
-    items: items.map((it) => {
-      const m = it.line_id ? merged.get(it.line_id) : undefined;
-      return m && it.progress != null ? { ...it, line_id: m.id, progress: it.progress * m.scale } : it;
-    }),
-    lines: [...lines.filter((l) => !merged.has(l.id)), ...extra],
-  };
-}
 export type LayoutOptions = {
   /** Higher = more important. Collisions are resolved in favour of higher priority (selected > match > default > muted). */
   priorityOf?: (id: string) => number;
@@ -205,19 +171,18 @@ export type LayoutOptions = {
 };
 
 /**
- * Lay out stall markers. Guarantees: markers never overlap each other (operator rule), never sit on the road
- * for two-sided streets, stay upright, and move only along their own line. Order of resolution:
+ * Lay out stall markers. Guarantees: markers never overlap each other (operator rule), two-sided streets
+ * always show two rows (inside the street whenever they fit), stay upright, and move only along their own line. Order of resolution:
  * 1) shrink markers on crowded lines, 2) spread them along the line (small displacement only),
  * 3) if they still can't fit at the minimum size, keep true positions and let the final pass hide the
  *    lower-priority ones (they reappear when zooming in).
  */
-export function layoutMarkers(itemsIn: LayoutInput[], linesIn: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): Placed[] {
-  return layoutMarkersDetailed(itemsIn, linesIn, project, metersPerPx, opts).placed;
+export function layoutMarkers(items: LayoutInput[], lines: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): Placed[] {
+  return layoutMarkersDetailed(items, lines, project, metersPerPx, opts).placed;
 }
 
 /** Same as layoutMarkers, plus the markers that had to be hidden at this zoom (for "+n" bubbles). */
-export function layoutMarkersDetailed(itemsIn: LayoutInput[], linesIn: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): { placed: Placed[]; hidden: Placed[] } {
-  const { items, lines } = streetRows(itemsIn, linesIn, metersPerPx);
+export function layoutMarkersDetailed(items: LayoutInput[], lines: LayoutLine[], project: Projector, metersPerPx: number, opts: LayoutOptions = {}): { placed: Placed[]; hidden: Placed[] } {
   const base = markerMetrics(metersPerPx);
   const scaleOf = opts.scaleOf ?? (() => 1);
   const priorityOf = opts.priorityOf ?? (() => 1);
@@ -257,11 +222,12 @@ export function layoutMarkersDetailed(itemsIn: LayoutInput[], linesIn: LayoutLin
   };
   let size = base.size;
   let gap = base.gap;
-  // two rows must fit across the street: cap the size by the narrowest two-row street in view
+  // two rows must fit across the street: cap the size by the narrowest two-row street. A street too narrow
+  // for two rows even at the minimum size doesn't drag every square down: its rows hug the centre line instead.
   for (const pr of prepared) {
     if (pr.line.outward && pr.line.roadWidthM) {
       const cap = (pr.line.roadWidthM / metersPerPx - 2 * EDGE_INSET_PX - ROW_MID_GAP_PX) / (pr.worst.e + pr.worst.f);
-      size = Math.max(MIN_MARKER_PX, Math.min(size, cap));
+      if (cap >= MIN_MARKER_PX) size = Math.min(size, cap);
     }
   }
   for (const pr of prepared) {
@@ -284,7 +250,11 @@ export function layoutMarkersDetailed(itemsIn: LayoutInput[], linesIn: LayoutLin
         // the square sits fully inside the street, its outer edge EDGE_INSET_PX from the street edge.
         const t = tangentAtPx(sl, sPos);
         // half the square's extent across an angled street, so its corners stay inside too
-        const d = (w / 2 + pads[i]) * ups[i].e + EDGE_INSET_PX;
+        const half = (w / 2 + pads[i]) * ups[i].e;
+        let d = half + EDGE_INSET_PX;
+        // Too narrow on screen for two rows inside (even at the minimum size): keep TWO rows anyway,
+        // one each side of the centre line, ROW_MID_GAP_PX apart — they spill past the edges only as much as needed.
+        if (line.roadWidthM) d = Math.min(d, line.roadWidthM / metersPerPx / 2 - half - ROW_MID_GAP_PX / 2);
         p.x -= outward * t.y * d;
         p.y -= outward * -t.x * d;
       }

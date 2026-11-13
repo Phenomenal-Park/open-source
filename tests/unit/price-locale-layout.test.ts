@@ -98,7 +98,7 @@ describe("magnetic marker layout (§33–§36)", () => {
     expect(b.x - b.size / 2 - (a.x + a.size / 2)).toBeGreaterThanOrEqual(1.9); // rows ≈2 px apart (test projection is ~0.4% off 1 m/px)
     expect(a.size).toBeLessThanOrEqual(7); // (16 − 2 − 2) / 2 = 6 px cap, never wider than half the street
   });
-  it("narrow street: both sides merge into one row on the centre line", () => {
+  it("narrow street: still TWO rows, one each side of the centre line, never overlapping", () => {
     const project = (lat: number, lng: number) => ({ x: (lng - 126.98) * 88000 / 2, y: (37.561 - lat) * 110574 / 2 }); // 2 m per px
     const center: [number, number][] = [[37.5600, 126.98], [37.5610, 126.98]];
     const lines = [
@@ -107,10 +107,13 @@ describe("magnetic marker layout (§33–§36)", () => {
     ];
     const items = [10, 30, 50, 70].map((p, i) => ({ id: `s${i}`, lat: 0, lng: 0, line_id: i % 2 ? "R" : "L", progress: p }));
     const placed = layoutMarkers(items, lines, project, 2);
+    expect(placed).toHaveLength(4);
     const cx = project(37.5605, 126.98).x;
-    for (const p of placed) expect(p.x).toBeCloseTo(cx, 6); // all on the centre line
-    const ys = [...placed].sort((a, b) => a.id.localeCompare(b.id)).map((p) => p.y);
-    expect([...ys].sort((a, b) => b - a)).toEqual(ys); // original order along the street kept
+    for (const p of placed) {
+      const left = Number(p.id.slice(1)) % 2 === 0;
+      // each row stays on its own side: inner edge exactly 1 px from the centre line (rows 2 px apart)
+      expect(left ? cx - (p.x + p.size / 2) : p.x - p.size / 2 - cx).toBeCloseTo(1, 1);
+    }
   });
   it("markers NEVER overlap, at any zoom, even on dense crossing streets", () => {
     let seed = 7;

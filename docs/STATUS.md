@@ -19,7 +19,7 @@ Legend: ✅ implemented & tested · 🟡 implemented, needs real-world/productio
 - ✅ Patrol: 그대로 / 변경 / 오늘 없음 / 확인 어려움, auto-advance, change sheet (menu/price/spice/hours/category/hint/new occupant), observation history
 - ✅ Duplicate proximity warning (blocks save until acknowledged), merge
 - ✅ Streets with stalls on both sides: draw centre line + width → left/right display lines (SQL `admin_save_street`), single-side lines too; drag vertices, undo, delete; automatic re-projection
-- ✅ Marker size scales with the map (≈10 m per square, 6–22 px, one uniform size per view); squares never overlap (layout + final collision pass, unit- and E2E-tested) and sit inside the street in two rows (one centre row when the street is too narrow on screen)
+- ✅ Marker size scales with the map (≈10 m per square, 6–22 px, one uniform size per view); squares never overlap (layout + final collision pass, unit- and E2E-tested) and two-sided streets always show two rows (inside the street when they fit, hugging the centre line on narrow streets)
 - ✅ Rounded-square marker rendering
 - ✅ Route management page (drag/↑↓/move-to/insert-after/remove)
 
