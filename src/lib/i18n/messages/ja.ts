@@ -6,9 +6,9 @@ const ja: Messages = {
   nav: { map: "地図", rankings: "ランキング", guides: "ガイド", search: "検索", language: "言語", theme: "表示", themeSystem: "端末設定", themeLight: "ライト", themeDark: "ダーク", menu: "メニュー", close: "閉じる", back: "戻る" },
   ticker: { label: "今週の評価ランキング", rank: "{n}位", empty: "今週の評価を集計中です" },
   filters: {
-    open: "営業中", price: "価格", priceUnder: "{p}以下", priceAny: "すべての価格", halal: "ハラール", card: "カード可", clear: "解除",
+    open: "営業中", price: "価格", priceUnder: "{p}ウォン以下", priceAny: "すべての価格", halal: "ハラール", card: "カード可", clear: "解除",
     sheetTitle: "絞り込み", reset: "リセット", foodType: "カテゴリー", nSelected: "{n}件選択中", status: "営業状況", all: "すべて", extra: "その他", halalOk: "ハラールあり", cardOk: "カード可", priceBand: "価格帯",
-    priceFrom: "{p}以上", priceMinLabel: "最低価格", priceMaxLabel: "最高価格", apply: "適用する（{n}件の屋台を表示）",
+    priceFrom: "{p}ウォン以上", priceAmount: "{p}ウォン", priceRange: "{a}〜{b}ウォン", priceMinLabel: "最低価格", priceMaxLabel: "最高価格", apply: "適用する（{n}件の屋台を表示）",
   },
   stall: {
     details: "詳細を見る", repMenu: "代表メニュー", otherMenu: "その他", others: "{list} ほか", openNow: "営業中", closedNow: "営業時間外",

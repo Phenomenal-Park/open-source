@@ -6,9 +6,9 @@ const en: Messages = {
   nav: { map: "Map", rankings: "Rankings", guides: "Guide", search: "Search", language: "Language", theme: "Display", themeSystem: "Device", themeLight: "Light", themeDark: "Dark", menu: "Menu", close: "Close", back: "Back" },
   ticker: { label: "Top This Week", rank: "#{n}", empty: "Collecting this week’s ratings" },
   filters: {
-    open: "Open now", price: "Price", priceUnder: "Under {p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters",
+    open: "Open now", price: "Price", priceUnder: "Up to ₩{p}", priceAny: "Any price", halal: "Halal", card: "Card", clear: "Clear filters",
     sheetTitle: "Filters", reset: "Reset", foodType: "Category", nSelected: "{n} selected", status: "Open status", all: "All", extra: "Other", halalOk: "Halal options", cardOk: "Card accepted", priceBand: "Price",
-    priceFrom: "{p}+", priceMinLabel: "Minimum price", priceMaxLabel: "Maximum price", apply: "Show {n} stalls",
+    priceFrom: "₩{p}+", priceAmount: "₩{p}", priceRange: "₩{a}–₩{b}", priceMinLabel: "Minimum price", priceMaxLabel: "Maximum price", apply: "Show {n} stalls",
   },
   stall: {
     details: "Details", repMenu: "Signature", otherMenu: "Also", others: "{list} & more", openNow: "Open now", closedNow: "Closed now",

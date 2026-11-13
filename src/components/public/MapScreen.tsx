@@ -11,7 +11,6 @@ import { pick } from "@/lib/i18n/config";
 import { layoutLines, streetDecor, type DisplayLine, type Reference, type StallCard } from "@/lib/domain/types";
 import { effectiveHours, isOpenNow } from "@/lib/domain/hours";
 import { filtersActive, matchesFilters, NO_FILTERS, normalizeRange, PRICE_MAX, type Filters, type PriceRange } from "@/lib/domain/filters";
-import { won } from "@/lib/domain/price";
 import { PriceRangeSlider } from "./PriceRangeSlider";
 import { directionsUrl, hintText, itemName, photoUrl, priceText, stallTitle } from "@/lib/domain/display";
 import { IconCheck, IconChevronDown, IconChevronRight, IconCrosshair, IconImage, IconPin, IconRefresh, IconStore, IconWalk, IconX, Star } from "@/components/ui/icons";
@@ -384,11 +383,12 @@ function RouteChip({ to, pos, t, onClose }: { to: StallCard; pos: { lat: number;
   );
 }
 
-/** "₩3,000–₩8,000" · "₩8,000 이하" · "₩10,000 이상" */
+/** Price wording per language — ko: "3,000~8,000원" · "8,000원 이하" · "10,000원 이상" */
+const num = (v: number) => v.toLocaleString("en-US");
 function priceLabel(r: PriceRange, t: Messages): string {
-  if (r.min <= 0) return fmt(t.filters.priceUnder, { p: won(r.max) });
-  if (r.max >= PRICE_MAX) return fmt(t.filters.priceFrom, { p: won(r.min) });
-  return r.min === r.max ? won(r.min) : `${won(r.min)}–${won(r.max)}`;
+  if (r.min <= 0) return fmt(t.filters.priceUnder, { p: num(r.max) });
+  if (r.max >= PRICE_MAX) return fmt(t.filters.priceFrom, { p: num(r.min) });
+  return r.min === r.max ? fmt(t.filters.priceAmount, { p: num(r.min) }) : fmt(t.filters.priceRange, { a: num(r.min), b: num(r.max) });
 }
 
 /** Filter bottom sheet (operator reference): category · open status · other · price band, with a live result count. */
@@ -445,7 +445,8 @@ function FilterSheet({ initial, t, locale, reference, catColor, countFor, onAppl
         <section>
           <h3>{t.filters.priceBand} <span className="filtersheet__value">{f.price ? priceLabel(f.price, t) : t.filters.all}</span></h3>
           <PriceRangeSlider value={f.price} onChange={(r) => setF({ ...f, price: normalizeRange(r) })}
-            minLabel={t.filters.priceMinLabel} maxLabel={t.filters.priceMaxLabel} />
+            minLabel={t.filters.priceMinLabel} maxLabel={t.filters.priceMaxLabel}
+            textOf={(v) => (v >= PRICE_MAX ? fmt(t.filters.priceFrom, { p: num(v) }) : fmt(t.filters.priceAmount, { p: num(v) }))} />
         </section>
         <button className="btn btn--primary btn--block filtersheet__apply" onClick={() => onApply(f)}>{fmt(t.filters.apply, { n: count })}</button>
       </div>

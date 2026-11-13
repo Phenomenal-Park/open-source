@@ -144,7 +144,7 @@ try {
   ok((await sheetDlg.getByRole("slider", { name: "최저 가격" }).inputValue()) === "8000", "handles can't cross");
   await sheetDlg.getByRole("slider", { name: "최저 가격" }).fill("3000");
   await sheetDlg.locator(".filtersheet__apply").click();
-  ok((await page.locator(".chiprow").first().innerText()).includes("₩3,000–₩8,000"), "price chip shows the chosen range");
+  ok((await page.locator(".chiprow").first().innerText()).includes("3,000~8,000원"), "price chip shows the chosen range (3,000~8,000원)");
   const priceStates = await page.locator(".marker").evaluateAll((els) => els.map((e) => e.dataset.state));
   ok(priceStates.includes("match") && priceStates.includes("muted"), "price range applied on the map (matches vivid, others grey)");
 

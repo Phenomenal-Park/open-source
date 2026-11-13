@@ -5,9 +5,9 @@ const ko = {
   nav: { map: "지도", rankings: "랭킹", guides: "가이드", search: "검색", language: "언어", theme: "화면 모드", themeSystem: "기기 설정", themeLight: "라이트", themeDark: "다크", menu: "메뉴", close: "닫기", back: "뒤로" },
   ticker: { label: "이번 주 평점 랭킹", rank: "{n}위", empty: "이번 주 평가를 모으고 있어요" },
   filters: {
-    open: "영업 중", price: "가격", priceUnder: "{p} 이하", priceAny: "전체 가격", halal: "할랄", card: "카드", clear: "필터 해제",
+    open: "영업 중", price: "가격", priceUnder: "{p}원 이하", priceAny: "전체 가격", halal: "할랄", card: "카드", clear: "필터 해제",
     sheetTitle: "필터", reset: "초기화", foodType: "음식 종류", nSelected: "{n}개 선택됨", status: "영업 상태", all: "전체", extra: "기타 조건", halalOk: "할랄 가능", cardOk: "카드 결제 가능", priceBand: "가격대",
-    priceFrom: "{p} 이상", priceMinLabel: "최저 가격", priceMaxLabel: "최고 가격", apply: "적용하기 (총 {n}개 노점 표시)",
+    priceFrom: "{p}원 이상", priceAmount: "{p}원", priceRange: "{a}~{b}원", priceMinLabel: "최저 가격", priceMaxLabel: "최고 가격", apply: "적용하기 (총 {n}개 노점 표시)",
   },
   stall: {
     details: "상세 보기", repMenu: "대표 메뉴", otherMenu: "기타 메뉴", others: "{list} 외", openNow: "영업 중", closedNow: "영업 전·종료",
