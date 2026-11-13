@@ -134,6 +134,9 @@ export function MapScreen(props: {
     return matchesFilters(st, filters, reference.default_hours);
   }, [filters, search, reference.default_hours]);
   const matchCount = useMemo(() => stallList.filter(matches).length, [stallList, matches]);
+  // stalls open now are shown first when squares must be hidden ("+n")
+  const openIds = useMemo(() => new Set(stallList.filter((st) => isOpenNow(effectiveHours(st.hours_mode, st.hours, reference.default_hours))).map((st) => st.id)),
+    [stallList, reference.default_hours]);
   const toggleCategory = (code: string) => setFilters((f) => ({
     ...f, subs: [], categories: f.categories.includes(code) ? f.categories.filter((c) => c !== code) : [...f.categories, code],
   }));
@@ -202,6 +205,7 @@ export function MapScreen(props: {
         {(view) => (
           <MapLayers view={view} t={t} locale={locale} landmarks={reference.landmarks} stalls={stallList} lines={lineList} catColor={catColor} selected={selected}
             stateOf={(s) => (selected?.id === s.id ? "selected" : filterActive ? (matches(s) ? "match" : "muted") : "default")}
+            openIds={openIds}
             onSelect={(s) => select(s.slug)} userPos={geo.pos} onZoomTo={(lat, lng, z) => mapRef.current?.panTo(lat, lng, z)} routeTo={routeTo} />
         )}
       </MapView>
@@ -275,9 +279,9 @@ function clampCallout(x: number, width: number): number {
   return Math.max(half + 16, Math.min(width - half - 16, x));
 }
 
-function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, selected, stateOf, onSelect, userPos, onZoomTo, routeTo }: {
+function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, selected, stateOf, openIds, onSelect, userPos, onZoomTo, routeTo }: {
   view: MapViewState; t: Messages; locale: string; landmarks: Reference["landmarks"]; stalls: StallCard[]; lines: DisplayLine[]; catColor: Map<string, string>;
-  selected: StallCard | null; stateOf: (s: StallCard) => MarkerState; onSelect: (s: StallCard) => void;
+  selected: StallCard | null; stateOf: (s: StallCard) => MarkerState; openIds: Set<string>; onSelect: (s: StallCard) => void;
   userPos: { lat: number; lng: number; accuracy: number; heading: number | null } | null;
   onZoomTo: (lat: number, lng: number, zoom: number) => void;
   routeTo: StallCard | null;
@@ -287,8 +291,8 @@ function MapLayers({ view, t, locale, landmarks, stalls, lines, catColor, select
   const layout = useMemo(() => layoutLines(lines), [lines]);
   const stateById = (id: string) => stateOf(byId.get(id)!);
   const STATE_CODE: Record<MarkerState, string> = { selected: "s", match: "a", default: "d", muted: "u" };
-  const stateKey = stalls.map((x) => STATE_CODE[stateOf(x)]).join("");
-  const { placed, hidden } = useLayoutDetailed(view, items, layout, stateById, stateKey);
+  const stateKey = stalls.map((x) => STATE_CODE[stateOf(x)] + (openIds.has(x.id) ? "o" : "")).join("");
+  const { placed, hidden } = useLayoutDetailed(view, items, layout, stateById, stateKey, (id) => openIds.has(id));
   // "+n" counts only stalls the user would see: with a filter, hidden non-matching (grey) stalls are not counted
   const bubbles = useMemo(() => hiddenBubbles(hidden.filter((h) => stateById(h.id) !== "muted"), [...placed.values()]),
     // eslint-disable-next-line react-hooks/exhaustive-deps

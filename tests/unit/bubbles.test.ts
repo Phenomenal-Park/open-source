@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hiddenBubbles, layoutMarkersDetailed, metersPerPixel } from "@/lib/map/layout";
+import { hiddenBubbles, layoutMarkersDetailed, metersPerPixel, removeOverlapsDetailed, spreadRank } from "@/lib/map/layout";
 
 describe('"+n" bubbles for stalls hidden at this zoom', () => {
   it("one bubble per crowded stretch, counts add up, far stretches stay separate", () => {
@@ -53,5 +53,20 @@ describe("diagonal streets (upright squares)", () => {
         const x = p.x + (cx * p.size) / 2, y = p.y + (cy * p.size) / 2;
         expect(Math.abs(((x - a.x) * nx + (y - a.y) * ny) / nl)).toBeLessThanOrEqual(halfPx + 1e-6);
       }
+  });
+  it("which stalls stay visible: higher priority (e.g. open now) first, equal ones spread evenly, never random", () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((k) => spreadRank(k, 8))).toEqual([0, 0.5, 0.25, 0.75, 0.125, 0.625, 0.375, 0.875]);
+    // a row of 9 squares only 4 px apart: only every other one can stay
+    const row = Array.from({ length: 9 }, (_, k) => ({ id: `s${k}`, x: k * 4, y: 0, size: 6 }));
+    const ranks = row.map((_, k) => spreadRank(k, row.length));
+    const even = removeOverlapsDetailed(row, () => 1, 1, ranks).placed.map((p) => p.id).sort();
+    expect(even).toEqual(["s0", "s2", "s4", "s6", "s8"]); // survivors spread over the whole street
+    const again = removeOverlapsDetailed(row, () => 1, 1, ranks).placed.map((p) => p.id).sort();
+    expect(again).toEqual(even); // stable: the same stalls every time
+    // s3 is open now (higher priority): it stays, its closed neighbours give way
+    const open = removeOverlapsDetailed(row, (id) => (id === "s3" ? 3 : 2), 1, ranks).placed.map((p) => p.id);
+    expect(open).toContain("s3");
+    expect(open).not.toContain("s2");
+    expect(open).not.toContain("s4");
   });
 });

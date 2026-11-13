@@ -162,13 +162,30 @@ function pathFactors(path: [number, number][]): { f: number; e: number } {
 }
 
 export type LayoutOptions = {
-  /** Higher = more important. Collisions are resolved in favour of higher priority (selected > match > default > muted). */
+  /**
+   * Higher = more important. Collisions are resolved in favour of higher priority
+   * (selected > match > default > muted; within each, stalls open now first).
+   * Equal priority: kept evenly spread along each street (see spreadRank), never random.
+   */
   priorityOf?: (id: string) => number;
   /** Rendered size multiplier (e.g. 1.25 for the selected stall). Space is reserved for it, so it never covers neighbours. */
   scaleOf?: (id: string) => number;
   /** Extra border width (px) drawn outside the square; also reserved. */
   padOf?: (id: string) => number;
 };
+
+/**
+ * Even-spread order along a line: 0, ½, ¼, ¾, ⅛ … of the line (bit-reversed index). When equal-priority markers
+ * collide, the earlier rank wins, so the survivors are spread evenly along the street — stable, never random
+ * (random would make different stalls blink in and out on every pan/zoom).
+ */
+export function spreadRank(k: number, n: number): number {
+  let bits = 0;
+  while (1 << bits < n) bits++;
+  let r = 0;
+  for (let b = 0; b < bits; b++) if (k & (1 << b)) r |= 1 << (bits - 1 - b);
+  return bits ? r / (1 << bits) : 0;
+}
 
 /**
  * Lay out stall markers. Guarantees: markers never overlap each other (operator rule), two-sided streets
@@ -190,6 +207,7 @@ export function layoutMarkersDetailed(items: LayoutInput[], lines: LayoutLine[],
   const lineMap = new Map(lines.map((l) => [l.id, l]));
   const byLine = new Map<string, LayoutInput[]>();
   const candidates: Placed[] = [];
+  const ranks: number[] = []; // even-spread tie-break, parallel to candidates
   for (const it of items) {
     if (it.line_id && it.progress != null && lineMap.has(it.line_id)) {
       const arr = byLine.get(it.line_id) ?? [];
@@ -198,6 +216,7 @@ export function layoutMarkersDetailed(items: LayoutInput[], lines: LayoutLine[],
     } else {
       const p = project(it.lat, it.lng);
       candidates.push({ id: it.id, x: p.x, y: p.y, size: base.size * scaleOf(it.id), pad: padOf(it.id) });
+      ranks.push(0);
     }
   }
   // Pass 1: the size each line can afford. Pass 2: one uniform size for the whole view (the smallest),
@@ -259,11 +278,12 @@ export function layoutMarkersDetailed(items: LayoutInput[], lines: LayoutLine[],
         p.y -= outward * -t.x * d;
       }
       candidates.push({ id: arr[i].id, x: p.x, y: p.y, size: w, pad: pads[i] });
+      ranks.push(spreadRank(i, arr.length));
     });
   }
   // markers without a display line use the same uniform size
   for (let i = 0; i < rawCount; i++) candidates[i].size = size * scaleOf(candidates[i].id);
-  return removeOverlapsDetailed(candidates, priorityOf, 1);
+  return removeOverlapsDetailed(candidates, priorityOf, 1, ranks);
 }
 
 /** Final guarantee: no two (upright, square) markers overlap. Higher priority wins; ties keep the earlier one. */
@@ -271,8 +291,8 @@ export function removeOverlaps(cands: Placed[], priorityOf: (id: string) => numb
   return removeOverlapsDetailed(cands, priorityOf, minGap).placed;
 }
 
-export function removeOverlapsDetailed(cands: Placed[], priorityOf: (id: string) => number, minGap: number): { placed: Placed[]; hidden: Placed[] } {
-  const order = cands.map((c, i) => ({ c, i, p: priorityOf(c.id) })).sort((a, b) => b.p - a.p || a.i - b.i);
+export function removeOverlapsDetailed(cands: Placed[], priorityOf: (id: string) => number, minGap: number, ranks?: number[]): { placed: Placed[]; hidden: Placed[] } {
+  const order = cands.map((c, i) => ({ c, i, p: priorityOf(c.id), r: ranks?.[i] ?? 0 })).sort((a, b) => b.p - a.p || a.r - b.r || a.i - b.i);
   const cell = Math.max(8, ...cands.map((c) => c.size)) + minGap;
   const grid = new Map<string, Placed[]>();
   const key = (x: number, y: number) => `${Math.floor(x / cell)},${Math.floor(y / cell)}`;

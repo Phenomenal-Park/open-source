@@ -19,11 +19,12 @@ export function useLayout(view: MapViewState, items: LayoutInput[], lines: Layou
 }
 
 /** Layout plus the markers hidden at this zoom (for "+n" bubbles). */
-export function useLayoutDetailed(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = ""): { placed: Map<string, Placed>; hidden: Placed[] } {
+/** openOf: stalls open now win collisions within the same state (include it in stateKey so it re-lays out). */
+export function useLayoutDetailed(view: MapViewState, items: LayoutInput[], lines: LayoutLine[], stateOf?: (id: string) => MarkerState, stateKey = "", openOf?: (id: string) => boolean): { placed: Map<string, Placed>; hidden: Placed[] } {
   return useMemo(() => {
     const opts: LayoutOptions = stateOf
       ? {
-          priorityOf: (id) => STATE_PRIORITY[stateOf(id)],
+          priorityOf: (id) => STATE_PRIORITY[stateOf(id)] * 2 + (openOf?.(id) ? 1 : 0),
           scaleOf: (id) => (stateOf(id) === "selected" ? SELECTED_SCALE : 1),
           padOf: (id) => (stateOf(id) === "selected" ? SELECTED_BORDER : 0),
         }
