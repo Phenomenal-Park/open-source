@@ -30,9 +30,10 @@ npm run simulate:ratings -- 350 2 6000   # 점수 분포 시뮬레이션 [SCALE 
 src/game/        규칙 엔진 (React·브라우저 의존 없음, 서버·향후 AI가 그대로 재사용)
   types.ts config.ts captures.ts victory.ts rules.ts gameState.ts rules.test.ts
 src/rating/      점수 체계 (elo.ts, ranks.ts, rating.test.ts)
+src/ai/          AI (형세 판단 evaluate.ts, 수읽기 search.ts, 기력 단계 levels.ts, Web Worker)
 src/components/  Board · Stone · Scoreboard · GameResult · AccountPanel
 server/          계정·랭크 대국 API (node:http, JSON 파일 저장소)
-scripts/         점수 분포 시뮬레이션
+scripts/         점수 분포 시뮬레이션, AI 기력 측정
 tests/e2e.mjs    브라우저 E2E
 ```
 
@@ -65,6 +66,26 @@ tests/e2e.mjs    브라우저 E2E
 
 표시 점수는 실력 점수를 넘지 않는다. 보너스는 "자기 실력까지 따라잡기"에만 쓰이므로 많이 둔다고 점수가 부풀지 않는다.
 시뮬레이션(가입 7만 명, 실력 분포 폭 σ 1.5~3 가정): 9단 비율 0.07~0.1% 유지, 표시 점수 중앙값 4급(전체)·3급(20판 이상).
+
+## AI (src/ai)
+
+알파베타 수읽기 + 형세 판단(5칸 창 줄 모양, 따내기 진행도, 따일 위험). 규칙 판정은 엔진(src/game)을 그대로 쓴다.
+브라우저 Web Worker에서 돌아 화면이 멈추지 않는다. 가장 센 단계도 한 수 0.3초 안팎. AI 대국은 점수에 반영하지 않는다.
+
+| 단계 | 표시(임시) | 측정 간격 |
+|---|---|---|
+| 1 | 18급 (500) | 기준(추정) |
+| 2 | 16급 (690) | +188 |
+| 3 | 12급 (900) | +211 |
+| 4 | 10급 (1070) | +167 |
+| 5 | 7급 (1250) | +188 |
+| 6 | 3급 (1490) | +236 |
+
+- 간격: 이웃 단계끼리 흑백 번갈아 40판 → 승률을 실력 점수 공식(SCALE 350)으로 환산(단계당 오차 약 ±80점).
+  `node scripts/calibrate-ai.ts <약한 번호> <강한 번호> [판 수]`
+- 출발점(가장 약한 단계 = 18급)은 추정. 사람과의 대국이 쌓이면 실측으로 고친다.
+- 한계: 수읽기를 5수로 늘려도 4수와 승률 50%로 차이가 없었다. 3급 위로 가려면 형세 판단·연속 위협 탐색 개선이 필요.
+  AI끼리 대국은 대부분 오목으로 끝나고 따내기 승리는 드물다(측정 200판 중 약 5%).
 
 ## 아직 정하지 않은 것 (지시서에 없어 임의로 보완하지 않음)
 

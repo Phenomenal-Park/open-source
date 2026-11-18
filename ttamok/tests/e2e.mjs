@@ -97,6 +97,34 @@ for (const [label, ctx] of [
   await context.close();
 }
 
+await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차례로 되돌린다", async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(base);
+  await page.locator("select").nth(1).selectOption({ label: "AI 3급" });
+  await page.getByRole("button", { name: "흑으로 두기" }).click();
+  await page.locator(".score-name", { hasText: "AI 3급" }).waitFor();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  await tap(page, 7, 7, { touch: true });
+  await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 2, null, { timeout: 10000 });
+  assert.match(await page.locator(".status").textContent(), /흑 차례/);
+  await tap(page, 1, 13, { touch: true }); // AI 응수와 겹치지 않을 먼 자리
+  await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 4, null, { timeout: 10000 });
+  if (shotDir) await page.waitForTimeout(800), await page.screenshot({ path: join(shotDir, "phone-ai.png") });
+  await page.getByRole("button", { name: "무르기" }).first().click();
+  assert.equal(await stones(page), 2);
+  assert.match(await page.locator(".status").textContent(), /흑 차례/);
+  // AI가 흑일 때: 시작하자마자 AI가 첫 수를 둔다
+  await page.getByRole("button", { name: "그만두기" }).click();
+  await page.getByRole("button", { name: "백으로 두기" }).click();
+  await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 1, null, { timeout: 10000 });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 await check("[phone] 랭크 대국: 두 계정 로그인 → 대국 → 서버 검증 후 점수 반영", async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
   const page = await context.newPage();

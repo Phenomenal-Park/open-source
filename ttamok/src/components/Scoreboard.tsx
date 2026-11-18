@@ -1,9 +1,12 @@
 import type { GameState, Player } from "../game/index.ts";
-import type { PublicUser } from "../api.ts";
+export interface SeatLabel {
+  name: string;
+  rank?: string;
+}
 
 interface ScoreboardProps {
   state: GameState;
-  names: Record<Player, PublicUser | null>;
+  names: Record<Player, SeatLabel | null>;
 }
 
 const LABEL: Record<Player, string> = { black: "흑", white: "백" };
@@ -23,7 +26,7 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
           <div key={p} className={`score-card ${p}${active ? " is-turn" : ""}${state.winner === p ? " is-winner" : ""}`}>
             <div className="score-head">
               <span className={`dot ${p}`} aria-hidden />
-              <span className="score-name">{user ? user.username : LABEL[p]}</span>
+              <span className="score-name">{user ? user.name : LABEL[p]}</span>
               {user && <span className="score-rank">{user.rank}</span>}
               {active && <span className="turn-tag">차례</span>}
             </div>

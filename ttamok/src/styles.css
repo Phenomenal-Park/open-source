@@ -143,6 +143,8 @@ button, input, select { font: inherit; }
 .seat-rating { color: var(--muted); font-size: 13px; flex-basis: 100%; }
 .seat-user .btn { margin-left: auto; }
 .form-error { color: var(--red); font-size: 13px; margin: 4px 0 0; }
+.ai-level { margin: 10px 0; }
+.small-note { margin: 8px 0 0; font-size: 12px; }
 .rated-tag { margin: 0; text-align: center; font-weight: 800; color: var(--accent); }
 .leaderboard { margin-top: 10px; }
 .leaderboard summary, .rules summary { cursor: pointer; font-weight: 700; font-size: 14px; }
