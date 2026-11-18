@@ -1,0 +1,40 @@
+import type { GameConfig, Player } from "./types.ts";
+
+export const DEFAULT_BOARD_SIZE = 15;
+export const MIN_BOARD_SIZE = 5;
+export const MAX_BOARD_SIZE = 25;
+
+export const DEFAULT_CAPTURE_TARGET: Readonly<Record<Player, number>> = Object.freeze({
+  black: 12,
+  white: 10,
+});
+
+export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Partial<Omit<GameConfig, "boardSize">> = {}): GameConfig {
+  if (!Number.isInteger(boardSize) || boardSize < MIN_BOARD_SIZE || boardSize > MAX_BOARD_SIZE) {
+    throw new RangeError(`boardSize must be an integer between ${MIN_BOARD_SIZE} and ${MAX_BOARD_SIZE}`);
+  }
+  return {
+    boardSize,
+    captureTarget: { ...DEFAULT_CAPTURE_TARGET, ...overrides.captureTarget },
+    overlineWins: overrides.overlineWins ?? false,
+  };
+}
+
+export function opponent(player: Player): Player {
+  return player === "black" ? "white" : "black";
+}
+
+/** 8방향. 포획은 8방향 각각을 독립적으로 검사한다. */
+export const DIRECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [-1, 0], [1, 0], [0, -1], [0, 1],
+  [-1, -1], [-1, 1], [1, -1], [1, 1],
+];
+
+/** 오목 판정용 4개 축 (각 축은 양방향으로 센다). */
+export const AXES: ReadonlyArray<readonly [number, number]> = [
+  [0, 1], [1, 0], [1, 1], [1, -1],
+];
+
+export function inBounds(size: number, row: number, col: number): boolean {
+  return row >= 0 && row < size && col >= 0 && col < size;
+}
