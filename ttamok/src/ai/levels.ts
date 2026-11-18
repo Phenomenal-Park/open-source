@@ -3,7 +3,8 @@
 //    (18→16급 +188, 16→12급 +211, 12→10급 +167, 10→7급 +188, 7→3급 +236; 측정 오차 단계당 약 ±80점)
 //  - 출발점: 가장 약한 단계를 18급(500점)으로 놓은 것은 추정이다.
 //  사람과의 대국 결과가 쌓이면 실측값으로 고친다. 측정: node scripts/calibrate-ai.ts <약한> <강한> [판 수]
-//  depth 5로 늘린 단계는 depth 4와 승률 50%로 차이가 없었다 → 더 세지려면 형세 판단/위협 탐색 개선이 필요.
+//  주의: 잡음 없는 단계끼리의 측정은 무작위 시작 수를 깔아야 한다(calibrate-ai.ts가 그렇게 한다).
+//  1단~7단을 위한 강화 작업 중(threats.ts 연속 위협 탐색, EXPERIMENTAL 단계).
 
 export interface AiLevel {
   id: string;
@@ -25,6 +26,11 @@ export interface AiLevel {
   missWin: number;
   /** 매 수마다 끝까지(depth) 읽을 확률. 아니면 한 수 덜 읽고 급한 자리도 놓칠 수 있다. */
   focus: number;
+  /** 연속 위협 탐색 깊이(0 = 안 씀). 내 필승 수순을 찾고, 상대의 필승 수순을 허용하는 수를 피한다. */
+  vcfDepth?: number;
+  vcfBudget?: number;
+  /** 상대 연속 위협을 확인할 뿌리 후보 수 */
+  vcfDefend?: number;
 }
 
 export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
@@ -39,3 +45,8 @@ export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
 export function levelById(id: string): AiLevel | undefined {
   return AI_LEVELS.find((l) => l.id === id);
 }
+
+/** 실험용: 기존 최강 단계 + 연속 위협 탐색 */
+export const EXPERIMENTAL: readonly AiLevel[] = Object.freeze([
+  { id: "x-vcf", label: "실험", rating: 0, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, vcfDepth: 6, vcfBudget: 4000, vcfDefend: 6 },
+]);

@@ -3,6 +3,7 @@ import type { GameState, Position } from "../game/types.ts";
 import { tryMove } from "../game/rules.ts";
 import { candidateMoves, evaluate, isUrgent, quickScore, WIN_SCORE } from "./evaluate.ts";
 import type { AiLevel } from "./levels.ts";
+import { findVcf } from "./threats.ts";
 
 export type Rng = () => number;
 
@@ -68,6 +69,13 @@ export function chooseMove(state: GameState, level: AiLevel, rand: Rng = Math.ra
     }
   }
 
+  // 1-1. 연속 위협으로 이기는 수순이 있으면 그대로 간다(강한 단계, 집중한 수)
+  const vcfDepth = focused ? level.vcfDepth ?? 0 : 0;
+  if (vcfDepth > 0) {
+    const win = findVcf(state, vcfDepth, { nodes: 0, limit: level.vcfBudget ?? 3000 });
+    if (win) return win;
+  }
+
   // 2. 아주 약한 단계: 그럴듯한 후보 중 아무거나
   if (rand() < level.randomPick) {
     const pool = roots.slice(0, level.randomPool);
@@ -97,6 +105,19 @@ export function chooseMove(state: GameState, level: AiLevel, rand: Rng = Math.ra
     }
   }
   if (stats) { stats.nodes = ctx.nodes; stats.depth = reached; stats.scored = scored; }
+
+  // 3-1. 상대의 필승 연속 위협을 허용하는 수는 피한다(점수 높은 후보부터 검사)
+  if (vcfDepth > 0 && level.vcfDefend) {
+    const byScore = [...scored].sort((a, b) => b.score - a.score);
+    let checked = 0;
+    for (const s of byScore) {
+      if (checked++ >= level.vcfDefend) break;
+      const r = tryMove(state, s.move);
+      if (!r.ok || r.state.isFinished) break;
+      if (findVcf(r.state, vcfDepth, { nodes: 0, limit: level.vcfBudget ?? 3000 })) s.score -= WIN_SCORE / 2;
+      else break; // 안전한 최선의 수를 찾음
+    }
+  }
 
   // 4. 실수: 점수에 잡음을 더해 고른다(사람이 할 법한 차선의 수).
   let best = scored[0];

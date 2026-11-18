@@ -2,10 +2,16 @@
 // 사용: node scripts/calibrate-ai.ts <약한 단계 번호> <강한 단계 번호> [판 수] [seed]
 //   예) node scripts/calibrate-ai.ts 0 1 40
 // 결과의 "점수 차"를 이어 붙이면 단계 사다리가 된다. 가장 약한 단계를 18급(500점)으로 놓는 것은 추정이다.
+// 각 판은 무작위 시작 3수(가운데 5×5)에서 출발하고, 같은 시작으로 흑백을 바꿔 두 번 둔다
+// (무작위성이 없는 강한 AI끼리는 그렇지 않으면 같은 판만 반복된다).
 import { createGame } from "../src/game/gameState.ts";
 import { tryMove } from "../src/game/rules.ts";
 import type { GameState } from "../src/game/types.ts";
 import { AI_LEVELS, chooseMove, type AiLevel } from "../src/ai/index.ts";
+import { EXPERIMENTAL } from "../src/ai/levels.ts";
+
+const ALL = [...AI_LEVELS, ...EXPERIMENTAL];
+const pick = (x: string) => (/^\d+$/.test(x) ? ALL[+x] : ALL.find((l) => l.id === x || l.label === x)!);
 import { RATING_SCALE } from "../src/rating/elo.ts";
 
 function mulberry32(seed: number) {
@@ -17,8 +23,18 @@ function mulberry32(seed: number) {
   };
 }
 
-export function playGame(black: AiLevel, white: AiLevel, rand: () => number): GameState {
+/** 무작위 시작 수(가운데 5×5 안) — 무작위성이 없는 강한 AI끼리도 서로 다른 판이 나오게 한다. */
+export function randomOpening(rand: () => number, moves = 3): GameState {
   let s = createGame(15);
+  while (s.moveCount < moves) {
+    const r = tryMove(s, { row: 5 + Math.floor(rand() * 5), col: 5 + Math.floor(rand() * 5) });
+    if (r.ok) s = r.state;
+  }
+  return s;
+}
+
+export function playGame(black: AiLevel, white: AiLevel, rand: () => number, start: GameState = createGame(15)): GameState {
+  let s = start;
   while (!s.isFinished && s.moveCount < 225) {
     const m = chooseMove(s, s.currentPlayer === "black" ? black : white, rand);
     const r = tryMove(s, m);
@@ -36,13 +52,16 @@ export function ratingGap(p: number, scale = RATING_SCALE): number {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [a = "0", b = "1", n = "40", seed = "7"] = process.argv.slice(2);
-  const weak = AI_LEVELS[+a], strong = AI_LEVELS[+b];
+  const weak = pick(a), strong = pick(b);
   const rand = mulberry32(+seed);
   let strongScore = 0, five = 0, capture = 0, moves = 0;
   const t = performance.now();
+  let opening = randomOpening(rand);
   for (let i = 0; i < +n; i++) {
+    // 같은 시작 수로 흑백을 바꿔 두 판씩
     const strongIsBlack = i % 2 === 0;
-    const g = playGame(strongIsBlack ? strong : weak, strongIsBlack ? weak : strong, rand);
+    if (strongIsBlack) opening = randomOpening(rand);
+    const g = playGame(strongIsBlack ? strong : weak, strongIsBlack ? weak : strong, rand, opening);
     moves += g.moveCount;
     if (!g.winner) { strongScore += 0.5; continue; }
     if (g.winReason === "five") five++; else capture++;
