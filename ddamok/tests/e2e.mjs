@@ -56,12 +56,16 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
   });
 
   await check(`[${label}] 흑 선착, 착수·포획·점수·무르기`, async () => {
-    assert.match(await page.locator(".status").textContent(), /흑 차례/);
-    for (const [r, c] of [[7, 8], [7, 7], [7, 9]]) await tap(page, r, c, { touch });
+    assert.match(await page.locator(".status").textContent(), /흑 차례 · 첫 수는 천원/);
+    assert.equal(await page.locator(".center-hint").count(), 1);
+    await tap(page, 3, 3, { touch }); // 첫 수는 천원만: 변화 없음
+    assert.equal(await stones(page), 0);
+    // 흑(7,7) 백(7,6) 흑(7,8) 백(7,9) → 백이 흑 두 점 포획
+    for (const [r, c] of [[7, 7], [7, 6], [7, 8]]) await tap(page, r, c, { touch });
     assert.equal(await stones(page), 3);
-    await tap(page, 7, 9, { touch }); // 이미 돌이 있는 곳: 변화 없음
+    await tap(page, 7, 8, { touch }); // 이미 돌이 있는 곳: 변화 없음
     assert.equal(await stones(page), 3);
-    await tap(page, 7, 10, { touch });
+    await tap(page, 7, 9, { touch });
     assert.equal(await stones(page), 2);
     assert.deepEqual(await counts(page), ["0", "2"]);
     assert.equal(await page.locator(".capture-fx .captured").count(), 2);
@@ -74,7 +78,7 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
 
   await check(`[${label}] 오목 승리 → 결과 화면, 이후 착수 불가, 새 대국`, async () => {
     await page.getByRole("button", { name: "새 대국" }).first().click();
-    for (const [r, c] of [[3, 3], [10, 0], [3, 4], [10, 2], [3, 5], [10, 4], [3, 6], [10, 6], [3, 7]]) await tap(page, r, c, { touch });
+    for (const [r, c] of [[7, 7], [10, 0], [7, 8], [10, 2], [7, 9], [10, 4], [7, 10], [10, 6], [7, 11]]) await tap(page, r, c, { touch });
     await page.locator(".result-card").waitFor();
     assert.match(await page.locator(".result-card h2").textContent(), /흑 승리/);
     assert.match(await page.locator(".result-badge").textContent(), /오목/);
@@ -180,12 +184,12 @@ await check("[온라인] 친구매치: 같은 코드 → 대국 → 오목 승�
   const white = black === A ? B : A;
   const waitStones = (p, n) => p.waitForFunction((k) => document.querySelectorAll("svg.board .stone").length === k, n, { timeout: 10000 });
   for (let i = 0; i < 4; i++) {
-    await tap(black, 7, 3 + i, { touch: black === A });
+    await tap(black, 7, 7 + i, { touch: black === A });
     await waitStones(white, i * 2 + 1);
     await tap(white, 0, i, { touch: white === A });
     await waitStones(black, i * 2 + 2);
   }
-  await tap(black, 7, 7, { touch: black === A });
+  await tap(black, 7, 11, { touch: black === A });
   for (const p of [A, B]) await p.locator(".result-card").waitFor({ timeout: 10000 });
   assert.match(await black.locator(".result-card h2").textContent(), /승리/);
   assert.match(await white.locator(".result-card h2").textContent(), /패배/);

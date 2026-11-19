@@ -151,12 +151,17 @@ await check("레이팅매치: 매칭 → 서버가 착수 검증 → 5목 승리
   assert.match(err.message, /상대 차례/);
   let n = 0;
   for (let i = 0; i < 4; i++) {
-    await play(black, 7, 3 + i, n++);
+    if (i === 0) {
+      // 흑의 첫 수는 천원만
+      black.sock.send({ type: "move", row: 3, col: 3, moveNo: 0 });
+      assert.equal((await black.sock.next((m) => m.type === "error")).code, "illegal");
+    }
+    await play(black, 7, 7 + i, n++);
     // 같은 자리 두기 거부
-    if (i === 0) { white.sock.send({ type: "move", row: 7, col: 3, moveNo: n }); await white.sock.next((m) => m.type === "error"); }
+    if (i === 0) { white.sock.send({ type: "move", row: 7, col: 7, moveNo: n }); await white.sock.next((m) => m.type === "error"); }
     await play(white, 0, i, n++);
   }
-  const fin = await play(black, 7, 7, n++);
+  const fin = await play(black, 7, 11, n++);
   assert.equal(fin.game.status, "finished");
   assert.equal(fin.game.result.winner, "black");
   assert.equal(fin.game.result.reason, "five");
@@ -398,7 +403,7 @@ if (failures) console.log(server.log().split("\n").filter((l) => /error|Error|�
 server.stop();
 
 // ── 무승부: 5×5 판 전용 서버(판이 다 차는 대국을 짧게 재현) ──
-const DRAW_SEQ = [[4,3],[2,2],[0,0],[0,1],[2,3],[1,4],[1,1],[4,2],[2,0],[3,1],[3,0],[0,4],[3,2],[0,3],[1,2],[2,4],[1,0],[4,4],[4,1],[3,3],[1,3],[2,1],[0,2],[4,0],[3,4]];
+const DRAW_SEQ = [[2,2],[1,1],[4,3],[2,4],[4,2],[2,0],[0,3],[3,2],[0,4],[4,4],[0,1],[1,3],[1,4],[3,0],[3,1],[3,3],[0,2],[3,4],[2,3],[1,2],[2,1],[0,0],[4,0],[1,0],[4,1]]; // 첫 수는 천원(2,2)
 const small = await startServer({ BOARD_SIZE: "5" });
 const sapi = async (path, body, token) => {
   const res = await fetch(small.base + path, {

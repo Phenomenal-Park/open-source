@@ -248,7 +248,7 @@ export function MainPage() {
     return null;
   };
 
-  const moveNo = t("status.moveNo", { n: state.moveCount + 1 });
+  const moveNo = state.moveCount === 0 && state.config.firstMoveCenter ? t("status.firstCenter") : t("status.moveNo", { n: state.moveCount + 1 });
   let status: string;
   if (online && !online.game) status = t("status.connecting");
   else if (online?.game?.status === "aborted") status = t("status.aborted");

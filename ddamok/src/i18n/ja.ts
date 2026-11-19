@@ -51,6 +51,7 @@ export const ja: Messages = {
   "status.moveNo": "{n}手目",
   "status.reconnecting": "再接続中…",
   "status.aiThinking": "AIが考え中…",
+  "status.firstCenter": "初手は天元",
   "status.turn": "{color}の番",
   "confirm.resign": "投了しますか？",
   "confirm.size": "盤のサイズを変えると新しい対局になります。",
@@ -77,7 +78,7 @@ export const ja: Messages = {
   "size.note": "同じ画面での対局とAI対局用です。オンライン対局は15×15です。",
 
   "rules.title": "ルール",
-  "rules.1": "黒から交互に、空いている交点へ石を1つずつ置きます。禁じ手（三三・四四・長連）はありません。",
+  "rules.1": "黒から交互に、空いている交点へ石を1つずつ置きます。黒の**初手は天元**（中央）です。禁じ手（三三・四四・長連）はありません。",
   "rules.2": "縦・横・斜めに**ちょうど5つ**並べると勝ち。6つ以上は置けますが勝ちにはなりません。",
   "rules.3": "今置いた石と自分の石で相手の石**2つ**を挟むと取れます（8方向、複数方向同時も可）。",
   "rules.4": "自分から挟まれる位置に置いた石は取られません。",

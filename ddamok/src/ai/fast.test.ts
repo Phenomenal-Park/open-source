@@ -29,7 +29,8 @@ describe("AI 고속 판 = 규칙 엔진 (차등 테스트)", () => {
         for (let p = 0; p < size * size; p++) if (!s.board[(p / size) | 0][p % size]) empties.push(p);
         // 포획이 잘 나오도록 가끔은 따낼 수 있는 자리를 고른다
         const cap = empties.filter((p) => fb.capturesAt(p, fb.toMove).length);
-        const pos = cap.length && rand() < 0.5 ? cap[(rand() * cap.length) | 0] : empties[(rand() * empties.length) | 0];
+        const center = ((size / 2) | 0) * size + ((size / 2) | 0); // 첫 수는 천원
+        const pos = s.moveCount === 0 ? center : cap.length && rand() < 0.5 ? cap[(rand() * cap.length) | 0] : empties[(rand() * empties.length) | 0];
         const r = tryMove(s, { row: (pos / size) | 0, col: pos % size });
         expect(r.ok).toBe(true);
         if (!r.ok) break;

@@ -107,6 +107,10 @@ export function Board({ state, onPlay, disabled, fx }: BoardProps) {
         </g>
       )}
 
+      {state.config.firstMoveCenter && state.moveCount === 0 && !state.board.some((r) => r.some((c) => c)) && (
+        <circle className="center-hint" cx={xy(Math.floor(n / 2))} cy={xy(Math.floor(n / 2))} r={R} />
+      )}
+
       {canHover && <Stone player={state.currentPlayer} cx={xy(hover!.col)} cy={xy(hover!.row)} r={R} opacity={0.4} />}
 
       {state.lastMove && (

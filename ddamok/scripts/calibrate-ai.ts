@@ -31,9 +31,9 @@ function mulberry32(seed: number) {
   };
 }
 
-/** 무작위 시작 수(가운데 5×5 안) — 무작위성이 없는 강한 AI끼리도 서로 다른 판이 나오게 한다. */
+/** 무작위 시작 수: 첫 수는 천원(규칙), 이후 가운데 5×5 안 무작위 — 무작위성이 없는 강한 AI끼리도 서로 다른 판이 나오게 한다. */
 export function randomOpening(rand: () => number, moves = 3): GameState {
-  let s = createGame(15);
+  let s = (tryMove(createGame(15), { row: 7, col: 7 }) as { state: GameState }).state;
   while (s.moveCount < moves) {
     const r = tryMove(s, { row: 5 + Math.floor(rand() * 5), col: 5 + Math.floor(rand() * 5) });
     if (r.ok) s = r.state;

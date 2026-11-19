@@ -28,7 +28,7 @@ function gen(games: number, seed: number, out: string, weights?: number[]) {
   const level: FastLevel = { depth: 14, timeMs: 80, width: 12, noise: 40, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, weights };
   const rows: number[][] = [];
   for (let g = 0; g < games; g++) {
-    let s: GameState = createGame(15);
+    let s: GameState = (tryMove(createGame(15), { row: 7, col: 7 }) as { state: GameState }).state; // 첫 수는 천원
     while (s.moveCount < 3) {
       const r = tryMove(s, { row: 5 + Math.floor(rand() * 5), col: 5 + Math.floor(rand() * 5) });
       if (r.ok) s = r.state;

@@ -51,6 +51,7 @@ export const en: Messages = {
   "status.moveNo": "Move {n}",
   "status.reconnecting": "Reconnecting…",
   "status.aiThinking": "AI is thinking…",
+  "status.firstCenter": "First move: center",
   "status.turn": "{color} to play",
   "confirm.resign": "Resign this game?",
   "confirm.size": "Changing the board size starts a new game.",
@@ -77,7 +78,7 @@ export const en: Messages = {
   "size.note": "For local and AI games. Online games are 15×15.",
 
   "rules.title": "Rules",
-  "rules.1": "Black moves first; players take turns placing one stone on an empty point. No forbidden moves (3-3, 4-4 and overlines are allowed).",
+  "rules.1": "Black moves first; players take turns placing one stone on an empty point. Black's **first move is the center point**. No forbidden moves (3-3, 4-4 and overlines are allowed).",
   "rules.2": "Make **exactly five** in a row — across, down or diagonally — to win. Six or more can be played but don't win.",
   "rules.3": "Trap **two** of your opponent's stones between the stone you just played and another of yours to capture them (any of 8 directions, several at once).",
   "rules.4": "A stone you place into a trap yourself is not captured.",

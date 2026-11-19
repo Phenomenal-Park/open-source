@@ -5,6 +5,9 @@ import {
 } from "./index.ts";
 import { at, fromDiagram, play, stoneCount } from "./testUtils.ts";
 
+/** 첫 수 천원 규칙만 끈 판 — 포획·5목·무르기 등 다른 규칙을 판 가장자리에서 확인하는 테스트용 */
+const free = (n = 15) => createGame(n, { firstMoveCenter: false });
+
 describe("일반 포획", () => {
   it("1. 흑이 가로 방향으로 백돌 두 개를 포획한다", () => {
     const s = fromDiagram(["XOO."], "black");
@@ -73,7 +76,7 @@ describe("자충과 잘못된 포획 방지", () => {
 
   it("7. 이후 흑이 무관한 지점에 두어도 기존 ●○○●의 백돌은 제거되지 않는다 (실제 수순)", () => {
     // 흑(0,0) 백(0,1) 흑(0,3) 백(0,2)=자충 → 흑이 엉뚱한 곳(10,10)
-    let s = play(createGame(15), at(0, 0), at(0, 1), at(0, 3), at(0, 2));
+    let s = play(free(), at(0, 0), at(0, 1), at(0, 3), at(0, 2));
     expect(s.board[0].slice(0, 4)).toEqual(["black", "white", "white", "black"]);
     s = play(s, at(10, 10));
     expect(s.board[0].slice(0, 4)).toEqual(["black", "white", "white", "black"]);
@@ -93,14 +96,14 @@ describe("자충과 잘못된 포획 방지", () => {
 
   it("8. 흑백이 반대여도 같다: 흑의 자충은 제거되지 않는다", () => {
     // 실제 수순: 백(0,0)… 흑이 스스로 (0,2)에 두어 ○●●○ 완성
-    let s = play(createGame(15), at(0, 1), at(0, 0), at(9, 9), at(0, 3), at(0, 2));
+    let s = play(free(), at(0, 1), at(0, 0), at(9, 9), at(0, 3), at(0, 2));
     expect(s.board[0].slice(0, 4)).toEqual(["white", "black", "black", "white"]);
     expect(s.capturedByWhite).toBe(0);
     s = play(s, at(8, 8)); // 백이 무관한 곳에 착수해도 그대로
     expect(s.board[0].slice(0, 4)).toEqual(["white", "black", "black", "white"]);
     expect(s.capturedByWhite).toBe(0);
     // 대조군: 백이 마지막 돌을 놓아 완성하면 정상 포획
-    const real = play(createGame(15), at(7, 3), at(7, 2), at(7, 4), at(7, 5));
+    const real = play(free(), at(7, 3), at(7, 2), at(7, 4), at(7, 5));
     expect(real.capturedByWhite).toBe(2);
     expect(real.board[7][3]).toBeNull();
   });
@@ -180,7 +183,7 @@ describe("오목과 금수", () => {
   });
 
   it("13b. 실제 수순으로 흑 5목 (세로)", () => {
-    const n = play(createGame(15), at(3, 7), at(3, 0), at(4, 7), at(5, 0), at(5, 7), at(7, 0), at(6, 7), at(9, 0), at(7, 7));
+    const n = play(free(), at(3, 7), at(3, 0), at(4, 7), at(5, 0), at(5, 7), at(7, 0), at(6, 7), at(9, 0), at(7, 7));
     expect(n.winner).toBe("black");
     expect(n.winReason).toBe("five");
   });
@@ -306,7 +309,7 @@ describe("포획 승리", () => {
   });
 
   it("19b. 실제 수순으로 백이 다섯 번 따내 10개로 승리", () => {
-    let s = createGame(15);
+    let s = free();
     // 매 라운드: 흑 a, 백 b(끝), 흑 c, 백 d(둘러쌀 돌 아님), ... 간단히 행마다 ○●●○ 만들기
     for (let k = 0; k < 5; k++) {
       const r = k * 2;
@@ -358,7 +361,7 @@ describe("상태 관리", () => {
   });
 
   it("23. 흑이 먼저 두고 흑백 차례가 정확히 교대된다", () => {
-    let s = createGame(15);
+    let s = free();
     expect(s.currentPlayer).toBe("black");
     const order: string[] = [];
     for (let i = 0; i < 6; i++) {
@@ -372,7 +375,7 @@ describe("상태 관리", () => {
   });
 
   it("24. 포획이 발생한 수를 무르면 돌과 점수가 모두 복구된다", () => {
-    let h = createHistory(createGame(15));
+    let h = createHistory(free());
     for (const m of [at(0, 1), at(0, 0), at(0, 2)]) h = playMove(h, m); // 흑 백 흑
     const before = currentState(h);
     h = playMove(h, at(0, 3)); // 백이 흑 두 점 포획
@@ -410,7 +413,7 @@ describe("상태 관리", () => {
   });
 
   it("26. 대국을 초기화하면 돌·따낸 돌 수·수순이 모두 초기화된다", () => {
-    const played = play(createGame(15), at(0, 1), at(0, 0), at(0, 2), at(0, 3));
+    const played = play(free(), at(0, 1), at(0, 0), at(0, 2), at(0, 3));
     expect(played.capturedByWhite).toBe(2);
     const fresh = createGame(played.config.boardSize);
     expect(stoneCount(fresh, "black") + stoneCount(fresh, "white")).toBe(0);
@@ -421,6 +424,30 @@ describe("상태 관리", () => {
     expect(fresh.lastMove).toBeNull();
     expect(fresh.currentPlayer).toBe("black");
     expect(fresh.winner).toBeNull();
+  });
+});
+
+describe("첫 수는 천원", () => {
+  it("흑의 첫 수는 천원(가운데)만 둘 수 있다", () => {
+    const s = createGame(15);
+    expect(isLegalMove(s, at(0, 0))).toBe(false);
+    expect(tryMove(s, at(7, 8))).toEqual({ ok: false, reason: "first-move-center" });
+    expect(applyMove(s, at(3, 3))).toBe(s);
+    const n = applyMove(s, at(7, 7));
+    expect(n.board[7][7]).toBe("black");
+    // 두 번째 수부터는 어디든
+    expect(isLegalMove(n, at(0, 0))).toBe(true);
+  });
+
+  it("판 크기가 달라도 가운데", () => {
+    expect(applyMove(createGame(13), at(6, 6)).moveCount).toBe(1);
+    expect(applyMove(createGame(19), at(9, 9)).moveCount).toBe(1);
+    expect(applyMove(createGame(19), at(7, 7)).moveCount).toBe(0);
+  });
+
+  it("기보 재검증에서도 첫 수가 천원이 아니면 거부", () => {
+    expect(replayMoves(createGame(15).config, [at(0, 0)])).toEqual({ ok: false, moveIndex: 0, reason: "first-move-center" });
+    expect(replayMoves(createGame(15).config, [at(7, 7), at(0, 0)]).ok).toBe(true);
   });
 });
 
@@ -478,11 +505,11 @@ describe("엔진 일반", () => {
 
   it("replayMoves로 기보를 재검증할 수 있다", () => {
     const moves = [at(0, 1), at(0, 0), at(0, 2), at(0, 3)];
-    const r = replayMoves(createGame(15).config, moves);
+    const r = replayMoves(free().config, moves);
     expect(r.ok && r.state.capturedByWhite).toBe(2);
-    const bad = replayMoves(createGame(15).config, [at(0, 0), at(0, 0)]);
+    const bad = replayMoves(free().config, [at(0, 0), at(0, 0)]);
     expect(bad).toEqual({ ok: false, moveIndex: 1, reason: "occupied" });
-    const afterEnd = replayMoves(fromDiagram([]).config, [
+    const afterEnd = replayMoves(free().config, [
       at(0, 0), at(1, 0), at(0, 1), at(1, 1), at(0, 2), at(1, 2), at(0, 3), at(1, 3), at(0, 4), at(5, 5),
     ]);
     expect(afterEnd).toEqual({ ok: false, moveIndex: 9, reason: "finished" });

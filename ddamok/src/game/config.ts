@@ -17,7 +17,14 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     boardSize,
     captureTarget: { ...DEFAULT_CAPTURE_TARGET, ...overrides.captureTarget },
     overlineWins: overrides.overlineWins ?? false,
+    firstMoveCenter: overrides.firstMoveCenter ?? true,
   };
+}
+
+/** 천원(가운데) 좌표 */
+export function centerOf(size: number): { row: number; col: number } {
+  const c = Math.floor(size / 2);
+  return { row: c, col: c };
 }
 
 export function opponent(player: Player): Player {

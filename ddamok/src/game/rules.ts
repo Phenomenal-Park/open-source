@@ -1,5 +1,5 @@
 import type { GameState, IllegalReason, MoveResult, Player, Position } from "./types.ts";
-import { inBounds, opponent } from "./config.ts";
+import { centerOf, inBounds, opponent } from "./config.ts";
 import { getCapturedStones } from "./captures.ts";
 import { checkCaptureVictory, findFiveInRow } from "./victory.ts";
 
@@ -11,6 +11,11 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     return "out-of-bounds";                                                  // 3. 판 내부
   }
   if (state.board[row][col] !== null) return "occupied";                    // 4. 빈 교차점
+  // 흑의 첫 수(빈 판의 첫 착수)는 천원만
+  if (state.config.firstMoveCenter && state.moveCount === 0 && !state.board.some((r) => r.some((c) => c !== null))) {
+    const c = centerOf(state.config.boardSize);
+    if (row !== c.row || col !== c.col) return "first-move-center";
+  }
   return null;
 }
 
