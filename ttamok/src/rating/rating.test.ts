@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  calibrationFactor, expectedScore, MIN_CALIBRATION_PLAYERS, MMR_START, newRatedPlayer, rankFor, RANKS,
-  rateGame, rescale, streakMultiplier, pointsToNextRank, type RatedPlayer,
+  calibrationFactor, expectedScore, isProvisional, MIN_CALIBRATION_PLAYERS, MMR_START, newRatedPlayer, rankFor, RANKS,
+  rateGame, rescale, streakMultiplier, pointsToNextRank, RD_MIN, RD_START, type RatedPlayer,
 } from "./index.ts";
 
-const p = (rating: number, mmr: number, games = 50, winStreak = 0): RatedPlayer => ({ rating, mmr, games, winStreak });
+/** 기본은 확정된 유저(rd 60) */
+const p = (rating: number, mmr: number, games = 50, winStreak = 0, rd = RD_MIN): RatedPlayer => ({ rating, mmr, rd, games, winStreak });
+const fresh = (rating = 500, mmr = 1500, games = 0, winStreak = 0) => p(rating, mmr, games, winStreak, RD_START);
 
 describe("급·단 표", () => {
   it("18급(500점)에서 시작해 1급 → 1단 → 9단(2500점)", () => {
@@ -25,30 +27,68 @@ describe("급·단 표", () => {
   });
 });
 
-describe("ELO", () => {
-  it("신규 유저: 표시 500점(18급), 실력 점수 1500점", () => {
-    expect(newRatedPlayer()).toEqual({ rating: 500, mmr: MMR_START, games: 0, winStreak: 0 });
+describe("점수(글리코 + 표시 점수)", () => {
+  it("신규 유저: 표시 500점(18급), 실력 점수 1500점, 확정 전(?)", () => {
+    expect(newRatedPlayer()).toEqual({ rating: 500, mmr: MMR_START, rd: RD_START, games: 0, winStreak: 0 });
+    expect(isProvisional(newRatedPlayer())).toBe(true);
+    expect(isProvisional(p(1500, 1500))).toBe(false);
   });
 
-  it("기대 승률은 점수가 같으면 0.5, 높을수록 크다", () => {
+  it("기대 승률은 점수가 같으면 0.5, 높을수록 크다. 상대가 불확실하면 0.5 쪽으로 줄어든다", () => {
     expect(expectedScore(1500, 1500)).toBe(0.5);
     expect(expectedScore(1800, 1500)).toBeGreaterThan(0.8);
+    expect(expectedScore(1800, 1500, 350, 350)).toBeLessThan(expectedScore(1800, 1500, 350, 60));
+  });
+
+  it("확정 전에는 변동폭이 굉장히 크다(신규끼리 한 판 100점 이상)", () => {
+    const r = rateGame(fresh(), fresh());
+    expect(r.winner.after.mmr - 1500).toBeGreaterThan(100);
+    expect(1500 - r.loser.after.mmr).toBeGreaterThan(100);
+    expect(r.winner.after.rd).toBeLessThan(RD_START);
+  });
+
+  it("약 10판이면 확정된다(?가 사라짐)", () => {
+    let me = fresh();
+    let n = 0;
+    while (isProvisional(me) && n < 50) {
+      const opp = p(me.mmr, me.mmr);
+      me = (n % 2 ? rateGame(opp, me).loser.after : rateGame(me, opp).winner.after);
+      n++;
+    }
+    expect(n).toBeGreaterThanOrEqual(8);
+    expect(n).toBeLessThanOrEqual(12);
+  });
+
+  it("확정된 2000점 고수가 '?' 유저에게 지면 조금만 깎인다", () => {
+    const pro = p(2050, 2050);
+    const vsNew = rateGame(fresh(1500, 1600, 5, 4), pro);         // 상대가 확정 전
+    const vsEstablished = rateGame(p(1600, 1600), pro);            // 상대가 확정됨
+    expect(-vsNew.loser.delta).toBeLessThan(15);
+    expect(-vsNew.loser.delta).toBeLessThan(-vsEstablished.loser.delta);
+    // 반면 '?' 유저는 크게 오른다
+    expect(vsNew.winner.after.mmr - 1600).toBeGreaterThan(150);
+  });
+
+  it("'?' 유저가 고수에게 지면 크게 떨어지지 않는다(예상된 패배)", () => {
+    const r = rateGame(p(2050, 2050), fresh(1500, 1600, 5, 4));
+    expect(1600 - r.loser.after.mmr).toBeLessThan(40);
+    expect(r.loser.after.rating).toBeGreaterThan(1500 - 40);
   });
 
   it("초반(1000점 미만)에는 이기면 크게 오르고 져도 표시 점수를 잃지 않는다", () => {
-    const a = newRatedPlayer(), b = newRatedPlayer();
-    const r = rateGame(a, b);
-    expect(r.winner.after.mmr).toBe(1532);          // K 64 × 0.5
-    expect(r.winner.after.rating).toBe(500 + 32 + 80); // + 승급 보너스 80
+    const r = rateGame(fresh(), fresh());
+    const gain = r.winner.after.mmr - 1500;
+    expect(r.winner.after.rating).toBe(500 + gain + 80);
     expect(r.winner.bonus).toBe(80);
-    expect(r.loser.after.mmr).toBe(1468);
-    expect(r.loser.after.rating).toBe(500);           // 1000점 미만은 잃지 않음
+    expect(r.loser.after.rating).toBe(500);
   });
 
   it("1000~1500점 구간: 보너스 +50, 지면 절반만 잃는다", () => {
-    const r = rateGame(p(1200, 1700, 50), p(1200, 1700, 50));
-    expect(r.winner.after.rating).toBe(1200 + 12 + 50);
-    expect(r.loser.after.rating).toBe(1200 - 6);
+    const r = rateGame(p(1200, 1700), p(1200, 1700));
+    const gain = r.winner.after.mmr - 1700;
+    const loss = 1700 - r.loser.after.mmr;
+    expect(r.winner.after.rating).toBe(1200 + gain + 50);
+    expect(r.loser.after.rating).toBe(1200 - Math.round(loss * 0.5));
   });
 
   it("연승하면 보너스가 커진다 (2연승 ×1.25 … 5연승 이상 ×2)", () => {
@@ -62,27 +102,27 @@ describe("ELO", () => {
   });
 
   it("표시 점수는 실력 점수를 넘지 않고, 따라잡은 뒤엔 똑같이 움직인다", () => {
-    const near = rateGame(p(1590, 1600, 50, 3), p(1600, 1600, 50));
+    const near = rateGame(p(1590, 1600, 50, 3), p(1600, 1600));
     expect(near.winner.after.rating).toBe(near.winner.after.mmr);
     const conv = rateGame(p(1800, 1800), p(1800, 1800));
-    expect(conv.winner.delta).toBe(12);
+    expect(conv.winner.delta).toBe(conv.winner.after.mmr - 1800);
+    expect(conv.winner.delta).toBeGreaterThanOrEqual(10); // 확정 유저끼리 비슷한 실력: 한 판 약 11점(이전 K 24와 비슷)
     expect(conv.winner.bonus).toBe(0);
-    expect(conv.loser.delta).toBe(-12);
+    expect(conv.loser.delta).toBe(-conv.winner.delta);
   });
 
-  it("7단 이상이 낮은 상대에게 지면 훅 깎이고, 같은 만큼 상대가 오른다(제로섬)", () => {
-    const normal = rateGame(p(2000, 2000), p(2350, 2350)); // 고단자 패배, 이변 규칙
-    expect(normal.upset).toBe(true);
-    const plain = rateGame(p(2000, 2000), p(2250, 2250));  // 6단은 적용 안 됨
+  it("7단 이상이 확정된 낮은 상대에게 지면 훅 깎인다 — 상대가 '?'면 적용 안 함", () => {
+    const upset = rateGame(p(2000, 2000), p(2350, 2350));
+    expect(upset.upset).toBe(true);
+    const plain = rateGame(p(2000, 2000), p(2250, 2250)); // 6단은 적용 안 됨
     expect(plain.upset).toBe(false);
-    expect(-normal.loser.delta).toBeGreaterThan(2 * -plain.loser.delta);
-    expect(normal.winner.after.mmr - 2000).toBe(2350 - normal.loser.after.mmr);
-    // 고단자가 이기면 평소대로
-    expect(rateGame(p(2350, 2350), p(2000, 2000)).upset).toBe(false);
+    expect(-upset.loser.delta).toBeGreaterThan(2 * -plain.loser.delta);
+    expect(rateGame(fresh(1500, 2000, 5), p(2350, 2350)).upset).toBe(false);
+    expect(rateGame(p(2350, 2350), p(2000, 2000)).upset).toBe(false); // 고단자가 이기면 평소대로
   });
 
   it("하한은 0점", () => {
-    const r = rateGame(p(10, 10), p(10, 10)); // 패자 −12 → 0에서 멈춤
+    const r = rateGame(p(10, 10), p(10, 10));
     expect(r.loser.after.rating).toBe(0);
     expect(r.loser.after.mmr).toBe(0);
   });

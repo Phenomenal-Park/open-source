@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ttamok",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  // 화면(dist)은 정적 파일로, /api/* 만 Worker가 처리한다.
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ttamok",
+      // 배포 전에 `npx wrangler d1 create ttamok` 결과의 database_id로 바꾼다(DEPLOY.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" },
+      { "name": "GAME_ROOM", "class_name": "GameRoom" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Matchmaker", "GameRoom"] }],
+  // 하루 한 번 점수 분포 보정(9단 0.05~0.1%)
+  "triggers": { "crons": ["17 18 * * *"] },
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "SIGNUP_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } }
+  ],
+  "vars": {
+    "DISCONNECT_MS": "45000",
+    "PBKDF2_ITERATIONS": "100000"
+  },
+  "observability": { "enabled": true },
+  "send_metrics": false
+}

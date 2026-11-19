@@ -7,7 +7,7 @@
 //  - 매칭은 실력 점수(mmr)가 비슷한 사람끼리.
 //
 // 사용: node scripts/simulate-ratings.ts [scale] [sigma] [rounds] [seed]
-//   환경변수: SIM_CALIBRATE=0 (정기 보정 끄기), SIM_K=64,40,24 (K 표), SIM_JOINS=40 (라운드당 가입)
+//   환경변수: SIM_CALIBRATE=0 (정기 보정 끄기), SIM_JOINS=40 (라운드당 가입)
 import { calibrationFactor, DEFAULT_RATING_PARAMS, newRatedPlayer, rateGame, rescale, type RatedPlayer, type RatingParams } from "../src/rating/elo.ts";
 import { RANKS, rankFor, TOP_RANK } from "../src/rating/ranks.ts";
 
@@ -35,10 +35,7 @@ export function simulate(opts: SimOptions) {
   const rand = mulberry32(opts.seed);
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
   const params: RatingParams = { ...DEFAULT_RATING_PARAMS, scale: opts.scale };
-  if (process.env.SIM_K) {
-    const ks = process.env.SIM_K.split(",").map(Number);
-    params.kSchedule = [{ untilGames: 10, k: ks[0] }, { untilGames: 30, k: ks[1] }, { untilGames: Infinity, k: ks[2] }];
-  }
+
   const pop: SimPlayer[] = [];
   const snapshots: { round: number; topShare: number; median: number }[] = [];
   let calibrations = 0;

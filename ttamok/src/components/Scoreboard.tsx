@@ -2,6 +2,10 @@ import type { GameState, Player } from "../game/index.ts";
 export interface SeatLabel {
   name: string;
   rank?: string;
+  /** 예: "1500?" */
+  rating?: string;
+  /** 접속 끊김: 패배까지 남은 초 */
+  disconnectedSec?: number;
 }
 
 interface ScoreboardProps {
@@ -27,7 +31,8 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
             <div className="score-head">
               <span className={`dot ${p}`} aria-hidden />
               <span className="score-name">{user ? user.name : LABEL[p]}</span>
-              {user && <span className="score-rank">{user.rank}</span>}
+              {user?.rank && <span className="score-rank">{user.rank}</span>}
+              {user?.rating && <span className="score-rating">{user.rating}</span>}
               {active && <span className="turn-tag">차례</span>}
             </div>
             <div className="score-count" aria-label={`${LABEL[p]} 따낸 돌 ${count}개, 승리 ${target}개`}>
@@ -40,6 +45,9 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
             <div className="meter" aria-hidden>
               <span style={{ width: `${Math.min(100, (count / target) * 100)}%` }} />
             </div>
+            {user?.disconnectedSec !== undefined && (
+              <p className="disconnect-warn" role="status">연결 끊김 · {user.disconnectedSec}초 뒤 패배</p>
+            )}
           </div>
         );
       })}

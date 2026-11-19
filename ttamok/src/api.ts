@@ -1,37 +1,65 @@
-import type { Player, Position, WinReason } from "./game/index.ts";
+import type { Player, Position } from "./game/index.ts";
+import type { MatchMode, ResultReason } from "./online/protocol.ts";
 
 export interface PublicUser {
   id: string;
   username: string;
   rating: number;
   rank: string;
+  provisional: boolean;
   games: number;
   wins: number;
   losses: number;
   winStreak: number;
+  bot: boolean;
 }
 
 export interface Session {
   token: string;
   user: PublicUser;
+  verified: boolean;
 }
 
-export interface SideResult {
+export interface Me {
   user: PublicUser;
-  before: number;
-  after: number;
-  bonus: number;
+  verified: boolean;
+  activeGame: string | null;
+  settings: { allowAi: boolean };
 }
 
-export interface RatedResult {
+export interface RecordSummary {
+  id: string;
+  mode: MatchMode;
+  rated: boolean;
+  color: Player;
+  opponent: string | null;
+  won: boolean;
+  reason: ResultReason;
+  ratingBefore: number | null;
+  ratingAfter: number | null;
+  moveCount: number;
+  finishedAt: string;
+}
+
+export interface GameRecord {
+  id: string;
+  mode: MatchMode;
+  rated: boolean;
   winner: Player;
-  winReason: WinReason;
-  upset: boolean;
-  black: SideResult;
-  white: SideResult;
+  reason: ResultReason;
+  players: Record<Player, { username: string }>;
+  ratings: Record<Player, { before: number; after: number }> | null;
+  moves: Position[];
+  finishedAt: string;
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 async function call<T>(path: string, body?: unknown, token?: string): Promise<T> {
   let res: Response;
@@ -42,21 +70,44 @@ async function call<T>(path: string, body?: unknown, token?: string): Promise<T>
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError("서버에 연결할 수 없습니다.");
+    throw new ApiError("서버에 연결할 수 없습니다.", 0);
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(data?.message ?? "서버에 연결할 수 없습니다.");
+  if (!res.ok) throw new ApiError(data?.message ?? "서버에 연결할 수 없습니다.", res.status);
   return data as T;
 }
 
+type AuthResult = Session & { devCode?: string; mailError?: string };
+
 export const api = {
-  signup: (username: string, password: string) => call<Session>("/api/signup", { username, password }),
-  login: (username: string, password: string) => call<Session>("/api/login", { username, password }),
+  signup: (username: string, email: string, password: string, over14: boolean) =>
+    call<AuthResult>("/api/signup", { username, email, password, over14 }),
+  login: (login: string, password: string) => call<AuthResult>("/api/login", { login, password }),
   logout: (token: string) => call<{ ok: true }>("/api/logout", {}, token),
-  me: (token: string) => call<{ user: PublicUser }>("/api/me", undefined, token),
+  verify: (token: string, code: string) => call<{ verified: boolean }>("/api/verify", { code }, token),
+  resend: (token: string) => call<{ verified: boolean; devCode?: string; mailError?: string }>("/api/verify/resend", {}, token),
+  me: (token: string) => call<Me>("/api/me", undefined, token),
+  settings: (token: string, allowAi: boolean) => call<{ settings: { allowAi: boolean } }>("/api/settings", { allowAi }, token),
   leaderboard: () => call<{ players: PublicUser[] }>("/api/leaderboard"),
-  startRated: (blackToken: string, whiteToken: string) =>
-    call<{ gameId: string; boardSize: number }>("/api/rated-games", { blackToken, whiteToken }),
-  submitRated: (gameId: string, moves: Position[], token: string) =>
-    call<RatedResult>(`/api/rated-games/${encodeURIComponent(gameId)}/result`, { moves }, token),
+  records: (username: string) => call<{ user: PublicUser; games: RecordSummary[] }>(`/api/records?user=${encodeURIComponent(username)}`),
+  game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
 };
+
+/** 로그인 정보(브라우저에만 저장). 저장소를 못 쓰면 이번 화면에서만 유지. */
+const KEY = "ttamok.session";
+export function loadSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(KEY);
+    return raw ? (JSON.parse(raw) as Session) : null;
+  } catch {
+    return null;
+  }
+}
+export function saveSession(s: Session | null) {
+  try {
+    if (s) localStorage.setItem(KEY, JSON.stringify(s));
+    else localStorage.removeItem(KEY);
+  } catch {
+    /* 무시 */
+  }
+}

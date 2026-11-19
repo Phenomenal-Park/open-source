@@ -160,3 +160,77 @@ button, input, select { font: inherit; }
   .app-header h1 { font-size: 24px; }
   .board-wrap { max-width: 100%; }
 }
+
+/* ── 머리말·메뉴 ── */
+.app-header { justify-content: space-between; align-items: center; }
+.brand { color: inherit; text-decoration: none; }
+.nav { display: flex; gap: 4px; }
+.nav-link { color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14px; padding: 8px 12px; border-radius: 999px; min-height: 36px; display: inline-flex; align-items: center; }
+.nav-link.active { background: var(--panel-2); color: var(--text); }
+a { color: var(--accent); }
+
+.page { display: flex; flex-direction: column; gap: 12px; }
+.page.narrow { max-width: 520px; margin: 0 auto; }
+
+/* ── 계정 ── */
+.auth-form { display: grid; gap: 8px; }
+.auth-form input:not([type="checkbox"]) {
+  width: 100%; font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 40px;
+}
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.check input { margin-top: 2px; width: 18px; height: 18px; flex: none; }
+.me { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.me-name { font-weight: 800; font-size: 16px; color: var(--text); }
+.score-rating { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ── 온라인 ── */
+.match-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 8px; }
+.friend-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.friend-form input {
+  font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 44px; min-width: 0; letter-spacing: 0.08em;
+}
+.waiting { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.waiting-text { margin: 0; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.disconnect-warn { margin: 6px 0 0; font-size: 12px; font-weight: 800; color: var(--red); }
+.result-badge.resign, .result-badge.disconnect { background: var(--panel-2); color: var(--text); }
+
+/* ── 프로필 ── */
+.profile h2 { font-size: 22px; }
+.profile-rank { display: flex; align-items: baseline; gap: 10px; margin: 6px 0; }
+.big-rank { font-size: 28px; font-weight: 800; color: var(--accent); }
+.big-rating { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.stats div { background: var(--panel-2); border-radius: 10px; padding: 8px 10px; }
+.stats dt { font-size: 12px; color: var(--muted); }
+.stats dd { margin: 2px 0 0; font-weight: 800; }
+.setting { margin: 8px 0 12px; color: var(--text); font-size: 14px; }
+
+/* ── 기보 ── */
+.search { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.search input { font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-height: 44px; min-width: 0; }
+.records h2 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.record-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.record-list a {
+  display: grid; grid-template-columns: auto auto 1fr auto; grid-template-areas: "wl dot who delta" "wl dot meta when";
+  gap: 2px 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); color: var(--text); text-decoration: none; min-height: 44px;
+}
+.record-list li.current a { outline: 2px solid var(--accent); }
+.record-list .wl { grid-area: wl; font-weight: 800; width: 24px; text-align: center; }
+.record-list .wl.win { color: var(--green); }
+.record-list .wl.loss { color: var(--red); }
+.record-list .dot { grid-area: dot; }
+.record-list .who { grid-area: who; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record-list .meta { grid-area: meta; font-size: 12px; color: var(--muted); }
+.record-list .when { grid-area: when; text-align: right; }
+.record-list .delta { grid-area: delta; text-align: right; }
+.viewer { display: flex; flex-direction: column; gap: 10px; }
+.viewer-title { margin: 0; font-weight: 700; }
+.viewer-controls { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.viewer-controls .step { min-width: 80px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+.step-range { width: 100%; }
+.prose h3 { font-size: 15px; margin: 16px 0 6px; }
+.prose ul, .prose p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+.ad-slot { min-height: 100px; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
