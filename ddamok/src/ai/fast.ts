@@ -245,36 +245,6 @@ export class FastBoard {
   }
 
   /**
-   * color가 두면 "막을 수 없는 넉 점"(바로 이기는 자리가 2개 이상, 또는 바로 승리)이 되는 빈칸들.
-   * 열린 셋 위협의 판정에 쓴다. 차례와 무관하게 계산하고 판을 원래대로 돌려 놓는다.
-   */
-  strongMoves(color: Color): number[] {
-    const out: number[] = [];
-    const saved = this.toMove;
-    for (let p = 0; p < this.cells.length; p++) {
-      if (this.cells[p] || !this.near[p] || !this.makesFour(p, color)) continue;
-      this.toMove = color;
-      const res = this.play(p);
-      const strong = res === 1 || this.winningMoves(color).length >= 2;
-      this.undo();
-      if (strong) out.push(p);
-    }
-    this.toMove = saved;
-    return out;
-  }
-
-  /** pos를 지나는 네 줄 위, 거리 radius 이내의 빈칸 */
-  lineCells(pos: number, radius: number): number[] {
-    const n = this.n, r = (pos / n) | 0, c = pos % n, out: number[] = [];
-    for (const [dr, dc] of AXES) for (let k = -radius; k <= radius; k++) {
-      if (!k) continue;
-      const rr = r + k * dr, cc = c + k * dc;
-      if (rr >= 0 && rr < n && cc >= 0 && cc < n && !this.cells[rr * n + cc]) out.push(rr * n + cc);
-    }
-    return out;
-  }
-
-  /**
    * 형세 특징(둘 차례 입장): [내 창 1~4개 수(4), 상대 창 1~4개 수(4), 내 따낸 쌍, 상대 따낸 쌍,
    * 내 승리까지 1쌍 남음, 2쌍 남음, 상대 1쌍 남음, 2쌍 남음]
    */
