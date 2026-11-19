@@ -78,7 +78,7 @@ const bearer = (req: Request) => {
   return h?.startsWith("Bearer ") ? h.slice(7) : null;
 };
 
-/** WebSocket 인증: Sec-WebSocket-Protocol: ttamok, <토큰> */
+/** WebSocket 인증: Sec-WebSocket-Protocol: ddamok, <토큰> */
 function wsToken(req: Request): string | null {
   const parts = (req.headers.get("sec-websocket-protocol") ?? "").split(",").map((s) => s.trim());
   return parts[0] === WS_PROTOCOL && parts[1] ? parts[1] : null;

@@ -29,7 +29,7 @@ async function api(path, body, token) {
 
 /** WebSocket을 열고 메시지를 큐로 받는다 */
 function socket(path, token) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, ["ttamok", token]);
+  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, ["ddamok", token]);
   const queue = [];
   const waiters = [];
   ws.addEventListener("message", (e) => {

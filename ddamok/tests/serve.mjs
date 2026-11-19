@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export async function startServer(vars = {}) {
-  const state = mkdtempSync(join(tmpdir(), "ttamok-wr-"));
+  const state = mkdtempSync(join(tmpdir(), "ddamok-wr-"));
   const port = 8900 + Math.floor(Math.random() * 90);
   const env = { ...process.env, WRANGLER_SEND_METRICS: "false" };
-  execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "ttamok", "--local", "--persist-to", state], { env, stdio: "ignore" });
+  execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "ddamok", "--local", "--persist-to", state], { env, stdio: "ignore" });
   const all = { DEV_MAIL_LOG: "1", PBKDF2_ITERATIONS: "1000", ...vars };
   const args = ["wrangler", "dev", "--port", String(port), "--ip", "127.0.0.1", "--persist-to", state];
   for (const [k, v] of Object.entries(all)) args.push("--var", `${k}:${v}`);

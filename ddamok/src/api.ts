@@ -95,7 +95,7 @@ export const api = {
 };
 
 /** 로그인 정보(브라우저에만 저장). 저장소를 못 쓰면 이번 화면에서만 유지. */
-const KEY = "ttamok.session";
+const KEY = "ddamok.session";
 export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem(KEY);

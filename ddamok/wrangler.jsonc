@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ttamok",
+  "name": "ddamok",
   "main": "worker/index.ts",
   "compatibility_date": "2026-11-01",
   // 화면(dist)은 정적 파일로, /api/* 만 Worker가 처리한다.
@@ -13,8 +13,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "ttamok",
-      // 배포 전에 `npx wrangler d1 create ttamok` 결과의 database_id로 바꾼다(DEPLOY.md).
+      "database_name": "ddamok",
+      // 배포 전에 `npx wrangler d1 create ddamok` 결과의 database_id로 바꾼다(DEPLOY.md).
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "worker/migrations"
     }

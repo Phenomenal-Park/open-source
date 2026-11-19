@@ -1,4 +1,4 @@
-# 따목 (Ttamok)
+# 따목 (Ddamok)
 
 오목에 **두 점 따내기**를 더한 바둑판 게임. 같은 화면 2인 대국, AI 대국, 온라인 대국(레이팅·친선·친구매치)을 지원하고
 Cloudflare(Workers + D1 + Durable Objects)에서 돈다. 점수는 18급~9단.

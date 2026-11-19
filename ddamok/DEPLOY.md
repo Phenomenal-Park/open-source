@@ -5,10 +5,10 @@
 ## 1. 준비 (한 번)
 
 ```bash
-cd ttamok
+cd ddamok
 npm install
 npx wrangler login            # 브라우저로 Cloudflare 계정 로그인 (또는 CLOUDFLARE_API_TOKEN 환경변수)
-npx wrangler d1 create ttamok # 출력된 database_id 를 wrangler.jsonc 의 database_id 에 넣는다
+npx wrangler d1 create ddamok # 출력된 database_id 를 wrangler.jsonc 의 database_id 에 넣는다
 ```
 
 ## 2. 인증 메일 (필수 — 없으면 가입은 되지만 인증 메일이 가지 않는다)
@@ -29,8 +29,8 @@ Cloudflare Email Service(메일 발송, 현재 베타)를 쓴다. 대시보드�
 npm run deploy   # 화면 빌드 → D1 테이블 만들기(원격) → Worker 배포
 ```
 
-끝나면 `https://ttamok.<계정>.workers.dev` 주소가 나온다. 휴대폰에서 열고 "홈 화면에 추가"하면 앱처럼 쓸 수 있다.
-도메인을 붙이려면 대시보드 Workers → ttamok → 설정 → 도메인.
+끝나면 `https://ddamok.<계정>.workers.dev` 주소가 나온다. 휴대폰에서 열고 "홈 화면에 추가"하면 앱처럼 쓸 수 있다.
+도메인을 붙이려면 대시보드 Workers → ddamok → 설정 → 도메인.
 
 ## 4. 광고 (선택)
 

@@ -9,7 +9,7 @@ export const MATCH_MODES: readonly MatchMode[] = ["rated", "casual", "friend"];
 export const FRIEND_CODE_RE = /^\d{1,8}$/;
 
 /** WebSocket 하위 프로토콜 이름. 브라우저 WebSocket은 헤더를 못 넣으므로 [WS_PROTOCOL, 토큰]으로 인증한다. */
-export const WS_PROTOCOL = "ttamok";
+export const WS_PROTOCOL = "ddamok";
 
 /** 접속이 끊긴 뒤 이 시간 안에 돌아오지 않으면 패배 */
 export const DISCONNECT_MS = 45_000;
