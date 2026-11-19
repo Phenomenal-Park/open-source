@@ -3,7 +3,8 @@ import { formatRating, type RatingRow, type ResultReason } from "../online/proto
 import { colorName, displayName, rankName, t } from "../i18n/index.ts";
 
 export interface ResultView {
-  winner: Player;
+  /** 무승부면 null */
+  winner: Player | null;
   reason: ResultReason;
   moveCount: number;
   /** 승자가 따낸 돌 수 */
@@ -26,18 +27,21 @@ interface GameResultProps {
 export function GameResult({ result: r, canUndo, onNewGame, onUndo, onClose }: GameResultProps) {
   const loser = colorName(r.winner === "black" ? "white" : "black");
   const reasonText =
-    r.reason === "capture" ? t("result.capture", { n: r.captured })
+    r.winner === null ? t("result.boardFull")
+    : r.reason === "capture" ? t("result.capture", { n: r.captured })
       : r.reason === "five" ? t("result.five")
         : r.reason === "resign" ? t("result.resigned", { color: loser })
           : t("result.disconnected", { color: loser });
-  const title = r.you ? (r.you === r.winner ? t("result.youWin") : t("result.youLose")) : t("result.colorWins", { color: colorName(r.winner) });
+  const title = r.winner === null ? t("result.draw")
+    : r.you ? (r.you === r.winner ? t("result.youWin") : t("result.youLose"))
+      : t("result.colorWins", { color: colorName(r.winner) });
 
   return (
     <div className="result-backdrop" role="dialog" aria-modal="true" aria-labelledby="result-title">
-      <div className={`result-card ${r.winner}`}>
+      <div className={`result-card ${r.winner ?? "draw"}`}>
         <div className={`result-badge ${r.reason}`}>{t(`reason.${r.reason}`)}</div>
         <h2 id="result-title">
-          <span className={`dot big ${r.winner}`} aria-hidden /> {title}
+          {r.winner && <span className={`dot big ${r.winner}`} aria-hidden />} {title}
         </h2>
         <p className="result-reason">{reasonText} · {t("result.moves", { n: r.moveCount })}</p>
 

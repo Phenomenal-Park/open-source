@@ -70,6 +70,10 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     next.winReason = captureWin ? "capture" : "five";
     next.winningLine = line;
     next.isFinished = true;
+  } else if (!board.some((row) => row.includes(null))) {
+    // 판이 다 찼고(포획으로 생긴 빈칸도 없음) 승자가 없으면 무승부
+    next.winReason = "draw";
+    next.isFinished = true;
   } else {
     // 13. 차례 넘김
     next.currentPlayer = opponent(me);

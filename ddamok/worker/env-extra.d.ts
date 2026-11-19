@@ -8,6 +8,8 @@ interface Env {
   DEV_MAIL_LOG?: string;
   /** 신호 확인 시간(기본 25000ms). 테스트용으로만 바꾼다. */
   HEARTBEAT_TIMEOUT_MS?: string;
+  /** 온라인 대국 판 크기(기본 15). 테스트용으로만 바꾼다. */
+  BOARD_SIZE?: string;
   /** 사람별 기보 보관 개수(기본 100). 테스트용으로만 바꾼다. */
   RECORDS_LIMIT?: string;
 }

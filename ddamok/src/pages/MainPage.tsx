@@ -252,8 +252,8 @@ export function MainPage() {
   let status: string;
   if (online && !online.game) status = t("status.connecting");
   else if (online?.game?.status === "aborted") status = t("status.aborted");
-  else if (online?.game?.result) status = t("status.wins", { color: colorName(online.game.result.winner) });
-  else if (state.isFinished) status = t("status.winsBy", { color: colorName(state.winner!), reason: t(`reason.${state.winReason!}`) });
+  else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
+  else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
   else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
   else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
@@ -267,7 +267,7 @@ export function MainPage() {
       names: { black: online.game.players.black.username, white: online.game.players.white.username },
       ratings: r.ratings, upset: r.upset, you: online.you,
     };
-  } else if (!online && state.isFinished && state.winner && state.winReason) {
+  } else if (!online && state.isFinished && state.winReason) {
     result = {
       winner: state.winner, reason: state.winReason, moveCount: state.moveCount,
       captured: state.winner === "black" ? state.capturedByBlack : state.capturedByWhite,
@@ -289,7 +289,7 @@ export function MainPage() {
         </div>
         <div className="controls">
           <p className={`status ${state.isFinished ? "done" : state.currentPlayer}`} aria-live="polite">
-            <span className={`dot ${online?.game?.result?.winner ?? (state.isFinished ? state.winner : state.currentPlayer)}`} aria-hidden /> {status}
+            <span className={`dot ${online?.game?.result ? online.game.result.winner ?? "" : state.isFinished ? state.winner ?? "" : state.currentPlayer}`} aria-hidden /> {status}
           </p>
           <div className="buttons">
             {online ? (

@@ -237,3 +237,11 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .lang-select { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: 13px; min-height: 36px; margin-left: 4px; }
 .notice { font-weight: 700; color: var(--text); }
 @media (max-width: 420px) { .nav-link { padding: 8px 8px; } }
+.stats { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.record-list .wl.draw { color: var(--muted); }
+.muted-inline { color: var(--muted); font-size: 14px; font-weight: 700; }
+.more { margin-top: 8px; }
+.fav-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.result-card.draw .result-badge { background: var(--panel-2); color: var(--text); }
+.site-footer { margin: 24px 0 8px; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 13px; }
+.site-footer a { color: var(--muted); text-decoration: none; padding: 6px 0; }

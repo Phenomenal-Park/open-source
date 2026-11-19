@@ -11,6 +11,8 @@ export interface PublicUser {
   games: number;
   wins: number;
   losses: number;
+  draws: number;
+  maxRating: number;
   winStreak: number;
   bot: boolean;
 }
@@ -34,7 +36,10 @@ export interface RecordSummary {
   rated: boolean;
   color: Player;
   opponent: string | null;
-  won: boolean;
+  /** 대국 당시 상대 점수 */
+  opponentRating: number | null;
+  opponentProvisional: boolean;
+  result: "win" | "loss" | "draw";
   reason: ResultReason;
   ratingBefore: number | null;
   ratingAfter: number | null;
@@ -46,12 +51,22 @@ export interface GameRecord {
   id: string;
   mode: MatchMode;
   rated: boolean;
-  winner: Player;
+  winner: Player | null;
   reason: ResultReason;
-  players: Record<Player, { username: string }>;
+  players: Record<Player, { username: string; rating: number | null; provisional: boolean }>;
   ratings: Record<Player, { before: number; after: number }> | null;
   moves: Position[];
+  boardSize: number;
   finishedAt: string;
+}
+
+export interface RecordsPage {
+  user: PublicUser;
+  games: RecordSummary[];
+  total: number;
+  offset: number;
+  favorites: RecordSummary[];
+  favoritesMax: number;
 }
 
 export class ApiError extends Error {
@@ -93,7 +108,9 @@ export const api = {
   settings: (token: string, allowAi: boolean) => call<{ settings: { allowAi: boolean } }>("/api/settings", { allowAi }, token),
   leaderboard: () => call<{ players: PublicUser[] }>("/api/leaderboard"),
   bots: () => call<{ bots: (PublicUser & { level: string; busy: boolean })[] }>("/api/bots"),
-  records: (username: string) => call<{ user: PublicUser; games: RecordSummary[] }>(`/api/records?user=${encodeURIComponent(username)}`),
+  records: (username: string, offset = 0) => call<RecordsPage>(`/api/records?user=${encodeURIComponent(username)}&offset=${offset}`),
+  myFavorites: (token: string) => call<{ gameIds: string[]; max: number }>("/api/favorites", undefined, token),
+  setFavorite: (token: string, gameId: string, on: boolean) => call<{ on: boolean; count: number; max: number }>("/api/favorites", { gameId, on }, token),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
 };
 

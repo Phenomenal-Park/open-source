@@ -110,7 +110,7 @@ export function expectedScore(mmr: number, opponentMmr: number, scale = RATING_S
 }
 
 /** 글리코-1 한 판 갱신: 새 mmr(실수)과 rd. */
-export function glickoUpdate(me: Pick<RatedPlayer, "mmr" | "rd">, opp: Pick<RatedPlayer, "mmr" | "rd">, score: 0 | 1, params: RatingParams = DEFAULT_RATING_PARAMS) {
+export function glickoUpdate(me: Pick<RatedPlayer, "mmr" | "rd">, opp: Pick<RatedPlayer, "mmr" | "rd">, score: 0 | 0.5 | 1, params: RatingParams = DEFAULT_RATING_PARAMS) {
   const q = Math.LN10 / params.scale;
   const g = gOf(opp.rd, params.scale);
   const e = expectedScore(me.mmr, opp.mmr, params.scale, opp.rd);
@@ -170,6 +170,33 @@ export function rateGame(winner: RatedPlayer, loser: RatedPlayer, params: Rating
     loser: { before: loser, after: lAfter, delta: lRating - loser.rating, bonus: 0 },
     upset,
   };
+}
+
+export interface DrawChange {
+  a: PlayerUpdate;
+  b: PlayerUpdate;
+}
+
+/**
+ * 무승부(판이 다 참): 두 사람 모두 0.5승으로 글리코 갱신. 승급·연승 보너스 없음, 연승은 끊긴다.
+ * 표시 점수: 실력 점수가 오르면 같이 오르되(실력 점수를 넘지 않음), 내리면 패배와 같은 비율(1000점 미만 0, 1500점 미만 절반)로 내린다.
+ */
+export function rateDraw(a: RatedPlayer, b: RatedPlayer, params: RatingParams = DEFAULT_RATING_PARAMS): DrawChange {
+  const one = (me: RatedPlayer, opp: RatedPlayer): PlayerUpdate => {
+    const g = glickoUpdate(me, opp, 0.5, params);
+    const mmr = Math.max(params.floor, Math.round(g.mmr));
+    const d = mmr - me.mmr;
+    let rating: number;
+    if (d >= 0) rating = Math.min(mmr, me.rating + d);
+    else {
+      const lossFactor = me.rating < me.mmr ? climbStep(me.rating, params.climb).lossFactor : 1;
+      rating = Math.min(mmr, me.rating - Math.round(-d * lossFactor));
+    }
+    rating = Math.max(params.floor, rating);
+    const after: RatedPlayer = { rating, mmr, rd: Math.round(g.rd), games: me.games + 1, winStreak: 0 };
+    return { before: me, after, delta: rating - me.rating, bonus: 0 };
+  };
+  return { a: one(a, b), b: one(b, a) };
 }
 
 /**

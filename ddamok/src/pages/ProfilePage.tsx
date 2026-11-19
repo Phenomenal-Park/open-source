@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, loadSession, saveSession, type Me, type Session } from "../api.ts";
+import { api, ApiError, loadSession, saveSession, type Me, type RecordsPage as Page, type Session } from "../api.ts";
 import { formatRating } from "../online/protocol.ts";
 import { AuthBox } from "../components/AuthBox.tsx";
 import { AdSlot, AD_SLOTS } from "../components/AdSlot.tsx";
 import { pointsToNextRank } from "../rating/ranks.ts";
 import { rankName, t } from "../i18n/index.ts";
+import { RecordItem, recordHref } from "../components/RecordList.tsx";
+import { RecentRecords } from "./RecordsPage.tsx";
 
 export function ProfilePage() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [records, setRecords] = useState<Page | null>(null);
 
   useEffect(() => {
     if (!session?.verified) return;
+    api.records(session.user.username).then(setRecords, () => undefined);
     api.me(session.token).then(setMe, (e) => {
       if (e instanceof ApiError && e.status === 401) {
         saveSession(null);
@@ -48,7 +52,10 @@ export function ProfilePage() {
         {next && <p className="muted">{t("profile.toNext", { rank: rankName(next.next.minRating), n: next.points })}</p>}
         <dl className="stats">
           <div><dt>{t("profile.rated")}</dt><dd>{t("profile.games", { n: u.games })}</dd></div>
-          <div><dt>{t("profile.record")}</dt><dd>{t("profile.wl", { w: u.wins, l: u.losses })}</dd></div>
+          <div><dt>{t("profile.record")}</dt><dd>{t("profile.wld", { w: u.wins, l: u.losses, d: u.draws })}</dd></div>
+          {/* 승률 = 승 ÷ (승 + 패 + 무). 무승부는 승리가 아니다 */}
+          <div><dt>{t("profile.winRate")}</dt><dd>{u.wins + u.losses + u.draws ? `${Math.round((u.wins / (u.wins + u.losses + u.draws)) * 1000) / 10}%` : "-"}</dd></div>
+          <div><dt>{t("profile.maxRating")}</dt><dd>{u.maxRating}</dd></div>
           <div><dt>{t("profile.streak")}</dt><dd>{u.winStreak}</dd></div>
         </dl>
         <label className="check setting">
@@ -88,6 +95,23 @@ export function ProfilePage() {
         </div>
         {error && <p className="form-error">{error}</p>}
       </section>
+      {records && (
+        <section className="panel records">
+          <h2>{t("fav.title")} <span className="muted-inline">{t("fav.count", { n: records.favorites.length, max: records.favoritesMax })}</span></h2>
+          {records.favorites.length ? (
+            <ol className="record-list">
+              {records.favorites.map((g) => <RecordItem key={g.id} g={g} href={recordHref(u.username, g.id)} />)}
+            </ol>
+          ) : <p className="muted">{t("fav.empty")}</p>}
+          <p className="muted small-note">{t("fav.note", { max: records.favoritesMax })}</p>
+        </section>
+      )}
+      {records && (
+        <section className="panel records">
+          <h2>{t("profile.recent")}</h2>
+          <RecentRecords first={records} />
+        </section>
+      )}
       <AdSlot slot={AD_SLOTS.profile} />
     </main>
   );

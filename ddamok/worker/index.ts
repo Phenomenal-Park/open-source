@@ -1,7 +1,12 @@
 // 따목 Cloudflare Worker: 계정 API(D1) + 온라인 매칭·대국(Durable Objects, WebSocket). 화면(dist)은 정적 파일.
 import { calibrationFactor, rescale, TOP_MMR } from "../src/rating/elo.ts";
 import { RANKS, rankFor } from "../src/rating/ranks.ts";
-import { FRIEND_CODE_RE, MATCH_MODES, WS_PROTOCOL, type MatchMode } from "../src/online/protocol.ts";
+import { FAVORITES_MAX, FRIEND_CODE_RE, MATCH_MODES, WS_PROTOCOL, type MatchMode } from "../src/online/protocol.ts";
+import { DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
+import { RECORDS_PER_USER } from "./room.ts";
+
+/** 기보 목록 한 번에 보여 주는 판 수 */
+const RECORDS_PAGE = 20;
 import { hashPassword, hashToken, newToken, PASSWORD_MAX, PASSWORD_MIN, SESSION_TTL_MS, USERNAME_RE, verifyPassword } from "./auth.ts";
 import { publicUser, toRated, userByToken, type UserRow } from "./users.ts";
 import { mailLang, sendVerificationCode, type MailLang } from "./mail.ts";
@@ -196,34 +201,94 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ bots: rows.results.map((u) => ({ ...publicUser(u), level: u.bot_level, busy: !!u.active_game })) });
   }
 
-  // 기보: 닉네임으로 최근 100판
+  // 기보 목록: 닉네임으로 최근 100판(페이지당 20판, 착수 데이터는 읽지 않음) + 그 사람의 명승부
   if (m === "GET" && path === "/api/records") {
     const name = (url.searchParams.get("user") ?? "").normalize("NFC").trim().toLowerCase();
     if (!name || name.length > 20) throw new HttpError(400, "bad_user", "닉네임을 입력해 주세요.");
     const u = await env.DB.prepare("SELECT * FROM users WHERE username_key = ?1 OR (is_bot = 1 AND lower(username) = ?1)").bind(name).first<UserRow>();
     if (!u) throw new HttpError(404, "no_user", "그런 닉네임이 없습니다.");
-    const rows = await env.DB.prepare(
-      `SELECT g.*, b.username AS black_name, w.username AS white_name FROM user_games ug
-       JOIN games g ON g.id = ug.game_id
-       LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id
-       WHERE ug.user_id = ? ORDER BY ug.finished_at DESC LIMIT 100`,
-    ).bind(u.id).all<GameRow>();
-    return json({ user: publicUser(u), games: rows.results.map((g) => recordSummary(g, u.id)) });
+    const offset = Math.max(0, Math.min(RECORDS_PER_USER, Number(url.searchParams.get("offset")) || 0));
+    const limit = Math.max(1, Math.min(RECORDS_PAGE, Number(url.searchParams.get("limit")) || RECORDS_PAGE, RECORDS_PER_USER - offset));
+    const [rows, total, favs] = await env.DB.batch([
+      env.DB.prepare(
+        `SELECT ${SUMMARY_COLUMNS} FROM user_games ug JOIN games g ON g.id = ug.game_id
+         LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id
+         WHERE ug.user_id = ? ORDER BY ug.finished_at DESC LIMIT ? OFFSET ?`,
+      ).bind(u.id, limit, offset),
+      env.DB.prepare("SELECT COUNT(*) AS n FROM user_games WHERE user_id = ?").bind(u.id),
+      env.DB.prepare(
+        `SELECT ${SUMMARY_COLUMNS} FROM favorites f JOIN games g ON g.id = f.game_id
+         LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id
+         WHERE f.user_id = ? ORDER BY f.created_at DESC`,
+      ).bind(u.id),
+    ]);
+    return json({
+      user: publicUser(u),
+      games: (rows.results as GameRow[]).map((g) => recordSummary(g, u.id)),
+      total: Math.min(RECORDS_PER_USER, (total.results[0] as { n: number }).n),
+      offset,
+      favorites: (favs.results as GameRow[]).map((g) => recordSummary(g, u.id)),
+      favoritesMax: FAVORITES_MAX,
+    });
+  }
+
+  // 내 명승부 목록(기보 화면의 박제 버튼용)
+  if (m === "GET" && path === "/api/favorites") {
+    const u = await requireUser(env, bearer(req));
+    const rows = await env.DB.prepare("SELECT game_id FROM favorites WHERE user_id = ?").bind(u.id).all<{ game_id: string }>();
+    return json({ gameIds: rows.results.map((r) => r.game_id), max: FAVORITES_MAX });
+  }
+
+  // 명승부 박제/해제: { gameId, on }. 본인이 둔 끝난 대국만, 1인 FAVORITES_MAX판.
+  if (m === "POST" && path === "/api/favorites") {
+    const u = await requireUser(env, bearer(req));
+    const body = await readJson(req);
+    const gameId = typeof body.gameId === "string" ? body.gameId : "";
+    if (!UUID_RE.test(gameId) || typeof body.on !== "boolean") throw new HttpError(400, "bad_request", "요청이 잘못되었습니다.");
+    if (!body.on) {
+      await env.DB.prepare("DELETE FROM favorites WHERE user_id = ? AND game_id = ?").bind(u.id, gameId).run();
+      // 해제한 기보가 더 이상 어디에도 필요 없으면 정리(최근 목록·다른 사람의 명승부에 있으면 그대로)
+      await env.DB.prepare(
+        `DELETE FROM games WHERE id = ? AND NOT EXISTS (SELECT 1 FROM user_games ug WHERE ug.game_id = games.id)
+           AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.game_id = games.id)`,
+      ).bind(gameId).run();
+    } else {
+      const g = await env.DB.prepare("SELECT black_id, white_id FROM games WHERE id = ?").bind(gameId).first<{ black_id: string; white_id: string }>();
+      if (!g) throw new HttpError(404, "not_found", "기보를 찾을 수 없습니다.");
+      if (g.black_id !== u.id && g.white_id !== u.id) throw new HttpError(403, "fav_forbidden", "내가 둔 대국만 박제할 수 있습니다.");
+      // 한도 확인과 추가를 한 문장으로(동시에 두 번 눌러도 한도를 넘지 않게)
+      const r = await env.DB.prepare(
+        `INSERT OR IGNORE INTO favorites (user_id, game_id, created_at)
+         SELECT ?1, ?2, ?3 WHERE (SELECT COUNT(*) FROM favorites WHERE user_id = ?1) < ?4`,
+      ).bind(u.id, gameId, new Date().toISOString(), FAVORITES_MAX).run();
+      if (!r.meta.changes) {
+        const already = await env.DB.prepare("SELECT 1 FROM favorites WHERE user_id = ? AND game_id = ?").bind(u.id, gameId).first();
+        if (!already) throw new HttpError(409, "fav_full", `명승부는 ${FAVORITES_MAX}판까지입니다.`);
+      }
+    }
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM favorites WHERE user_id = ?").bind(u.id).first<{ n: number }>();
+    return json({ on: body.on, count: n?.n ?? 0, max: FAVORITES_MAX });
   }
 
   const gr = path.match(/^\/api\/games\/([^/]+)$/);
   if (m === "GET" && gr) {
     if (!UUID_RE.test(gr[1])) throw new HttpError(404, "not_found", "기보를 찾을 수 없습니다.");
     const g = await env.DB.prepare(
-      `SELECT g.*, b.username AS black_name, w.username AS white_name FROM games g
+      `SELECT g.*, b.username AS cur_black_name, w.username AS cur_white_name FROM games g
        LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id WHERE g.id = ?`,
-    ).bind(gr[1]).first<GameRow>();
+    ).bind(gr[1]).first<GameRow & { moves: string; board_size?: number }>();
     if (!g) throw new HttpError(404, "not_found", "기보를 찾을 수 없습니다(오래된 기보는 지워집니다).");
+    const moves = JSON.parse(g.moves) as { row: number; col: number }[];
+    const size = Math.max(DEFAULT_BOARD_SIZE, ...moves.flatMap((p) => [p.row + 1, p.col + 1]));
     return json({
-      id: g.id, mode: g.mode, rated: !!g.rated, winner: g.winner_id === g.black_id ? "black" : "white", reason: g.win_reason,
-      players: { black: { username: g.black_name ?? "?" }, white: { username: g.white_name ?? "?" } },
+      id: g.id, mode: g.mode, rated: !!g.rated,
+      winner: g.winner_id === null ? null : g.winner_id === g.black_id ? "black" : "white", reason: g.win_reason,
+      players: {
+        black: { username: g.black_name ?? g.cur_black_name ?? "?", rating: g.black_rating, provisional: !!g.black_provisional },
+        white: { username: g.white_name ?? g.cur_white_name ?? "?", rating: g.white_rating, provisional: !!g.white_provisional },
+      },
       ratings: g.rated ? { black: { before: g.black_before, after: g.black_after }, white: { before: g.white_before, after: g.white_after } } : null,
-      moves: JSON.parse(g.moves), finishedAt: g.finished_at,
+      moves, boardSize: size === DEFAULT_BOARD_SIZE ? DEFAULT_BOARD_SIZE : size, finishedAt: g.finished_at,
     });
   }
 
@@ -265,21 +330,33 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
   throw new HttpError(404, "not_found", "없는 주소입니다.");
 }
 
+/** 기보 목록에 쓰는 칸(착수 데이터 moves는 읽지 않는다) */
+const SUMMARY_COLUMNS = `g.id, g.mode, g.rated, g.black_id, g.white_id, g.winner_id, g.win_reason, g.move_count,
+  g.black_before, g.black_after, g.white_before, g.white_after, g.black_rating, g.white_rating,
+  g.black_provisional, g.white_provisional, g.finished_at,
+  COALESCE(g.black_name, b.username) AS black_name, COALESCE(g.white_name, w.username) AS white_name`;
+
 interface GameRow {
-  id: string; mode: string; rated: number; black_id: string; white_id: string; winner_id: string; win_reason: string; moves: string;
+  id: string; mode: string; rated: number; black_id: string; white_id: string; winner_id: string | null; win_reason: string; move_count: number;
   black_before: number | null; black_after: number | null; white_before: number | null; white_after: number | null;
-  created_at: string; finished_at: string; black_name: string | null; white_name: string | null;
+  black_rating: number | null; white_rating: number | null; black_provisional: number | null; white_provisional: number | null;
+  finished_at: string; black_name: string | null; white_name: string | null; cur_black_name?: string | null; cur_white_name?: string | null;
 }
 
 function recordSummary(g: GameRow, userId: string) {
   const color = g.black_id === userId ? "black" : "white";
+  const opp = color === "black" ? "white" : "black";
   return {
     id: g.id, mode: g.mode, rated: !!g.rated, color,
-    opponent: color === "black" ? g.white_name : g.black_name,
-    won: g.winner_id === userId, reason: g.win_reason,
-    ratingBefore: color === "black" ? g.black_before : g.white_before,
-    ratingAfter: color === "black" ? g.black_after : g.white_after,
-    moveCount: (JSON.parse(g.moves) as unknown[]).length, finishedAt: g.finished_at,
+    opponent: g[`${opp}_name`],
+    /** 대국 당시 상대 점수(매칭 시점) */
+    opponentRating: g[`${opp}_rating`],
+    opponentProvisional: !!g[`${opp}_provisional`],
+    result: g.winner_id === null ? "draw" : g.winner_id === userId ? "win" : "loss",
+    reason: g.win_reason,
+    ratingBefore: g[`${color}_before`],
+    ratingAfter: g[`${color}_after`],
+    moveCount: g.move_count, finishedAt: g.finished_at,
   };
 }
 

@@ -9,7 +9,8 @@ export interface Position {
   col: number;
 }
 
-export type WinReason = "five" | "capture";
+/** 대국이 끝난 이유. "draw" = 판이 다 차서 무승부(winner는 null) */
+export type WinReason = "five" | "capture" | "draw";
 
 export interface GameConfig {
   /** 바둑판 한 변의 교차점 수. 아직 확정되지 않았으므로 설정값으로 둔다. */
@@ -38,6 +39,7 @@ export interface GameState {
   /** 지금까지의 착수 좌표 (서버 재검증·기보용). */
   moves: Position[];
 
+  /** 무승부면 null(winReason "draw") */
   winner: Player | null;
   winReason: WinReason | null;
   /** 오목으로 끝났거나 승리 수에 5목이 포함된 경우 그 5개 돌. */

@@ -76,3 +76,11 @@ export const colorName = (p: "black" | "white") => t(p === "black" ? "player.bla
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat(lang, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
+
+export type Outcome = "win" | "loss" | "draw";
+
+/** 내 기준 결과 표기: "흑번 57수끝 오목승", "백번 43수끝 돌따냄승", "흑번 225수끝 무승부" */
+export function outcomeLabel(color: "black" | "white", moves: number, result: Outcome, reason: string): string {
+  const what = result === "draw" || reason === "draw" ? t("outcome.draw") : t(`outcome.${reason}.${result}` as MessageKey);
+  return t("outcome.format", { color: colorName(color), n: moves, what });
+}

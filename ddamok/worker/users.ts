@@ -15,6 +15,8 @@ export interface UserRow {
   games: number;
   wins: number;
   losses: number;
+  draws: number;
+  max_rating: number;
   win_streak: number;
   active_game: string | null;
   allow_ai: number;
@@ -26,7 +28,7 @@ export interface UserRow {
 export function publicUser(u: UserRow) {
   return {
     id: u.id, username: u.username, rating: u.rating, rank: rankFor(u.rating).label, provisional: isProvisional(u),
-    games: u.games, wins: u.wins, losses: u.losses, winStreak: u.win_streak, bot: !!u.is_bot,
+    games: u.games, wins: u.wins, losses: u.losses, draws: u.draws, maxRating: u.max_rating, winStreak: u.win_streak, bot: !!u.is_bot,
   };
 }
 

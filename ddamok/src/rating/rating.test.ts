@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  calibrationFactor, expectedScore, isProvisional, MIN_CALIBRATION_PLAYERS, MMR_START, newRatedPlayer, rankFor, RANKS,
+  calibrationFactor, expectedScore, rateDraw, isProvisional, MIN_CALIBRATION_PLAYERS, MMR_START, newRatedPlayer, rankFor, RANKS,
   rateGame, rescale, streakMultiplier, pointsToNextRank, RD_MIN, RD_START, type RatedPlayer,
 } from "./index.ts";
 
@@ -119,6 +119,20 @@ describe("점수(글리코 + 표시 점수)", () => {
     expect(-upset.loser.delta).toBeGreaterThan(2 * -plain.loser.delta);
     expect(rateGame(fresh(1500, 2000, 5), p(2350, 2350)).upset).toBe(false);
     expect(rateGame(p(2350, 2350), p(2000, 2000)).upset).toBe(false); // 고단자가 이기면 평소대로
+  });
+
+  it("무승부: 실력 점수가 같으면 거의 안 변하고, 낮은 쪽이 오르고 높은 쪽이 내린다. 연승은 끊긴다", () => {
+    const even = rateDraw(p(1800, 1800, 50, 3), p(1800, 1800));
+    expect(even.a.after.mmr).toBe(1800);
+    expect(even.a.after.winStreak).toBe(0);
+    expect(even.a.after.games).toBe(51);
+    const up = rateDraw(p(1600, 1600), p(2000, 2000));
+    expect(up.a.after.mmr).toBeGreaterThan(1600);
+    expect(up.b.after.mmr).toBeLessThan(2000);
+    expect(up.a.bonus).toBe(0);
+    // 올라가는 중(표시 < 실력)인 1000점 미만 유저는 비겨도 표시 점수를 잃지 않는다
+    const climbing = rateDraw(p(700, 2000), p(1500, 1500));
+    expect(climbing.a.after.rating).toBe(700);
   });
 
   it("하한은 0점", () => {

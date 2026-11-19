@@ -23,7 +23,7 @@ export const HEARTBEAT_TIMEOUT_MS = 25_000;
 export const PING = '{"type":"ping"}';
 export const PONG = '{"type":"pong"}';
 
-export type ResultReason = "five" | "capture" | "resign" | "disconnect";
+export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "draw";
 
 export interface PlayerInfo {
   username: string;
@@ -47,8 +47,12 @@ export function formatRating(rating: number, provisional: boolean): string {
   return provisional ? `${rating}?` : String(rating);
 }
 
+/** 명승부(박제) 한도 */
+export const FAVORITES_MAX = 3;
+
 export interface OnlineResult {
-  winner: Player;
+  /** 무승부면 null */
+  winner: Player | null;
   reason: ResultReason;
   ratings?: Record<Player, RatingRow>;
   upset?: boolean;

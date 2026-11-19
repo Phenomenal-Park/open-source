@@ -424,6 +424,43 @@ describe("상태 관리", () => {
   });
 });
 
+describe("무승부", () => {
+  // 5×5 판, (4,4) 한 칸만 비어 있다. 흑이 두면 5목도 포획도 없이 판이 다 찬다.
+  const full = () => fromDiagram(["XOXOX", "XOXOO", "OXOXO", "OXOXO", "XOXO."], "black", { size: 5 });
+
+  it("판이 다 차고 승자가 없으면 무승부로 끝난다", () => {
+    const n = applyMove(full(), at(4, 4));
+    expect(n.isFinished).toBe(true);
+    expect(n.winner).toBeNull();
+    expect(n.winReason).toBe("draw");
+    expect(isLegalMove(n, at(0, 0))).toBe(false);
+  });
+
+  it("마지막 수로 포획이 나서 빈칸이 생기면 계속 둔다", () => {
+    // (4,4) 흑 → 위쪽 (3,4)○ (2,4)○ (1,4)● 포획
+    const s = fromDiagram(["XOXOX", "XOXOX", "OXOXO", "OXOXO", "XOXO."], "black", { size: 5 });
+    const n = applyMove(s, at(4, 4));
+    expect(n.capturedByBlack).toBe(2);
+    expect(n.isFinished).toBe(false);
+    expect(n.currentPlayer).toBe("white");
+  });
+
+  it("마지막 칸에서 5목이 되면 무승부가 아니라 승리", () => {
+    const s = fromDiagram(["OXOXO", "XOXOX", "OXOXO", "XOXOX", "XXXX."], "black", { size: 5 });
+    const n = applyMove(s, at(4, 4));
+    expect(n.winner).toBe("black");
+    expect(n.winReason).toBe("five");
+  });
+
+  it("무승부를 무르면 다시 둘 수 있다", () => {
+    let h = createHistory(full());
+    h = playMove(h, at(4, 4));
+    expect(currentState(h).winReason).toBe("draw");
+    h = undoMove(h);
+    expect(currentState(h).isFinished).toBe(false);
+  });
+});
+
 describe("엔진 일반", () => {
   it("applyMove는 원본 상태를 수정하지 않는다", () => {
     const s = fromDiagram(["XOO."], "black");

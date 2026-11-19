@@ -138,6 +138,8 @@ await check("로그인: 이메일 또는 닉네임", async () => {
 });
 
 let ratedGameId = "";
+/** 첫 레이팅매치에서 진 쪽(흑백은 무작위라 누군지 기록해 둔다) */
+const LOSER = { token: "", name: "" };
 await check("레이팅매치: 매칭 → 서버가 착수 검증 → 5목 승리 → 점수 반영(?)", async () => {
   const { gameId, black, white, game } = await pairUp(A.token, B.token, "mode=rated");
   ratedGameId = gameId;
@@ -163,6 +165,12 @@ await check("레이팅매치: 매칭 → 서버가 착수 검증 → 5목 승리
   assert.equal(r.white.after, 500); // 1000점 미만은 져도 표시 점수를 잃지 않음
   assert.equal(r.black.provisional, true);
   black.sock.close(); white.sock.close();
+  // 진 쪽(백)도 명승부로 박제할 수 있다
+  LOSER.token = white.token;
+  LOSER.name = white.token === A.token ? "흑돌왕" : "white_1";
+  const fav = await api("/api/favorites", { gameId, on: true }, white.token);
+  assert.equal(fav.status, 200, JSON.stringify(fav.data));
+  assert.equal(fav.data.count, 1);
   const board = await api("/api/leaderboard");
   assert.equal(board.data.players.length, 2);
   assert.ok(!board.data.players.some((p) => p.bot));
@@ -173,7 +181,16 @@ await check("기보: 닉네임으로 검색, 한 판 수순 보기", async () =>
   const r = await api("/api/records?user=" + encodeURIComponent("흑돌왕"));
   assert.equal(r.status, 200);
   assert.equal(r.data.games.length, 1);
-  assert.equal(r.data.games[0].opponent, "white_1");
+  const s0 = r.data.games[0];
+  assert.equal(s0.opponent, "white_1");
+  assert.equal(s0.opponentRating, 500);          // 대국 당시 상대 점수
+  assert.equal(s0.opponentProvisional, true);
+  assert.equal(s0.result, s0.color === "black" ? "win" : "loss"); // 첫 대국은 흑이 5목으로 이겼다
+  assert.equal(s0.moveCount, 9);
+  assert.equal(s0.moves, undefined);              // 목록에는 착수 데이터를 싣지 않는다
+  const me = (await api("/api/me", undefined, A.token)).data.user;
+  assert.equal(me.maxRating, me.rating);          // 최고 점수
+  assert.equal(me.draws, 0);
   const g = await api(`/api/games/${ratedGameId}`);
   assert.equal(g.data.moves.length, 9);
   assert.equal(g.data.reason, "five");
@@ -275,13 +292,54 @@ await check("끊겼다가 시간 안에 돌아오면 계속 둔다 / 진행 중 
   black.sock.close(); back.close();
 });
 
-await check("기보 보관 한도(테스트 2판): 오래된 기보는 지워져도 점수·전적은 그대로", async () => {
+await check("기보 보관 한도(테스트 2판): 오래된 기보는 정리, 명승부로 박제한 기보는 평생 보관, 점수·전적은 그대로", async () => {
   const r = await api("/api/records?user=" + encodeURIComponent("흑돌왕"));
   assert.equal(r.data.games.length, 2);
-  assert.equal((await api(`/api/games/${ratedGameId}`)).status, 404); // 첫 대국 기보는 지워짐
+  assert.equal(r.data.total, 2);
+  assert.ok(!r.data.games.some((g) => g.id === ratedGameId));            // 최근 목록에서는 빠졌지만
+  const kept = await api(`/api/games/${ratedGameId}`);
+  assert.equal(kept.status, 200);                                          // 백이 박제했으므로 기보는 남아 있다
+  assert.equal(kept.data.players.white.rating, 500);
+  const wb = await api("/api/records?user=" + encodeURIComponent(LOSER.name));
+  assert.ok(wb.data.favorites.some((g) => g.id === ratedGameId && g.result === "loss"), "진 판도 명승부로 남아 있다");
   const me = (await api("/api/me", undefined, A.token)).data.user;
   assert.equal(me.games, 1);   // 레이팅매치 1판은 그대로
-  assert.ok(me.rating > 500 || me.wins + me.losses === 1);
+  assert.equal(me.wins + me.losses, 1);
+  // 박제를 해제하면 어디에도 필요 없는 기보가 되어 정리된다(점수·전적은 그대로)
+  await api("/api/favorites", { gameId: ratedGameId, on: false }, LOSER.token);
+  assert.equal((await api(`/api/games/${ratedGameId}`)).status, 404);
+  const after = (await api("/api/me", undefined, A.token)).data.user;
+  assert.deepEqual([after.games, after.wins, after.losses], [me.games, me.wins, me.losses]);
+});
+
+await check("명승부: 1인 3판까지, 내가 둔 대국만", async () => {
+  const mine = (await api("/api/records?user=white_1")).data.games.map((g) => g.id);
+  assert.ok(mine.length >= 2);
+  const other = (await api("/api/records?user=" + encodeURIComponent("흑돌왕"))).data.games[0].id;
+  for (const id of mine.slice(0, 2)) assert.equal((await api("/api/favorites", { gameId: id, on: true }, B.token)).status, 200);
+  const c = await signup("outsider");
+  await api("/api/verify", { code: c.devCode }, c.token);
+  assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, c.token)).status, 403); // 남의 대국
+  // 같은 판을 다시 눌러도 한도를 쓰지 않는다
+  assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, B.token)).data.count, 2);
+  const third = other !== mine[0] && other !== mine[1] ? other : null;
+  const pool = [...new Set([...mine, ...(third ? [third] : [])])];
+  const ids = (await api("/api/records?user=white_1")).data.games.map((g) => g.id);
+  // 3판째까지 성공, 4판째는 거절(기보가 모자라면 가능한 만큼만 확인)
+  const extra = ids.filter((id) => !mine.slice(0, 2).includes(id));
+  if (extra.length) {
+    assert.equal((await api("/api/favorites", { gameId: extra[0], on: true }, B.token)).data.count, 3);
+    const fourth = (await api("/api/records?user=white_1")).data.games.map((g) => g.id).find((id) => ![...mine.slice(0, 2), extra[0]].includes(id));
+    if (fourth) {
+      const full = await api("/api/favorites", { gameId: fourth, on: true }, B.token);
+      assert.equal(full.status, 409);
+      assert.equal(full.data.error, "fav_full");
+    }
+  }
+  void pool;
+  const list = (await api("/api/records?user=white_1")).data;
+  assert.ok(list.favorites.length <= 3);
+  assert.equal(list.favoritesMax, 3);
 });
 
 await check("레이팅매치에서 사람이 없으면 15초 뒤 가장 가까운 AI(허용 시), AI는 서버가 둔다", async () => {
@@ -338,5 +396,63 @@ await check("AI 상대 허용을 끄면 AI와 붙지 않는다", async () => {
 
 if (failures) console.log(server.log().split("\n").filter((l) => /error|Error|✘/.test(l)).slice(-15).join("\n"));
 server.stop();
+
+// ── 무승부: 5×5 판 전용 서버(판이 다 차는 대국을 짧게 재현) ──
+const DRAW_SEQ = [[4,3],[2,2],[0,0],[0,1],[2,3],[1,4],[1,1],[4,2],[2,0],[3,1],[3,0],[0,4],[3,2],[0,3],[1,2],[2,4],[1,0],[4,4],[4,1],[3,3],[1,3],[2,1],[0,2],[4,0],[3,4]];
+const small = await startServer({ BOARD_SIZE: "5" });
+const sapi = async (path, body, token) => {
+  const res = await fetch(small.base + path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "content-type": "application/json", "cf-connecting-ip": `10.1.0.${ipSeq++ % 250}`, ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { status: res.status, data: await res.json() };
+};
+const ssock = (path, token) => {
+  const ws = new WebSocket(`ws://127.0.0.1:${small.port}${path}`, ["ddamok", token]);
+  const q = []; const waiters = [];
+  const beat = setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), 1000);
+  ws.addEventListener("message", (e) => { const m = JSON.parse(e.data); if (m.type === "pong") return; q.push(m); for (const w of [...waiters]) if (w.p(m)) { waiters.splice(waiters.indexOf(w), 1); q.splice(q.indexOf(m), 1); w.r(m); } });
+  return {
+    send: (m) => ws.send(JSON.stringify(m)), close: () => { clearInterval(beat); ws.close(); },
+    next: (p) => { const h = q.find(p); if (h) { q.splice(q.indexOf(h), 1); return Promise.resolve(h); } return new Promise((r, rej) => { waiters.push({ p, r }); setTimeout(() => rej(new Error("timeout")), 20000); }); },
+  };
+};
+await check("무승부: 판이 다 차면 무승부, 통산 전적에 무승부 1, 기보에 무승부", async () => {
+  const users = [];
+  for (const n of ["draw_a", "draw_b"]) {
+    const r = await sapi("/api/signup", { username: n, email: `${n}@example.com`, password: "password1", over14: true });
+    await sapi("/api/verify", { code: r.data.devCode }, r.data.token);
+    users.push(r.data.token);
+  }
+  const ma = ssock("/api/match?mode=rated", users[0]);
+  await ma.next((m) => m.type === "waiting");
+  const mb = ssock("/api/match?mode=rated", users[1]);
+  const { gameId } = await ma.next((m) => m.type === "matched");
+  await mb.next((m) => m.type === "matched");
+  const ga = ssock(`/api/games/${gameId}/ws`, users[0]), gb = ssock(`/api/games/${gameId}/ws`, users[1]);
+  const sa = await ga.next((m) => m.type === "state");
+  await gb.next((m) => m.type === "state");
+  assert.equal(sa.game.boardSize, 5);
+  const byColor = sa.you === "black" ? { black: ga, white: gb } : { black: gb, white: ga };
+  let fin;
+  for (let i = 0; i < DRAW_SEQ.length; i++) {
+    const p = byColor[i % 2 === 0 ? "black" : "white"];
+    p.send({ type: "move", row: DRAW_SEQ[i][0], col: DRAW_SEQ[i][1], moveNo: i });
+    fin = await p.next((m) => m.type === "state" && m.game.moves.length === i + 1);
+  }
+  assert.equal(fin.game.status, "finished");
+  assert.equal(fin.game.result.winner, null);
+  assert.equal(fin.game.result.reason, "draw");
+  assert.ok(fin.game.result.ratings, "레이팅매치 무승부도 점수 반영(0.5승)");
+  ga.close(); gb.close();
+  const me = (await sapi("/api/me", undefined, users[0])).data.user;
+  assert.deepEqual([me.wins, me.losses, me.draws, me.games], [0, 0, 1, 1]);
+  const rec = (await sapi("/api/records?user=draw_a")).data.games[0];
+  assert.equal(rec.result, "draw");
+  assert.equal(rec.moveCount, 25);
+  assert.equal((await sapi(`/api/games/${gameId}`)).data.winner, null);
+});
+small.stop();
 console.log(failures ? `${failures}개 실패` : "모두 통과");
 process.exit(failures ? 1 : 0);

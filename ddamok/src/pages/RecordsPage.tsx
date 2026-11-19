@@ -1,11 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type GameRecord, type PublicUser, type RecordSummary } from "../api.ts";
+import { api, ApiError, loadSession, type GameRecord, type RecordsPage as Page, type RecordSummary } from "../api.ts";
 import { makeConfig, replayMoves } from "../game/index.ts";
-import { formatRating } from "../online/protocol.ts";
+import { FAVORITES_MAX, formatRating } from "../online/protocol.ts";
 import { Board } from "../components/Board.tsx";
 import { Scoreboard } from "../components/Scoreboard.tsx";
 import { AdSlot, AD_SLOTS } from "../components/AdSlot.tsx";
+import { RecordItem, recordHref } from "../components/RecordList.tsx";
 import { colorName, displayName, formatDate, rankName, t } from "../i18n/index.ts";
+
+/** 명승부 박제/해제 버튼(내가 둔 대국일 때만) */
+function FavoriteButton({ game }: { game: GameRecord }) {
+  const session = loadSession();
+  const [ids, setIds] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (session?.verified) api.myFavorites(session.token).then((r) => setIds(r.gameIds), () => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const mine = session && [game.players.black.username, game.players.white.username].includes(session.user.username);
+  if (!session || !mine || ids === null) return null;
+  const on = ids.includes(game.id);
+  return (
+    <div className="fav-box">
+      <button
+        className={`btn small ${on ? "ghost" : "primary"}`}
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await api.setFavorite(session.token, game.id, !on);
+            setIds((x) => (on ? x!.filter((i) => i !== game.id) : [...x!, game.id]));
+          } catch (e) {
+            setError(e instanceof ApiError ? e.message : t("err.generic"));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {on ? t("fav.remove") : t("fav.add")} · {t("fav.count", { n: ids.length, max: FAVORITES_MAX })}
+      </button>
+      {error && <p className="form-error">{error}</p>}
+    </div>
+  );
+}
 
 function Viewer({ id }: { id: string }) {
   const [g, setG] = useState<GameRecord | null>(null);
@@ -16,18 +55,24 @@ function Viewer({ id }: { id: string }) {
   }, [id]);
   const state = useMemo(() => {
     if (!g) return null;
-    const r = replayMoves(makeConfig(15), g.moves.slice(0, step));
+    const r = replayMoves(makeConfig(g.boardSize), g.moves.slice(0, step));
     return r.ok ? r.state : null;
   }, [g, step]);
   if (error) return <p className="form-error">{error}</p>;
   if (!g || !state) return <p className="muted">{t("rec.loading")}</p>;
   const n = g.moves.length;
+  const label = (c: "black" | "white") => {
+    const p = g.players[c];
+    return { name: displayName(p.username), rating: p.rating !== null ? formatRating(p.rating, p.provisional) : undefined };
+  };
   return (
     <section className="viewer">
       <p className="viewer-title">
-        {t("rec.title", { mode: t(`rec.mode.${g.mode}`), color: colorName(g.winner), reason: t(`reason.${g.reason}`), when: formatDate(g.finishedAt) })}
+        {g.winner
+          ? t("rec.title", { mode: t(`rec.mode.${g.mode}`), color: colorName(g.winner), reason: t(`reason.${g.reason}`), when: formatDate(g.finishedAt) })
+          : `${t(`rec.mode.${g.mode}`)} · ${t("result.draw")} · ${formatDate(g.finishedAt)}`}
       </p>
-      <Scoreboard state={state} names={{ black: { name: displayName(g.players.black.username) }, white: { name: displayName(g.players.white.username) } }} />
+      <Scoreboard state={state} names={{ black: label("black"), white: label("white") }} />
       <div className="board-wrap">
         <Board state={state} onPlay={() => undefined} disabled fx={null} />
       </div>
@@ -39,7 +84,41 @@ function Viewer({ id }: { id: string }) {
         <button className="btn small" onClick={() => setStep(n)} disabled={step === n} aria-label={t("rec.last")}>⏭</button>
       </div>
       <input className="step-range" type="range" min={0} max={n} value={step} onChange={(e) => setStep(Number(e.target.value))} aria-label={t("rec.range")} />
+      <FavoriteButton game={g} />
     </section>
+  );
+}
+
+/** 최근 기보 목록(20판씩 더 보기, 최대 100판) — 프로필에서도 쓴다 */
+export function RecentRecords({ first, currentId }: { first: Page; currentId?: string | null }) {
+  const [games, setGames] = useState<RecordSummary[]>(first.games);
+  const [busy, setBusy] = useState(false);
+  const name = first.user.username;
+  return (
+    <>
+      {games.length === 0 ? <p className="muted">{t("rec.none")}</p> : (
+        <ol className="record-list">
+          {games.map((g) => <RecordItem key={g.id} g={g} href={recordHref(name, g.id)} current={g.id === currentId} />)}
+        </ol>
+      )}
+      {games.length < first.total && (
+        <button
+          className="btn wide more"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const next = await api.records(name, games.length);
+              setGames((x) => [...x, ...next.games.filter((g) => !x.some((y) => y.id === g.id))]);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {t("rec.more")} ({games.length}/{first.total})
+        </button>
+      )}
+    </>
   );
 }
 
@@ -47,7 +126,7 @@ export function RecordsPage() {
   const params = new URLSearchParams(location.search);
   const user = params.get("user") ?? "";
   const gameId = params.get("game");
-  const [data, setData] = useState<{ user: PublicUser; games: RecordSummary[] } | null>(null);
+  const [data, setData] = useState<Page | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -64,32 +143,24 @@ export function RecordsPage() {
       {gameId && <Viewer id={gameId} />}
       {error && <p className="form-error">{error}</p>}
       {data && (
-        <section className="panel records">
-          <h2>
-            {displayName(data.user.username)} <span className="score-rank">{rankName(data.user.rating)}</span>{" "}
-            <span className="seat-rating">{t("points", { rating: formatRating(data.user.rating, data.user.provisional) })}</span>
-          </h2>
-          <p className="muted">{t("rec.recent", { n: data.games.length })}</p>
-          {data.games.length === 0 ? <p className="muted">{t("rec.none")}</p> : (
-            <ol className="record-list">
-              {data.games.map((g) => {
-                const d = g.ratingAfter !== null && g.ratingBefore !== null ? g.ratingAfter - g.ratingBefore : null;
-                return (
-                  <li key={g.id} className={g.id === gameId ? "current" : ""}>
-                    <a href={`/records?user=${encodeURIComponent(data.user.username)}&game=${g.id}`}>
-                      <span className={`wl ${g.won ? "win" : "loss"}`}>{t(g.won ? "rec.win" : "rec.loss")}</span>
-                      <span className={`dot ${g.color}`} aria-label={colorName(g.color)} />
-                      <span className="who">{g.opponent ? displayName(g.opponent) : "?"}</span>
-                      <span className="meta">{t(`rec.mode.${g.mode}`)} · {t(`reason.${g.reason}`)} · {t("result.moves", { n: g.moveCount })}</span>
-                      <span className={`delta ${d && d > 0 ? "up" : d && d < 0 ? "down" : ""}`}>{d === null ? "" : d > 0 ? `+${d}` : d}</span>
-                      <span className="meta when">{formatDate(g.finishedAt)}</span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ol>
+        <>
+          {data.favorites.length > 0 && (
+            <section className="panel records">
+              <h2>{t("fav.title")} <span className="muted-inline">{t("fav.count", { n: data.favorites.length, max: data.favoritesMax })}</span></h2>
+              <ol className="record-list">
+                {data.favorites.map((g) => <RecordItem key={g.id} g={g} href={recordHref(data.user.username, g.id)} current={g.id === gameId} />)}
+              </ol>
+            </section>
           )}
-        </section>
+          <section className="panel records">
+            <h2>
+              {displayName(data.user.username)} <span className="score-rank">{rankName(data.user.rating)}</span>{" "}
+              <span className="seat-rating">{t("points", { rating: formatRating(data.user.rating, data.user.provisional) })}</span>
+            </h2>
+            <p className="muted">{t("rec.recent", { n: data.total })}</p>
+            <RecentRecords first={data} currentId={gameId} />
+          </section>
+        </>
       )}
       <AdSlot slot={AD_SLOTS.records} />
     </main>

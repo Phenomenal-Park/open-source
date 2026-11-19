@@ -4,7 +4,7 @@ import { makeConfig, opponent, DEFAULT_BOARD_SIZE } from "../src/game/config.ts"
 import { replayMoves } from "../src/game/gameState.ts";
 import { tryMove } from "../src/game/rules.ts";
 import type { GameState, Player, Position } from "../src/game/types.ts";
-import { isProvisional, rateGame } from "../src/rating/elo.ts";
+import { isProvisional, rateDraw, rateGame, type PlayerUpdate } from "../src/rating/elo.ts";
 import { chooseMove } from "../src/ai/search.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
@@ -57,6 +57,12 @@ export class GameRoom extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
   }
 
+  /** 판 크기(테스트에서만 바꾼다) */
+  private get boardSize(): number {
+    const v = Number(this.env.BOARD_SIZE);
+    return Number.isInteger(v) && v >= 5 ? v : DEFAULT_BOARD_SIZE;
+  }
+
   private get disconnectMs(): number {
     const v = Number(this.env.DISCONNECT_MS);
     return Number.isFinite(v) && v > 0 ? v : DISCONNECT_MS;
@@ -97,7 +103,7 @@ export class GameRoom extends DurableObject<Env> {
     if (await this.load()) return;
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
-      ...init, boardSize: DEFAULT_BOARD_SIZE, moves: [], status: "playing", result: null,
+      ...init, boardSize: this.boardSize, moves: [], status: "playing", result: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
     for (const c of COLORS) if (!init[c].bot) this.data.deadlines[c] = deadline;
@@ -130,8 +136,8 @@ export class GameRoom extends DurableObject<Env> {
     const r = tryMove(this.replay(d), pos, color);
     if (!r.ok) return r.reason === "not-your-turn" ? "not_your_turn" : "illegal";
     d.moves.push({ row: pos.row, col: pos.col });
-    if (r.state.isFinished && r.state.winner && r.state.winReason) {
-      await this.finish(r.state.winner, r.state.winReason);
+    if (r.state.isFinished && r.state.winReason) {
+      await this.finish(r.state.winner, r.state.winReason); // winner null = 무승부(판이 다 참)
       return null;
     }
     await this.save();
@@ -258,47 +264,62 @@ export class GameRoom extends DurableObject<Env> {
     this.broadcast();
   }
 
-  private async finish(winner: Player, reason: ResultReason) {
+  private async finish(winner: Player | null, reason: ResultReason) {
     const d = this.data!;
     if (d.status !== "playing") return;
     d.status = "finished";
     d.deadlines = {};
     d.result = { winner, reason };
     await this.ctx.storage.deleteAlarm();
-    const winnerId = d[winner].id;
+    const winnerId = winner ? d[winner].id : null;
     const now = new Date().toISOString();
     try {
       const db = this.env.DB;
       const stmts: D1PreparedStatement[] = [];
-      let before: Partial<Record<Player, number>> = {}, after: Partial<Record<Player, number>> = {};
+      const before: Partial<Record<Player, number>> = {}, after: Partial<Record<Player, number>> = {};
       if (d.rated) {
         const rows = await db.prepare("SELECT * FROM users WHERE id IN (?, ?)").bind(d.black.id, d.white.id).all<UserRow>();
         const row = (c: Player) => rows.results.find((u) => u.id === d[c].id)!;
-        const loser = opponent(winner);
-        const change = rateGame(toRated(row(winner)), toRated(row(loser)));
-        // AI 계정은 표시 점수 = 실력 점수(승급 보너스 없음)
-        for (const [c, p] of [[winner, change.winner], [loser, change.loser]] as const) {
-          if (d[c].bot) { p.after.rating = p.after.mmr; p.bonus = 0; }
+        // 점수 계산: 승패는 rateGame, 무승부는 rateDraw(양쪽 0.5승)
+        const updates: Record<Player, PlayerUpdate> = winner
+          ? (() => {
+              const ch = rateGame(toRated(row(winner)), toRated(row(opponent(winner))));
+              d.result!.upset = ch.upset;
+              return { [winner]: ch.winner, [opponent(winner)]: ch.loser } as Record<Player, PlayerUpdate>;
+            })()
+          : (() => {
+              const ch = rateDraw(toRated(row("black")), toRated(row("white")));
+              return { black: ch.a, white: ch.b };
+            })();
+        for (const c of COLORS) {
+          const u = updates[c];
+          if (d[c].bot) { u.after.rating = u.after.mmr; u.bonus = 0; } // AI 계정은 표시 점수 = 실력 점수
+          const outcome = winner === null ? "draws = draws + 1" : winner === c ? "wins = wins + 1" : "losses = losses + 1";
+          // 통산 전적·최고 점수는 계정에만 쌓인다(기보 정리와 무관)
+          stmts.push(db.prepare(
+            `UPDATE users SET rating = ?, mmr = ?, rd = ?, games = ?, win_streak = ?, ${outcome}, max_rating = MAX(max_rating, ?), active_game = NULL WHERE id = ?`,
+          ).bind(u.after.rating, u.after.mmr, u.after.rd, u.after.games, u.after.winStreak, u.after.rating, d[c].id));
+          before[c] = u.before.rating;
+          after[c] = u.after.rating;
         }
-        const upd = (c: Player, p: typeof change.winner, won: boolean) =>
-          db.prepare(`UPDATE users SET rating = ?, mmr = ?, rd = ?, games = ?, win_streak = ?, ${won ? "wins = wins + 1" : "losses = losses + 1"}, active_game = NULL WHERE id = ?`)
-            .bind(p.after.rating, p.after.mmr, p.after.rd, p.after.games, p.after.winStreak, d[c].id);
-        stmts.push(upd(winner, change.winner, true), upd(loser, change.loser, false));
-        before = { [winner]: change.winner.before.rating, [loser]: change.loser.before.rating };
-        after = { [winner]: change.winner.after.rating, [loser]: change.loser.after.rating };
-        const rowOf = (u: typeof change.winner) => ({
-          before: u.before.rating, after: u.after.rating, bonus: u.bonus, rank: rankFor(u.after.rating).label, provisional: isProvisional(u.after),
-        });
-        d.result.ratings = { [winner]: rowOf(change.winner), [loser]: rowOf(change.loser) } as Record<Player, ReturnType<typeof rowOf>>;
-        d.result.upset = change.upset;
+        d.result.ratings = Object.fromEntries(COLORS.map((c) => [c, {
+          before: updates[c].before.rating, after: updates[c].after.rating, bonus: updates[c].bonus,
+          rank: rankFor(updates[c].after.rating).label, provisional: isProvisional(updates[c].after),
+        }])) as Record<Player, NonNullable<OnlineResult["ratings"]>[Player]>;
       } else {
         stmts.push(db.prepare("UPDATE users SET active_game = NULL WHERE id IN (?, ?) AND active_game = ?").bind(d.black.id, d.white.id, d.id));
       }
       stmts.push(
         db.prepare(
-          "INSERT OR IGNORE INTO games (id, mode, rated, black_id, white_id, winner_id, win_reason, moves, black_before, black_after, white_before, white_after, created_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ).bind(d.id, d.mode, d.rated ? 1 : 0, d.black.id, d.white.id, winnerId, reason, JSON.stringify(d.moves),
-          before.black ?? null, after.black ?? null, before.white ?? null, after.white ?? null, d.createdAt, now),
+          `INSERT OR IGNORE INTO games (id, mode, rated, black_id, white_id, winner_id, win_reason, moves, move_count,
+             black_before, black_after, white_before, white_after,
+             black_name, white_name, black_rating, white_rating, black_provisional, white_provisional, created_at, finished_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(d.id, d.mode, d.rated ? 1 : 0, d.black.id, d.white.id, winnerId, reason, JSON.stringify(d.moves), d.moves.length,
+          before.black ?? null, after.black ?? null, before.white ?? null, after.white ?? null,
+          // 대국 당시(매칭 시점) 닉네임·점수 스냅샷
+          d.black.username, d.white.username, d.black.rating, d.white.rating, d.black.provisional ? 1 : 0, d.white.provisional ? 1 : 0,
+          d.createdAt, now),
       );
       for (const c of COLORS) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO user_games (user_id, game_id, finished_at) VALUES (?, ?, ?)").bind(d[c].id, d.id, now));
@@ -342,8 +363,9 @@ export class GameRoom extends DurableObject<Env> {
 }
 
 /**
- * 사람별 기보를 최근 limit판(기본 100)만 남긴다. 어느 쪽 목록에도 없게 된 대국만 실제로 지운다.
- * 점수는 users 테이블에만 있으므로 기보를 지워도 점수는 바뀌지 않는다.
+ * 사람별 기보를 최근 limit판(기본 100)만 남긴다.
+ * 실제로 지우는 기보는 (1) 어느 쪽 최근 목록에도 없고 (2) 누구의 명승부(박제)도 아닌 것뿐이다.
+ * 점수·통산 전적은 users 테이블에만 있으므로 기보를 지워도 바뀌지 않는다. 몇 번을 다시 실행해도 결과가 같다.
  */
 export async function pruneRecords(db: D1Database, userIds: string[], limit = RECORDS_PER_USER) {
   for (const uid of userIds) {
@@ -356,7 +378,11 @@ export async function pruneRecords(db: D1Database, userIds: string[], limit = RE
     const marks = ids.map(() => "?").join(", ");
     await db.batch([
       db.prepare(`DELETE FROM user_games WHERE user_id = ? AND game_id IN (${marks})`).bind(uid, ...ids),
-      db.prepare(`DELETE FROM games WHERE id IN (${marks}) AND NOT EXISTS (SELECT 1 FROM user_games ug WHERE ug.game_id = games.id)`).bind(...ids),
+      db.prepare(
+        `DELETE FROM games WHERE id IN (${marks})
+           AND NOT EXISTS (SELECT 1 FROM user_games ug WHERE ug.game_id = games.id)
+           AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.game_id = games.id)`,
+      ).bind(...ids),
     ]);
   }
 }

@@ -40,6 +40,14 @@ npm run deploy   # 화면 빌드 → D1 테이블 만들기(원격) → Worker �
 VITE_ADSENSE_CLIENT=ca-pub-XXXX VITE_ADSENSE_SLOT_PROFILE=1111 VITE_ADSENSE_SLOT_RECORDS=2222 npm run deploy
 ```
 
+## 5. 문의 이메일
+
+```bash
+VITE_CONTACT_EMAIL=contact@내도메인 npm run deploy
+```
+
+없으면 문의 페이지에 "(배포 전에 입력)"이 보인다. 개인정보 처리방침의 연락처도 같이 채운다(src/i18n/privacy.ts).
+
 ## 주의
 
 - **CPU 한도:** 무료 플랜 Workers는 요청당 CPU 10ms다. 비밀번호 해시(PBKDF2 10만 회)는 이를 넘을 수 있다. 가입·로그인이 실패하면

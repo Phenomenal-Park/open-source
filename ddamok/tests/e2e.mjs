@@ -215,7 +215,10 @@ await check("[프로필] 급·점수(?)·전적, AI 상대 허용 설정이 저�
   await B.goto(base + "/profile");
   await B.locator(".big-rank").waitFor();
   assert.match(await B.locator(".big-rating").textContent(), /\?점/);
-  assert.match(await B.locator(".stats").textContent(), /1승 0패/);
+  assert.match(await B.locator(".stats").textContent(), /1승 0패 0무/);
+  assert.match(await B.locator(".stats").textContent(), /승률100%/);
+  assert.match(await B.locator(".records h2").first().textContent(), /명승부 0\/3/);
+  assert.equal(await B.locator(".profile ~ .records .record-list li").count(), 2); // 최근 대국
   const box = B.locator(".setting input");
   assert.equal(await box.isChecked(), true);
   await box.uncheck();
@@ -242,6 +245,29 @@ await check("[기보] 닉네임 검색 → 최근 기보 → 수순 넘겨 보�
   await A.getByRole("button", { name: "다음 수" }).click();
   assert.equal(await stones(A), 1);
   await shot(A, "phone-records");
+});
+
+await check("[명승부] 기보 화면에서 박제 → 프로필에 '명승부 1/3', 상대 닉네임·당시 점수, '흑번 9수끝 오목승' 표기", async () => {
+  await A.goto(base + "/records?user=" + encodeURIComponent("방송인A"));
+  await A.locator(".record-list li a").last().click(); // 친구매치(오목) 기보
+  await A.getByRole("button", { name: /명승부로 박제/ }).click();
+  await A.getByRole("button", { name: /명승부 해제 · 1\/3/ }).waitFor();
+  await A.goto(base + "/profile");
+  await A.locator(".records h2", { hasText: "명승부 1/3" }).waitFor();
+  const fav = await A.locator(".records").first().locator(".record-list li").first().textContent();
+  assert.match(fav, /viewer_b \(500\?\)/, fav);
+  assert.match(fav, /(흑번 9수끝 오목승|백번 9수끝 오목패)/, fav);
+  await shot(A, "phone-profile-fav");
+});
+
+await check("[안내 페이지] 소개·규칙·문의·개인정보 처리방침", async () => {
+  for (const [path, text] of [["/about", "따목 소개"], ["/rules", "따목 규칙"], ["/contact", "문의"], ["/privacy", "개인정보 처리방침"]]) {
+    await B.goto(base + path);
+    assert.match(await B.locator("article h2").textContent(), new RegExp(text));
+  }
+  assert.match(await B.locator("article").textContent(), /이메일|만 14세/);
+  await B.goto(base + "/rules");
+  assert.match(await B.locator("article").textContent(), /무승부/);
 });
 
 await check("[온라인] JS 오류 없음", async () => assert.deepEqual(errs, []));
