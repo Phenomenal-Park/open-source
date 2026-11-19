@@ -14,7 +14,9 @@ const strongest = AI_LEVELS[AI_LEVELS.length - 1];
 const key = (p: Position) => `${p.row},${p.col}`;
 
 describe("따목 AI", () => {
-  it("단계는 약한 순서대로 6개, 표시는 18급~3급", () => {
+  it("단계는 약한 순서대로 6개, 이름에는 급수가 없다(추정 급수 18급~3급은 따로)", () => {
+    expect(AI_LEVELS.map((l) => l.name)).toEqual(["AI 아이언", "AI 브론즈", "AI 실버", "AI 골드", "AI 플래티넘", "AI 다이아"]);
+    expect(AI_LEVELS.some((l) => /급|단/.test(l.name))).toBe(false);
     expect(AI_LEVELS.map((l) => l.label)).toEqual(["18급", "16급", "12급", "10급", "7급", "3급"]);
     expect(AI_LEVELS.every((l, i) => i === 0 || l.rating > AI_LEVELS[i - 1].rating)).toBe(true);
     expect(levelById("ai-3")?.label).toBe("12급");

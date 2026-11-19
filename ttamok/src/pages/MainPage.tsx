@@ -243,7 +243,7 @@ export function MainPage() {
         disconnectedSec: left !== undefined ? Math.max(0, Math.ceil((left - (Date.now() - (online.at ?? Date.now()))) / 1000)) : undefined,
       };
     }
-    if (aiGame && aiLevel) return aiGame.aiColor === p ? { name: `AI ${aiLevel.label}` } : { name: "나" };
+    if (aiGame && aiLevel) return aiGame.aiColor === p ? { name: aiLevel.name } : { name: "나" };
     return null;
   };
 

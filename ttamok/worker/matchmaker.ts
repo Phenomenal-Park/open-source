@@ -120,14 +120,18 @@ export class Matchmaker extends DurableObject<Env> {
     // 15초가 지나도 사람이 없고 AI를 허용한 사람 → 실력 점수가 가장 가까운 AI 3개 중 하나
     const due = dueForAi(this.open().filter((x) => x.t.mode === "rated").map((x) => x.t), Date.now());
     if (!due.length) return;
-    const bots = (await this.env.DB.prepare("SELECT * FROM users WHERE is_bot = 1").all<Row>()).results;
+    // 다른 사람과 대국 중인 AI는 제외(비어 있는 AI 중 가장 가까운 3개에서 고른다). 모두 바쁘면 계속 기다린다.
+    const free = (await this.env.DB.prepare("SELECT * FROM users WHERE is_bot = 1 AND active_game IS NULL").all<Row>()).results;
     for (const w of due) {
       const entry = this.open().find((x) => x.t.key === w.key);
-      const bot = pickBot(bots, w.mmr);
+      const bot = pickBot(free, w.mmr);
       if (!entry || !bot) continue;
+      free.splice(free.indexOf(bot), 1); // 이번 알람 안에서도 같은 AI를 두 번 쓰지 않게
       this.take(entry.ws, entry.t);
       await this.startGame("rated", [w.userId, bot.id], [entry.ws]);
     }
+    const stillWaiting = this.open().some((x) => x.t.mode === "rated" && x.t.allowAi);
+    if (stillWaiting) await this.ctx.storage.setAlarm(Date.now() + 2_000); // AI가 비기를 기다리며 다시 확인
   }
 
   private async startGame(mode: MatchMode, userIds: [string, string], sockets: WebSocket[]) {
@@ -139,8 +143,8 @@ export class Matchmaker extends DurableObject<Env> {
       const init: RoomInit = { id: gameId, mode, rated: mode === "rated", black: player(black), white: player(white) };
       const room = this.env.GAME_ROOM.get(this.env.GAME_ROOM.idFromName(gameId)) as unknown as DurableObjectStub<GameRoom>;
       await room.init(init);
-      const humans = rows.filter((r) => !r.is_bot).map((r) => r.id);
-      await this.env.DB.prepare(`UPDATE users SET active_game = ? WHERE id IN (${humans.map(() => "?").join(", ")})`).bind(gameId, ...humans).run();
+      // 사람·AI 모두 "대국 중" 표시(AI는 이 표시가 있는 동안 다른 사람과 매칭되지 않는다)
+      await this.env.DB.prepare("UPDATE users SET active_game = ? WHERE id IN (?, ?)").bind(gameId, a.id, b.id).run();
       for (const ws of sockets) {
         send(ws, { type: "matched", gameId });
         try { ws.close(1000, "matched"); } catch { /* */ }

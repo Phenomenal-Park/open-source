@@ -257,6 +257,7 @@ await check("레이팅매치에서 사람이 없으면 15초 뒤 가장 가까�
   const ai = st.you === "black" ? "white" : "black";
   assert.equal(st.game.players[ai].bot, true);
   assert.match(st.game.players[ai].username, /^AI /);
+  assert.doesNotMatch(st.game.players[ai].username, /급|단/);
   if (st.you === "white") st = await g.next((x) => x.type === "state" && x.game.moves.length === 1, 5000);
   else { g.send({ type: "move", row: 7, col: 7, moveNo: 0 }); st = await g.next((x) => x.type === "state" && x.game.moves.length === 2, 5000); }
   g.send({ type: "resign" });
@@ -264,6 +265,31 @@ await check("레이팅매치에서 사람이 없으면 15초 뒤 가장 가까�
   assert.ok(fin.game.result.ratings, "AI 대국도 레이팅 반영");
   g.close();
 });
+
+await check("대국 중인 AI는 다른 사람과 매칭되지 않는다", async () => {
+  const c = await signup("third_c");
+  await api("/api/verify", { code: c.devCode }, c.token);
+  const busyName = await (async () => {
+    const s = await match(A.token, "mode=rated");
+    const m = await s.next((x) => x.type === "matched", 25000);
+    const g = socket(`/api/games/${m.gameId}/ws`, A.token);
+    const st = await g.next((x) => x.type === "state");
+    A.aiGame = g;
+    return st.game.players[st.you === "black" ? "white" : "black"].username;
+  })();
+  const bots = (await api("/api/bots")).data.bots;
+  assert.equal(bots.find((b) => b.username === busyName).busy, true);
+  assert.ok(bots.every((b) => !/급|단/.test(b.username)), "AI 이름에 급수 없음");
+  const s = await match(c.token, "mode=rated");
+  const m = await s.next((x) => x.type === "matched", 25000);
+  const g = socket(`/api/games/${m.gameId}/ws`, c.token);
+  const st = await g.next((x) => x.type === "state");
+  const other = st.game.players[st.you === "black" ? "white" : "black"].username;
+  assert.notEqual(other, busyName);
+  assert.equal(st.game.players[st.you === "black" ? "white" : "black"].bot, true);
+  for (const x of [A.aiGame, g]) { x.send({ type: "resign" }); await x.next((y) => y.type === "state" && y.game.status === "finished"); x.close(); }
+  assert.equal((await api("/api/bots")).data.bots.find((b) => b.username === busyName).busy, false); // 끝나면 다시 비어 있음
+}, 70000);
 
 await check("AI 상대 허용을 끄면 AI와 붙지 않는다", async () => {
   assert.equal((await api("/api/settings", { allowAi: false }, B.token)).data.settings.allowAi, false);

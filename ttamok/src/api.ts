@@ -89,6 +89,7 @@ export const api = {
   me: (token: string) => call<Me>("/api/me", undefined, token),
   settings: (token: string, allowAi: boolean) => call<{ settings: { allowAi: boolean } }>("/api/settings", { allowAi }, token),
   leaderboard: () => call<{ players: PublicUser[] }>("/api/leaderboard"),
+  bots: () => call<{ bots: (PublicUser & { level: string; busy: boolean })[] }>("/api/bots"),
   records: (username: string) => call<{ user: PublicUser; games: RecordSummary[] }>(`/api/records?user=${encodeURIComponent(username)}`),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
 };

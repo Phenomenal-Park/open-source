@@ -94,9 +94,9 @@ await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차
   const context = await browser.newContext(PHONE);
   const page = await context.newPage();
   await page.goto(base);
-  await page.getByLabel("기력").selectOption({ label: "AI 3급" });
+  await page.getByLabel("기력").selectOption("ai-6");
   await page.getByRole("button", { name: "흑으로 두기" }).click();
-  await page.locator(".score-name", { hasText: "AI 3급" }).waitFor();
+  await page.locator(".score-name", { hasText: "AI 다이아" }).waitFor();
   await tap(page, 7, 7, { touch: true });
   await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 2, null, { timeout: 10000 });
   await tap(page, 1, 13, { touch: true });

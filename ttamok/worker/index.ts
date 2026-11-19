@@ -190,6 +190,12 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ players: rows.results.map(publicUser) });
   }
 
+  // AI 계정 목록(현재 점수·급수 — 사람과의 레이팅매치로 바뀐다)
+  if (m === "GET" && path === "/api/bots") {
+    const rows = await env.DB.prepare("SELECT * FROM users WHERE is_bot = 1 ORDER BY mmr").all<UserRow>();
+    return json({ bots: rows.results.map((u) => ({ ...publicUser(u), level: u.bot_level, busy: !!u.active_game })) });
+  }
+
   // 기보: 닉네임으로 최근 100판
   if (m === "GET" && path === "/api/records") {
     const name = (url.searchParams.get("user") ?? "").normalize("NFC").trim().toLowerCase();

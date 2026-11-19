@@ -8,6 +8,9 @@
 
 export interface AiLevel {
   id: string;
+  /** 표시 이름(급수 없음 — 급수는 점수에서 자동으로 나온다). 아이언<브론즈<실버<골드<플래티넘<다이아(<마스터<챌린저: 엔진 강화 후) */
+  name: string;
+  /** 출시 전 추정 급수(AI끼리 측정). 서버 점수가 있으면 그쪽을 쓴다 */
   label: string;
   /** 임시 추정 점수 */
   rating: number;
@@ -34,12 +37,12 @@ export interface AiLevel {
 }
 
 export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
-  { id: "ai-1", label: "18급", rating: 500, depth: 2, width: 8, nodeBudget: 4_000, noise: 300, randomPick: 0.35, randomPool: 8, missWin: 0.3, focus: 0.2 },
-  { id: "ai-2", label: "16급", rating: 690, depth: 2, width: 8, nodeBudget: 5_000, noise: 160, randomPick: 0.15, randomPool: 6, missWin: 0.1, focus: 0.5 },
-  { id: "ai-3", label: "12급", rating: 900, depth: 2, width: 9, nodeBudget: 8_000, noise: 90, randomPick: 0.05, randomPool: 5, missWin: 0.03, focus: 0.8 },
-  { id: "ai-4", label: "10급", rating: 1070, depth: 2, width: 12, nodeBudget: 12_000, noise: 25, randomPick: 0.01, randomPool: 4, missWin: 0, focus: 1 },
-  { id: "ai-5", label: "7급", rating: 1250, depth: 3, width: 10, nodeBudget: 30_000, noise: 25, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.5 },
-  { id: "ai-6", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
+  { id: "ai-1", name: "AI 아이언", label: "18급", rating: 500, depth: 2, width: 8, nodeBudget: 4_000, noise: 300, randomPick: 0.35, randomPool: 8, missWin: 0.3, focus: 0.2 },
+  { id: "ai-2", name: "AI 브론즈", label: "16급", rating: 690, depth: 2, width: 8, nodeBudget: 5_000, noise: 160, randomPick: 0.15, randomPool: 6, missWin: 0.1, focus: 0.5 },
+  { id: "ai-3", name: "AI 실버", label: "12급", rating: 900, depth: 2, width: 9, nodeBudget: 8_000, noise: 90, randomPick: 0.05, randomPool: 5, missWin: 0.03, focus: 0.8 },
+  { id: "ai-4", name: "AI 골드", label: "10급", rating: 1070, depth: 2, width: 12, nodeBudget: 12_000, noise: 25, randomPick: 0.01, randomPool: 4, missWin: 0, focus: 1 },
+  { id: "ai-5", name: "AI 플래티넘", label: "7급", rating: 1250, depth: 3, width: 10, nodeBudget: 30_000, noise: 25, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.5 },
+  { id: "ai-6", name: "AI 다이아", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
 ]);
 
 export function levelById(id: string): AiLevel | undefined {
@@ -48,5 +51,5 @@ export function levelById(id: string): AiLevel | undefined {
 
 /** 실험용: 기존 최강 단계 + 연속 위협 탐색 */
 export const EXPERIMENTAL: readonly AiLevel[] = Object.freeze([
-  { id: "x-vcf", label: "실험", rating: 0, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, vcfDepth: 6, vcfBudget: 4000, vcfDefend: 6 },
+  { id: "x-vcf", name: "실험", label: "실험", rating: 0, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, vcfDepth: 6, vcfBudget: 4000, vcfDefend: 6 },
 ]);
