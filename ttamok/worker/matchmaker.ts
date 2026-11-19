@@ -1,12 +1,12 @@
 // 매칭 대기열(전역 Durable Object 하나).
-//   레이팅매치: 실력 점수가 가까운 사람(기다릴수록 범위가 넓어짐, pairing.ts), 15초 뒤 AI(허용 시)
+//   레이팅매치: 실력 점수가 가까운 사람(기다릴수록 범위가 넓어짐, pairing.ts), 15초 뒤 가장 가까운 AI 3개 중 하나(허용 시)
 //   친선매치: 친선매치를 누른 사람 중 무작위 1명
 //   친구매치: 같은 코드를 입력한 사람
 import { DurableObject } from "cloudflare:workers";
 import { WS_PROTOCOL, type MatchMode, type ServerMessage } from "../src/online/protocol.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import { isProvisional } from "../src/rating/elo.ts";
-import { closest, dueForAi, nextCheck, pickPairs, type Waiter } from "./pairing.ts";
+import { dueForAi, nextCheck, pickBot, pickPairs, type Waiter } from "./pairing.ts";
 import type { GameRoom, RoomInit, RoomPlayer } from "./room.ts";
 
 interface Ticket {
@@ -117,13 +117,13 @@ export class Matchmaker extends DurableObject<Env> {
 
   async alarm() {
     this.matchRated();
-    // 15초가 지나도 사람이 없고 AI를 허용한 사람 → 실력 점수가 가장 가까운 AI
+    // 15초가 지나도 사람이 없고 AI를 허용한 사람 → 실력 점수가 가장 가까운 AI 3개 중 하나
     const due = dueForAi(this.open().filter((x) => x.t.mode === "rated").map((x) => x.t), Date.now());
     if (!due.length) return;
     const bots = (await this.env.DB.prepare("SELECT * FROM users WHERE is_bot = 1").all<Row>()).results;
     for (const w of due) {
       const entry = this.open().find((x) => x.t.key === w.key);
-      const bot = closest(bots, w.mmr);
+      const bot = pickBot(bots, w.mmr);
       if (!entry || !bot) continue;
       this.take(entry.ws, entry.t);
       await this.startGame("rated", [w.userId, bot.id], [entry.ws]);

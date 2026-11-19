@@ -1,6 +1,6 @@
 // 레이팅매치 상대 고르기(순수 함수 — 단위 테스트 대상).
 //   기다린 시간 0~5초: 실력 점수 ±100 / 5~15초: ±250 / 15초 이후: ±500 — 범위 안에서 가장 가까운 상대.
-//   두 사람 중 더 오래 기다린 쪽의 범위를 쓴다. 15초가 지나도 사람이 없으면(AI 허용 시) 가장 가까운 AI.
+//   두 사람 중 더 오래 기다린 쪽의 범위를 쓴다. 15초가 지나도 사람이 없으면(AI 허용 시) 점수가 가장 가까운 AI 3개 중 하나.
 
 export interface Waiter {
   key: string;
@@ -60,8 +60,14 @@ export function nextCheck(waiters: readonly Waiter[], now: number): number | nul
   return Number.isFinite(next) ? next : null;
 }
 
-export function closest<T extends { mmr: number }>(items: readonly T[], mmr: number): T | undefined {
-  let best: T | undefined;
-  for (const x of items) if (!best || Math.abs(x.mmr - mmr) < Math.abs(best.mmr - mmr)) best = x;
-  return best;
+/** 실력 점수가 가장 가까운 n개(가까운 순). */
+export function nearest<T extends { mmr: number }>(items: readonly T[], mmr: number, n: number): T[] {
+  return [...items].sort((a, b) => Math.abs(a.mmr - mmr) - Math.abs(b.mmr - mmr)).slice(0, n);
+}
+
+/** AI 상대: 실력 점수가 가장 가까운 AI 3개 중 무작위 1개. */
+export const AI_CANDIDATES = 3;
+export function pickBot<T extends { mmr: number }>(bots: readonly T[], mmr: number, rand: () => number = Math.random): T | undefined {
+  const near = nearest(bots, mmr, AI_CANDIDATES);
+  return near[Math.floor(rand() * near.length)];
 }

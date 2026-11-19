@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AI_FALLBACK_MS, closest, dueForAi, nextCheck, pickPairs, windowFor, type Waiter } from "./pairing.ts";
+import { AI_FALLBACK_MS, dueForAi, nearest, nextCheck, pickBot, pickPairs, windowFor, type Waiter } from "./pairing.ts";
 
 const w = (key: string, mmr: number, joinedAt: number, allowAi = true): Waiter => ({ key, userId: key, mmr, joinedAt, allowAi });
 
@@ -34,10 +34,21 @@ describe("레이팅매치 상대 고르기", () => {
     expect(pickPairs([{ ...w("a", 1500, 0), userId: "u" }, { ...w("b", 1500, 0), userId: "u" }], 1)).toEqual([]);
   });
 
-  it("15초가 지나고 AI를 허용한 사람만 AI 대상, 가장 가까운 AI", () => {
+  it("15초가 지나고 AI를 허용한 사람만 AI 대상", () => {
     const list = [w("a", 1500, 0), w("b", 1500, 0, false), w("c", 1500, 5000)];
     expect(dueForAi(list, AI_FALLBACK_MS).map((x) => x.key)).toEqual(["a"]);
-    expect(closest([{ mmr: 500 }, { mmr: 1490 }, { mmr: 1070 }], 1300)).toEqual({ mmr: 1490 });
+  });
+
+  it("AI 상대는 실력 점수가 가장 가까운 AI 3개 중 하나", () => {
+    const bots = [500, 690, 900, 1070, 1250, 1490].map((mmr) => ({ mmr }));
+    expect(nearest(bots, 1100, 3).map((b) => b.mmr)).toEqual([1070, 1250, 900]);
+    const seen = new Set<number>();
+    for (let i = 0; i < 300; i++) seen.add(pickBot(bots, 1100)!.mmr);
+    expect([...seen].sort((a, b) => a - b)).toEqual([900, 1070, 1250]);
+    expect(pickBot(bots, 1100, () => 0)!.mmr).toBe(1070);
+    expect(pickBot(bots, 1100, () => 0.99)!.mmr).toBe(900);
+    expect(pickBot([], 1100)).toBeUndefined();
+    expect(nearest(bots.slice(0, 2), 3000, 3)).toHaveLength(2); // AI가 3개보다 적으면 있는 것 중에서
   });
 
   it("다음 확인 시각: 범위가 넓어지는 5초·15초 시점", () => {
