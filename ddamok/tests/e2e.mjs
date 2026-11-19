@@ -91,7 +91,7 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
 }
 
 await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에서 바꾸면 유지", async () => {
-  for (const [locale, play, name, rule] of [["en-US", "Play", "Ddamok", "exactly five"], ["ja-JP", "対局", "タモク", "ちょうど5つ"]]) {
+  for (const [locale, play, name, rule] of [["en-US", "Play", "ddamok", "exactly five"], ["ja-JP", "対局", "タモク", "ちょうど5つ"]]) {
     const context = await browser.newContext({ ...PHONE, locale });
     const page = await context.newPage();
     const errors = [];

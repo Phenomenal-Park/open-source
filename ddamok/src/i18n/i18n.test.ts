@@ -24,8 +24,9 @@ describe("다국어", () => {
     }
   });
 
-  it("게임 이름: 따목 / Ddamok / タモク", () => {
-    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["따목", "Ddamok", "タモク"]);
+  it("게임 이름: 따목 / ddamok / タモク — 로마자 표기는 반드시 소문자 ddamok", () => {
+    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["따목", "ddamok", "タモク"]);
+    for (const cat of Object.values(CATALOGS)) for (const v of Object.values(cat)) expect(v).not.toMatch(/Ddamok|DDAMOK|[Tt]tamok/);
   });
 
   it("급·단: 18급·1단 / 18 kyu·1 dan / 18級·初段·2段", () => {

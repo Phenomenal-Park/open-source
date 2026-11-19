@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "따목 (Ddamok) — 오목 + 두 점 따내기 웹게임",
+  "description": "따목 (ddamok) — 오목 + 두 점 따내기 웹게임",
   "scripts": {
     "dev": "vite",
     "dev:api": "wrangler d1 migrations apply ddamok --local && wrangler dev --port 8787 --var DEV_MAIL_LOG:1",

@@ -1,4 +1,4 @@
-# 따목 (Ddamok · タモク)
+# 따목 (ddamok · タモク)
 
 오목에 **두 점 따내기**를 더한 바둑판 게임. 같은 화면 2인 대국, AI 대국, 온라인 대국(레이팅·친선·친구매치)을 지원하고
 Cloudflare(Workers + D1 + Durable Objects)에서 돈다. 점수는 18급~9단.
@@ -46,7 +46,7 @@ tests/           worker.mjs(서버 통합), e2e.mjs(브라우저), serve.mjs(테
 
 | | 한국어 | English | 日本語 |
 |---|---|---|---|
-| 이름 | 따목 | Ddamok | タモク |
+| 이름 | 따목 | ddamok | タモク |
 | 급·단 | 18급 · 1단 | 18 kyu · 1 dan | 18級 · 初段 · 2段 |
 | AI | AI 아이언…다이아 | AI Iron…Diamond | AI アイアン…ダイヤ |
 

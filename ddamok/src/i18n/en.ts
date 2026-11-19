@@ -1,7 +1,7 @@
 import type { Messages } from "./ko.ts";
 
 export const en: Messages = {
-  "app.name": "Ddamok",
+  "app.name": "ddamok",
   "app.tagline": "Five in a row + pair captures",
   "nav.play": "Play",
   "nav.records": "Records",

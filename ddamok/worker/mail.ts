@@ -3,7 +3,7 @@ export type MailLang = "ko" | "en" | "ja";
 
 const TEXT: Record<MailLang, { subject: string; body: (code: string) => string }> = {
   ko: { subject: "[따목] 이메일 인증 코드", body: (c) => `따목 이메일 인증 코드: ${c}\n\n10분 안에 입력해 주세요. 직접 요청하지 않았다면 이 메일을 무시하세요.` },
-  en: { subject: "[Ddamok] Your verification code", body: (c) => `Your Ddamok verification code: ${c}\n\nEnter it within 10 minutes. If you didn't request this, you can ignore this email.` },
+  en: { subject: "[ddamok] Your verification code", body: (c) => `Your ddamok verification code: ${c}\n\nEnter it within 10 minutes. If you didn't request this, you can ignore this email.` },
   ja: { subject: "【タモク】メール認証コード", body: (c) => `タモクのメール認証コード：${c}\n\n10分以内に入力してください。心当たりがない場合はこのメールを無視してください。` },
 };
 
