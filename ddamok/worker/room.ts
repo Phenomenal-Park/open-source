@@ -124,11 +124,11 @@ export class GameRoom extends DurableObject<Env> {
     );
   }
 
-  /** 검증 후 착수. 실패 이유(없으면 null). */
-  private async applyMove(color: Player, pos: Position): Promise<string | null> {
+  /** 검증 후 착수. 실패하면 오류 코드(없으면 null). */
+  private async applyMove(color: Player, pos: Position): Promise<"not_your_turn" | "illegal" | null> {
     const d = this.data!;
     const r = tryMove(this.replay(d), pos, color);
-    if (!r.ok) return r.reason === "not-your-turn" ? "상대 차례입니다." : "둘 수 없는 자리입니다.";
+    if (!r.ok) return r.reason === "not-your-turn" ? "not_your_turn" : "illegal";
     d.moves.push({ row: pos.row, col: pos.col });
     if (r.state.isFinished && r.state.winner && r.state.winReason) {
       await this.finish(r.state.winner, r.state.winReason);
@@ -170,7 +170,7 @@ export class GameRoom extends DurableObject<Env> {
     try {
       msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
     } catch {
-      return this.sendTo(ws, { type: "error", message: "잘못된 메시지" });
+      return this.sendTo(ws, { type: "error", code: "bad_message", message: "잘못된 메시지" });
     }
     if (msg.type === "ping") return;
     if (d.status !== "playing") return this.sendState(ws, color);
@@ -181,7 +181,7 @@ export class GameRoom extends DurableObject<Env> {
       if (msg.moveNo !== d.moves.length) return this.sendState(ws, color); // 오래된 화면에서 보낸 수
       const err = await this.applyMove(color, { row: msg.row, col: msg.col });
       if (err) {
-        this.sendTo(ws, { type: "error", message: err });
+        this.sendTo(ws, { type: "error", code: err, message: err === "not_your_turn" ? "상대 차례입니다." : "둘 수 없는 자리입니다." });
         this.sendState(ws, color);
       }
     }

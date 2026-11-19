@@ -2,6 +2,7 @@
 import type { ClientMessage, GameSnapshot, MatchMode, ServerMessage } from "./protocol.ts";
 import { HEARTBEAT_MS, HEARTBEAT_TIMEOUT_MS, PING, WS_PROTOCOL } from "./protocol.ts";
 import type { Player } from "../game/types.ts";
+import { errorText, t } from "../i18n/index.ts";
 
 function wsUrl(path: string): string {
   return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
@@ -23,11 +24,11 @@ export function findMatch(token: string, mode: MatchMode, code: string | null, h
     const m = JSON.parse(e.data) as ServerMessage;
     if (m.type === "waiting") h.onWaiting();
     else if (m.type === "matched") { done = true; h.onMatched(m.gameId); }
-    else if (m.type === "error") { done = true; h.onError(m.message); }
+    else if (m.type === "error") { done = true; h.onError(errorText(m.code, m.message)); }
   };
   ws.onclose = () => {
     clearInterval(beat);
-    if (!done) h.onError("연결이 끊겼습니다. 이메일 인증·로그인 상태를 확인하고 다시 시도해 주세요.");
+    if (!done) h.onError(t("err.connectionLost"));
     done = true;
   };
   return () => {
@@ -87,7 +88,7 @@ export class GameConnection {
       if (m.type === "state") {
         this.onState(m.you, m.game);
         if (m.game.status !== "playing") this.close();
-      } else if (m.type === "error") this.onError(m.message);
+      } else if (m.type === "error") this.onError(errorText(m.code, m.message));
     };
     ws.onclose = () => {
       if (this.closed) return;

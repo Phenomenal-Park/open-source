@@ -83,7 +83,7 @@ export class Matchmaker extends DurableObject<Env> {
     if (!me || me.active_game) {
       this.take(server, ticket);
       if (me?.active_game) send(server, { type: "matched", gameId: me.active_game });
-      else send(server, { type: "error", message: "계정을 찾을 수 없습니다." });
+      else send(server, { type: "error", code: "unauthorized", message: "계정을 찾을 수 없습니다." });
       server.close(1000, "done");
       return response;
     }
@@ -161,7 +161,7 @@ export class Matchmaker extends DurableObject<Env> {
     } catch (e) {
       console.error("startGame", e);
       for (const ws of sockets) {
-        send(ws, { type: "error", message: "매칭 중 오류가 났습니다. 다시 시도해 주세요." });
+        send(ws, { type: "error", code: "match_error", message: "매칭 중 오류가 났습니다. 다시 시도해 주세요." });
         try { ws.close(1011, "error"); } catch { /* */ }
       }
     }

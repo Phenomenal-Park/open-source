@@ -37,8 +37,8 @@ async function tap(page, row, col, { touch = false } = {}) {
 }
 const stones = (page) => page.locator("svg.board .stone").count();
 const counts = (page) => page.locator(".score-card .count").allTextContents();
-const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true };
-const DESKTOP = { viewport: { width: 1280, height: 800 } };
+const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, locale: "ko-KR" };
+const DESKTOP = { viewport: { width: 1280, height: 800 }, locale: "ko-KR" };
 
 for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DESKTOP]]) {
   const context = await browser.newContext(ctx);
@@ -89,6 +89,36 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
   await check(`[${label}] JS 오류 없음`, async () => assert.deepEqual(errors, []));
   await context.close();
 }
+
+await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에서 바꾸면 유지", async () => {
+  for (const [locale, play, name, rule] of [["en-US", "Play", "Ddamok", "exactly five"], ["ja-JP", "対局", "タモク", "ちょうど5つ"]]) {
+    const context = await browser.newContext({ ...PHONE, locale });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto(base);
+    assert.equal(await page.locator(".brand h1").textContent(), name);
+    assert.equal(await page.locator(".nav-link.active").textContent(), play);
+    assert.equal(await page.evaluate(() => document.documentElement.lang), locale.slice(0, 2));
+    await page.locator("details.rules summary").click();
+    assert.match(await page.locator("details.rules").textContent(), new RegExp(rule));
+    // 언어 선택 목록(한국어/English/日本語)은 각 언어 자체 표기이므로 제외
+    const text = await page.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll(".lang-select").forEach((x) => x.remove()); return c.innerText; });
+    assert.ok(!/[가-힣]/.test(text), `${locale}: 한국어가 섞이지 않음`);
+    await shot(page, `phone-${locale}`);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  const context = await browser.newContext({ ...PHONE, locale: "en-US" });
+  const page = await context.newPage();
+  await page.goto(base);
+  await page.getByLabel("Language").selectOption("ja");
+  await page.waitForLoadState("load");
+  await page.locator(".brand h1", { hasText: "タモク" }).waitFor();
+  await page.goto(base + "/records");
+  assert.equal(await page.locator(".nav-link.active").textContent(), "棋譜");
+  await context.close();
+});
 
 await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차례로", async () => {
   const context = await browser.newContext(PHONE);

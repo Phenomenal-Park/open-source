@@ -3,6 +3,10 @@ import { MainPage } from "./pages/MainPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
 import { RecordsPage } from "./pages/RecordsPage.tsx";
 import { PrivacyPage } from "./pages/PrivacyPage.tsx";
+import { lang, t } from "./i18n/index.ts";
+
+document.documentElement.lang = lang;
+document.title = `${t("app.name")} — ${t("app.tagline")}`;
 
 // 페이지 전환은 일반 링크(새 페이지 로드)로 한다 — 프로필·기보 화면의 광고가 정책에 맞게 새로 뜨도록.
 function pageOf(path: string): Page {

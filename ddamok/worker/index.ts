@@ -4,21 +4,21 @@ import { RANKS, rankFor } from "../src/rating/ranks.ts";
 import { FRIEND_CODE_RE, MATCH_MODES, WS_PROTOCOL, type MatchMode } from "../src/online/protocol.ts";
 import { hashPassword, hashToken, newToken, PASSWORD_MAX, PASSWORD_MIN, SESSION_TTL_MS, USERNAME_RE, verifyPassword } from "./auth.ts";
 import { publicUser, toRated, userByToken, type UserRow } from "./users.ts";
-import { sendVerificationCode } from "./mail.ts";
+import { mailLang, sendVerificationCode, type MailLang } from "./mail.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** 6자리 인증 코드를 만들어(해시만 저장) 메일로 보낸다. 10분 유효. */
-async function issueEmailCode(env: Env, u: UserRow): Promise<{ devCode?: string; mailError?: string }> {
+async function issueEmailCode(env: Env, u: UserRow, lang: MailLang): Promise<{ devCode?: string; mailError?: string }> {
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
   const code = String(n).padStart(6, "0");
   await env.DB.prepare("INSERT OR REPLACE INTO email_codes (user_id, code_hash, expires_at, attempts) VALUES (?, ?, ?, 0)")
     .bind(u.id, await hashToken(`${u.id}:${code}`), Date.now() + 10 * 60_000).run();
   try {
-    return await sendVerificationCode(env, u.email!, code);
+    return await sendVerificationCode(env, u.email!, code, lang);
   } catch (e) {
     console.error("mail", e);
-    return { mailError: "인증 메일을 보내지 못했습니다. 잠시 후 다시 받아 주세요." };
+    return { mailError: "mail" }; // 오류 코드(화면이 언어에 맞게 보여 준다)
   }
 }
 
@@ -105,7 +105,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const body = await readJson(req);
     const { username, password } = credentials(body);
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!USERNAME_RE.test(username)) throw new HttpError(400, "bad_username", "닉네임은 한글·영문·숫자·_ 2~16자입니다.");
+    if (!USERNAME_RE.test(username)) throw new HttpError(400, "bad_username", "닉네임은 한글·영문·숫자·_(일본어 가능) 2~16자입니다.");
     if (!EMAIL_RE.test(email) || email.length > 254) throw new HttpError(400, "bad_email", "이메일 주소를 확인해 주세요.");
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) throw new HttpError(400, "bad_password", `비밀번호는 ${PASSWORD_MIN}자 이상입니다.`);
     if (body.over14 !== true) throw new HttpError(400, "age", "만 14세 이상만 가입할 수 있습니다.");
@@ -124,7 +124,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     }
     const row = (await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(u.id).first<UserRow>())!;
     const session = await issueSession(env, row);
-    const sent = await issueEmailCode(env, row);
+    const sent = await issueEmailCode(env, row, mailLang(body.lang));
     return json({ ...session, verified: false, ...sent });
   }
 
@@ -163,7 +163,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     await limited(env.SIGNUP_LIMITER, req);
     const u = await requireUser(env, bearer(req));
     if (u.email_verified) return json({ verified: true });
-    return json({ verified: false, ...(await issueEmailCode(env, u)) });
+    return json({ verified: false, ...(await issueEmailCode(env, u, mailLang((await readJson(req)).lang))) });
   }
 
   if (m === "POST" && path === "/api/logout") {

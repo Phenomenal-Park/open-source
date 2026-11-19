@@ -1,31 +1,19 @@
-// 개인정보 처리방침(초안). 서비스 운영자 정보는 배포 전에 채워야 한다.
+import { lang } from "../i18n/index.ts";
+import { PRIVACY } from "../i18n/privacy.ts";
+
 export function PrivacyPage() {
+  const p = PRIVACY[lang];
   return (
     <main className="page narrow">
       <article className="panel prose">
-        <h2>개인정보 처리방침</h2>
-        <p className="muted">초안입니다. 정식 서비스 전에 운영자 정보와 함께 검토가 필요합니다.</p>
-        <h3>수집하는 정보</h3>
-        <ul>
-          <li>가입 시: 닉네임, 이메일 주소, 비밀번호(복원할 수 없는 형태로 암호화해 저장)</li>
-          <li>이용 중: 대국 기록(기보, 승패, 점수 변화), 로그인 상태 유지를 위한 정보</li>
-        </ul>
-        <h3>이용 목적</h3>
-        <ul>
-          <li>회원 확인과 이메일 인증, 온라인 대국·점수·순위·기보 제공</li>
-          <li>부정 이용 방지(요청 횟수 제한 등)</li>
-        </ul>
-        <h3>보관 기간</h3>
-        <ul>
-          <li>계정 정보: 탈퇴할 때까지</li>
-          <li>기보: 사람별 최근 100판(초과분은 자동 삭제). 점수와 전적은 계정에 따로 보관됩니다.</li>
-        </ul>
-        <h3>공개되는 정보</h3>
-        <p>닉네임, 급·점수, 전적, 기보는 다른 이용자가 볼 수 있습니다. 이메일은 공개되지 않습니다.</p>
-        <h3>만 14세 미만</h3>
-        <p>만 14세 미만은 가입할 수 없습니다.</p>
-        <h3>문의</h3>
-        <p>운영자 연락처: (배포 전에 입력)</p>
+        <h2>{p.title}</h2>
+        <p className="muted">{p.draft}</p>
+        {p.sections.map((s) => (
+          <section key={s.h}>
+            <h3>{s.h}</h3>
+            <ul>{s.items.map((x) => <li key={x}>{x}</li>)}</ul>
+          </section>
+        ))}
       </article>
     </main>
   );

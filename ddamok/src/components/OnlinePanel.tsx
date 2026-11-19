@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Session } from "../api.ts";
 import { FRIEND_CODE_RE, type MatchMode } from "../online/protocol.ts";
+import { t } from "../i18n/index.ts";
 
 interface OnlinePanelProps {
   session: Session | null;
@@ -10,28 +11,26 @@ interface OnlinePanelProps {
   onCancel: () => void;
 }
 
-const LABEL: Record<MatchMode, string> = { rated: "레이팅매치", casual: "친선매치", friend: "친구매치" };
-
 export function OnlinePanel({ session, waiting, error, onFind, onCancel }: OnlinePanelProps) {
   const [code, setCode] = useState("");
   const ready = session?.verified;
   return (
-    <section className="panel" aria-label="온라인 대국">
-      <h2>온라인 대국</h2>
-      {!session && <p className="muted">로그인하면 온라인 대국을 둘 수 있습니다.</p>}
-      {session && !session.verified && <p className="muted">이메일 인증을 마치면 온라인 대국을 둘 수 있습니다.</p>}
+    <section className="panel" aria-label={t("online.title")}>
+      <h2>{t("online.title")}</h2>
+      {!session && <p className="muted">{t("online.loginFirst")}</p>}
+      {session && !session.verified && <p className="muted">{t("online.verifyFirst")}</p>}
       {waiting ? (
         <div className="waiting">
           <p className="waiting-text" aria-live="polite">
-            <span className="spinner" aria-hidden /> {LABEL[waiting.mode]}{waiting.code ? ` (${waiting.code})` : ""} 상대를 찾는 중…
+            <span className="spinner" aria-hidden /> {t("online.searching", { mode: t(`mode.${waiting.mode}`), code: waiting.code ? ` (${waiting.code})` : "" })}
           </p>
-          <button className="btn small ghost" onClick={onCancel}>취소</button>
+          <button className="btn small ghost" onClick={onCancel}>{t("btn.cancel")}</button>
         </div>
       ) : (
         <>
           <div className="match-buttons">
-            <button className="btn primary" disabled={!ready} onClick={() => onFind("rated", null)}>레이팅매치</button>
-            <button className="btn" disabled={!ready} onClick={() => onFind("casual", null)}>친선매치</button>
+            <button className="btn primary" disabled={!ready} onClick={() => onFind("rated", null)}>{t("mode.rated")}</button>
+            <button className="btn" disabled={!ready} onClick={() => onFind("casual", null)}>{t("mode.casual")}</button>
           </div>
           <form
             className="friend-form"
@@ -41,12 +40,12 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
             }}
           >
             <input
-              aria-label="친구매치 코드" placeholder="코드 (숫자 8자리까지)" inputMode="numeric" pattern="\d{1,8}" maxLength={8}
+              aria-label={t("online.code")} placeholder={t("online.codePlaceholder")} inputMode="numeric" pattern="\d{1,8}" maxLength={8}
               value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))} disabled={!ready}
             />
-            <button className="btn" type="submit" disabled={!ready || !FRIEND_CODE_RE.test(code)}>친구매치</button>
+            <button className="btn" type="submit" disabled={!ready || !FRIEND_CODE_RE.test(code)}>{t("mode.friend")}</button>
           </form>
-          <p className="muted small-note">레이팅매치만 점수에 반영됩니다. 친구매치는 같은 코드를 입력한 사람과 둡니다.</p>
+          <p className="muted small-note">{t("online.note")}</p>
         </>
       )}
       {error && <p className="form-error">{error}</p>}

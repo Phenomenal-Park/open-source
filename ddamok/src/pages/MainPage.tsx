@@ -14,9 +14,10 @@ import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
 import { Leaderboard } from "../components/Leaderboard.tsx";
 import { levelById } from "../ai/levels.ts";
+import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
+import { Rich } from "../i18n/Rich.tsx";
 
 const BOARD_SIZES = [13, 15, 19];
-const LABEL: Record<Player, string> = { black: "흑", white: "백" };
 
 interface Online {
   gameId: string;
@@ -201,7 +202,7 @@ export function MainPage() {
   }
 
   function resign() {
-    if (online && onlinePlaying && window.confirm("기권할까요?")) conn.current?.send({ type: "resign" });
+    if (online && onlinePlaying && window.confirm(t("confirm.resign"))) conn.current?.send({ type: "resign" });
   }
 
   function find(mode: MatchMode, code: string | null) {
@@ -237,24 +238,25 @@ export function MainPage() {
       const pl = online.game.players[p];
       const left = online.game.disconnected[p];
       return {
-        name: `${pl.username}${online.you === p ? " (나)" : ""}`,
-        rank: pl.rank,
+        name: `${displayName(pl.username)}${online.you === p ? t("name.meSuffix") : ""}`,
+        rank: rankName(pl.rating),
         rating: formatRating(pl.rating, pl.provisional),
         disconnectedSec: left !== undefined ? Math.max(0, Math.ceil((left - (Date.now() - (online.at ?? Date.now()))) / 1000)) : undefined,
       };
     }
-    if (aiGame && aiLevel) return aiGame.aiColor === p ? { name: aiLevel.name } : { name: "나" };
+    if (aiGame && aiLevel) return aiGame.aiColor === p ? { name: t(`ai.name.${aiLevel.id}` as MessageKey) } : { name: t("name.me") };
     return null;
   };
 
+  const moveNo = t("status.moveNo", { n: state.moveCount + 1 });
   let status: string;
-  if (online && !online.game) status = "대국에 접속하는 중…";
-  else if (online?.game?.status === "aborted") status = "상대가 들어오지 않아 대국이 취소되었습니다";
-  else if (online?.game?.result) status = `${LABEL[online.game.result.winner]} 승리`;
-  else if (state.isFinished) status = `${LABEL[state.winner!]} 승리 · ${state.winReason === "capture" ? "따내기" : "오목"}`;
-  else if (online) status = `${state.currentPlayer === online.you ? "내 차례" : "상대 차례"} · ${state.moveCount + 1}수째${online.status === "reconnecting" ? " · 다시 연결 중…" : ""}`;
-  else if (aiThinking) status = `AI 생각 중… · ${state.moveCount + 1}수째`;
-  else status = `${LABEL[state.currentPlayer]} 차례 · ${state.moveCount + 1}수째`;
+  if (online && !online.game) status = t("status.connecting");
+  else if (online?.game?.status === "aborted") status = t("status.aborted");
+  else if (online?.game?.result) status = t("status.wins", { color: colorName(online.game.result.winner) });
+  else if (state.isFinished) status = t("status.winsBy", { color: colorName(state.winner!), reason: t(`reason.${state.winReason!}`) });
+  else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
+  else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
+  else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
 
   let result: ResultView | null = null;
   if (online?.game?.result && onlineState) {
@@ -291,12 +293,12 @@ export function MainPage() {
           </p>
           <div className="buttons">
             {online ? (
-              onlinePlaying ? <button className="btn" onClick={resign} disabled={!online.game}>기권</button>
-                : <button className="btn primary" onClick={newGame}>새 대국</button>
+              onlinePlaying ? <button className="btn" onClick={resign} disabled={!online.game}>{t("btn.resign")}</button>
+                : <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
             ) : (
               <>
-                <button className="btn" onClick={undo} disabled={!canUndo}>무르기</button>
-                <button className="btn primary" onClick={newGame}>새 대국</button>
+                <button className="btn" onClick={undo} disabled={!canUndo}>{t("btn.undo")}</button>
+                <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
               </>
             )}
           </div>
@@ -307,24 +309,23 @@ export function MainPage() {
       <aside className="side">
         {online ? (
           <section className="panel">
-            <h2>{online.game ? { rated: "레이팅매치", casual: "친선매치", friend: "친구매치" }[online.game.mode] : "온라인 대국"}</h2>
+            <h2>{online.game ? t(`mode.${online.game.mode}`) : t("online.title")}</h2>
             <p className="muted">
-              {online.game?.rated ? "점수에 반영되는 대국입니다." : "점수에 반영되지 않는 대국입니다."} 무르기는 없고,
-              연결이 끊긴 채 45초가 지나면 패배합니다.
+              {t(online.game?.rated ? "online.ratedNote" : "online.unratedNote")} {t("online.rulesNote")}
             </p>
           </section>
         ) : (
           <>
-            <section className="panel" aria-label="내 계정">
+            <section className="panel" aria-label={t("nav.profile")}>
               {session?.verified ? (
                 <div className="me">
                   <a href="/profile" className="me-name">{session.user.username}</a>
-                  <span className="score-rank">{session.user.rank}</span>
-                  <span className="seat-rating">{formatRating(session.user.rating, session.user.provisional)}점</span>
+                  <span className="score-rank">{rankName(session.user.rating)}</span>
+                  <span className="seat-rating">{t("points", { rating: formatRating(session.user.rating, session.user.provisional) })}</span>
                 </div>
               ) : (
                 <>
-                  <h2>{session ? "이메일 인증" : "로그인"}</h2>
+                  <h2>{t(session ? "account.verifyTitle" : "account.login")}</h2>
                   <AuthBox session={session} onSession={setSess} />
                 </>
               )}
@@ -343,34 +344,30 @@ export function MainPage() {
             />
             <section className="panel">
               <label className="size-picker">
-                판 크기
+                {t("size.label")}
                 <select
                   value={boardSize}
                   onChange={(e) => {
                     const size = Number(e.target.value);
-                    if (state.moveCount > 0 && !state.isFinished && !window.confirm("판 크기를 바꾸면 새 대국이 시작됩니다.")) return;
+                    if (state.moveCount > 0 && !state.isFinished && !window.confirm(t("confirm.size"))) return;
                     setBoardSize(size);
                     reset(size);
                   }}
                 >
                   {BOARD_SIZES.map((s) => (
-                    <option key={s} value={s}>{s}×{s}{s === DEFAULT_BOARD_SIZE ? " (기본)" : ""}</option>
+                    <option key={s} value={s}>{s}×{s}{s === DEFAULT_BOARD_SIZE ? t("size.default") : ""}</option>
                   ))}
                 </select>
               </label>
-              <p className="muted small-note">같은 화면 2인 대국·AI 대국용입니다. 온라인 대국은 15×15입니다.</p>
+              <p className="muted small-note">{t("size.note")}</p>
             </section>
             <Leaderboard />
           </>
         )}
         <details className="panel rules">
-          <summary>규칙</summary>
+          <summary>{t("rules.title")}</summary>
           <ul>
-            <li>흑부터 번갈아 빈 교차점에 한 점씩 둡니다. 금수(33·44·장목)는 없습니다.</li>
-            <li>가로·세로·대각선으로 <b>정확히 5개</b>를 이으면 승리. 6목 이상은 둘 수 있지만 승리가 아닙니다.</li>
-            <li>방금 둔 돌과 내 돌 사이에 상대 돌 <b>두 개</b>를 끼우면 따냅니다(8방향, 여러 방향 동시 가능).</li>
-            <li>스스로 끼어 들어간 돌(자충)은 따이지 않습니다.</li>
-            <li>흑은 <b>12개</b>, 백은 <b>10개</b>를 따내면 승리.</li>
+            {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
           </ul>
         </details>
       </aside>

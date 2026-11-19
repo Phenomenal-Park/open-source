@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { t } from "../i18n/index.ts";
 
 // 광고 자리(프로필·기보 화면 전용 — 대국 화면에는 넣지 않는다).
 // VITE_ADSENSE_CLIENT(ca-pub-...)와 slot이 설정되어 있을 때만 애드센스 광고를 넣는다. 설정이 없으면 아무것도 그리지 않는다.
@@ -33,7 +34,7 @@ export function AdSlot({ slot }: { slot: string | undefined }) {
   }, [slot]);
   if (!CLIENT || !slot) return null;
   return (
-    <div className="ad-slot" aria-label="광고">
+    <div className="ad-slot" aria-label={t("ad.label")}>
       <ins ref={ref} className="adsbygoogle" style={{ display: "block" }} data-ad-client={CLIENT} data-ad-slot={slot} data-ad-format="auto" data-full-width-responsive="true" />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent } from "react";
 import type { GameState, Player, Position } from "../game/index.ts";
 import { Stone, StoneDefs } from "./Stone.tsx";
+import { t } from "../i18n/index.ts";
 
 const CELL = 10;
 const PAD = 7;
@@ -55,7 +56,7 @@ export function Board({ state, onPlay, disabled, fx }: BoardProps) {
       className={`board${disabled || state.isFinished ? " is-locked" : ""}`}
       viewBox={`0 0 ${size} ${size}`}
       role="grid"
-      aria-label={`${n}×${n} 바둑판`}
+      aria-label={t("board.aria", { n })}
       onPointerUp={(e) => {
         if (e.pointerType === "mouse" && e.button !== 0) return;
         const p = toPos(e);

@@ -234,3 +234,6 @@ a { color: var(--accent); }
 .prose ul, .prose p { font-size: 14px; color: var(--muted); line-height: 1.6; }
 .ad-slot { min-height: 100px; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.lang-select { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: 13px; min-height: 36px; margin-left: 4px; }
+.notice { font-weight: 700; color: var(--text); }
+@media (max-width: 420px) { .nav-link { padding: 8px 8px; } }

@@ -1,5 +1,6 @@
 import type { Player, Position } from "./game/index.ts";
 import type { MatchMode, ResultReason } from "./online/protocol.ts";
+import { errorText, lang, t } from "./i18n/index.ts";
 
 export interface PublicUser {
   id: string;
@@ -55,9 +56,11 @@ export interface GameRecord {
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  readonly code: string | undefined;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -70,10 +73,10 @@ async function call<T>(path: string, body?: unknown, token?: string): Promise<T>
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError("서버에 연결할 수 없습니다.", 0);
+    throw new ApiError(t("err.noServer"), 0);
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(data?.message ?? "서버에 연결할 수 없습니다.", res.status);
+  if (!res.ok) throw new ApiError(errorText(data?.error, data?.message ?? t("err.noServer")), res.status, data?.error);
   return data as T;
 }
 
@@ -81,11 +84,11 @@ type AuthResult = Session & { devCode?: string; mailError?: string };
 
 export const api = {
   signup: (username: string, email: string, password: string, over14: boolean) =>
-    call<AuthResult>("/api/signup", { username, email, password, over14 }),
+    call<AuthResult>("/api/signup", { username, email, password, over14, lang }),
   login: (login: string, password: string) => call<AuthResult>("/api/login", { login, password }),
   logout: (token: string) => call<{ ok: true }>("/api/logout", {}, token),
   verify: (token: string, code: string) => call<{ verified: boolean }>("/api/verify", { code }, token),
-  resend: (token: string) => call<{ verified: boolean; devCode?: string; mailError?: string }>("/api/verify/resend", {}, token),
+  resend: (token: string) => call<{ verified: boolean; devCode?: string; mailError?: string }>("/api/verify/resend", { lang }, token),
   me: (token: string) => call<Me>("/api/me", undefined, token),
   settings: (token: string, allowAi: boolean) => call<{ settings: { allowAi: boolean } }>("/api/settings", { allowAi }, token),
   leaderboard: () => call<{ players: PublicUser[] }>("/api/leaderboard"),

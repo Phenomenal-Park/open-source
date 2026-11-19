@@ -47,7 +47,8 @@ export async function hashToken(token: string): Promise<string> {
   return [...d].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-export const USERNAME_RE = /^[A-Za-z0-9_가-힣]{2,16}$/u;
+/** 닉네임: 영문·숫자·_ · 한글 · 일본어(히라가나·가타카나·한자) 2~16자 */
+export const USERNAME_RE = /^[A-Za-z0-9_가-힣ぁ-ゖァ-ヺー一-龯]{2,16}$/u;
 export const PASSWORD_MIN = 6;
 export const PASSWORD_MAX = 72;
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;

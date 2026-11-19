@@ -13,7 +13,7 @@ interface ScoreboardProps {
   names: Record<Player, SeatLabel | null>;
 }
 
-const LABEL: Record<Player, string> = { black: "흑", white: "백" };
+import { colorName, t } from "../i18n/index.ts";
 
 export function Scoreboard({ state, names }: ScoreboardProps) {
   const justCaptured = state.lastCaptured.length;
@@ -30,12 +30,12 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
           <div key={p} className={`score-card ${p}${active ? " is-turn" : ""}${state.winner === p ? " is-winner" : ""}`}>
             <div className="score-head">
               <span className={`dot ${p}`} aria-hidden />
-              <span className="score-name">{user ? user.name : LABEL[p]}</span>
+              <span className="score-name">{user ? user.name : colorName(p)}</span>
               {user?.rank && <span className="score-rank">{user.rank}</span>}
               {user?.rating && <span className="score-rating">{user.rating}</span>}
-              {active && <span className="turn-tag">차례</span>}
+              {active && <span className="turn-tag">{t("score.turn")}</span>}
             </div>
-            <div className="score-count" aria-label={`${LABEL[p]} 따낸 돌 ${count}개, 승리 ${target}개`}>
+            <div className="score-count" aria-label={t("score.aria", { color: colorName(p), count, target })}>
               <span key={count} className="count bump">{count}</span>
               <span className="target">/ {target}</span>
               {mover === p && justCaptured > 0 && (
@@ -46,7 +46,7 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
               <span style={{ width: `${Math.min(100, (count / target) * 100)}%` }} />
             </div>
             {user?.disconnectedSec !== undefined && (
-              <p className="disconnect-warn" role="status">연결 끊김 · {user.disconnectedSec}초 뒤 패배</p>
+              <p className="disconnect-warn" role="status">{t("score.disconnected", { sec: user.disconnectedSec })}</p>
             )}
           </div>
         );

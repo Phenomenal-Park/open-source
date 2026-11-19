@@ -70,7 +70,7 @@ export interface GameSnapshot {
 export type ServerMessage =
   | { type: "waiting" }
   | { type: "matched"; gameId: string }
-  | { type: "error"; message: string }
+  | { type: "error"; code: string; message: string }
   | { type: "state"; you: Player; game: GameSnapshot }
   | { type: "pong" };
 
