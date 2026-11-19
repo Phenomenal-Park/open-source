@@ -116,6 +116,8 @@ export const ja: Messages = {
   "ai.name.ai-4": "AI ゴールド",
   "ai.name.ai-5": "AI プラチナ",
   "ai.name.ai-6": "AI ダイヤ",
+  "ai.name.ai-7": "AI マスター",
+  "ai.name.ai-8": "AI チャレンジャー",
 
   "lb.title": "ランキング",
   "lb.empty": "まだレーティング戦の記録がありません。",

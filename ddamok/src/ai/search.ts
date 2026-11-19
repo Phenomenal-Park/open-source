@@ -4,6 +4,7 @@ import { tryMove } from "../game/rules.ts";
 import { candidateMoves, evaluate, isUrgent, quickScore, WIN_SCORE } from "./evaluate.ts";
 import type { AiLevel } from "./levels.ts";
 import { findVcf } from "./threats.ts";
+import { fastChooseMove } from "./fastSearch.ts";
 
 export type Rng = () => number;
 
@@ -56,6 +57,7 @@ function gaussian(rand: Rng): number {
 /** 기력에 맞춰 다음 수를 고른다. 원본 state는 바꾸지 않는다. */
 export function chooseMove(state: GameState, level: AiLevel, rand: Rng = Math.random, stats?: SearchStats): Position {
   if (state.isFinished) throw new Error("game is finished");
+  if (level.fast) return fastChooseMove(state, level.fast, rand);
   // 이번 수에 집중하는가: 아니면 한 수 덜 읽고, 급한 자리도 빠뜨릴 수 있다(약한 단계의 "놓침")
   const focused = rand() < level.focus;
   const depth = focused ? level.depth : Math.max(1, level.depth - 1);

@@ -116,6 +116,8 @@ export const ko = {
   "ai.name.ai-4": "AI 골드",
   "ai.name.ai-5": "AI 플래티넘",
   "ai.name.ai-6": "AI 다이아",
+  "ai.name.ai-7": "AI 마스터",
+  "ai.name.ai-8": "AI 챌린저",
 
   "lb.title": "순위",
   "lb.empty": "아직 레이팅매치 기록이 없습니다.",

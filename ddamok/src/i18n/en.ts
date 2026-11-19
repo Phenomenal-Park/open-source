@@ -116,6 +116,8 @@ export const en: Messages = {
   "ai.name.ai-4": "AI Gold",
   "ai.name.ai-5": "AI Platinum",
   "ai.name.ai-6": "AI Diamond",
+  "ai.name.ai-7": "AI Master",
+  "ai.name.ai-8": "AI Challenger",
 
   "lb.title": "Rankings",
   "lb.empty": "No rated games yet.",

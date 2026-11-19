@@ -1,8 +1,12 @@
+import type { FastLevel } from "./fastSearch.ts";
+
 // AI 기력 단계. label·rating은 임시 표시다.
 //  - 단계 사이 간격: AI끼리 흑백 번갈아 40판씩 둔 승률을 실력 점수 공식(SCALE 350)으로 바꾼 실측값
 //    (18→16급 +188, 16→12급 +211, 12→10급 +167, 10→7급 +188, 7→3급 +236; 측정 오차 단계당 약 ±80점)
 //  - 출발점: 가장 약한 단계를 18급(500점)으로 놓은 것은 추정이다.
 //  사람과의 대국 결과가 쌓이면 실측값으로 고친다. 측정: node scripts/calibrate-ai.ts <약한> <강한> [판 수]
+//    마스터·챌린저(고속 엔진): 다이아→마스터 +129(40판 70%), 마스터→챌린저 +167(40판 75%),
+//    다이아→챌린저 직접 +380(40판 92.5%) — 두 값의 평균으로 챌린저 약 1830(2단) 추정
 //  주의: 잡음 없는 단계끼리의 측정은 무작위 시작 수를 깔아야 한다(calibrate-ai.ts가 그렇게 한다).
 //  1단~7단을 위한 강화 작업 중(threats.ts 연속 위협 탐색, EXPERIMENTAL 단계).
 
@@ -34,6 +38,8 @@ export interface AiLevel {
   vcfBudget?: number;
   /** 상대 연속 위협을 확인할 뿌리 후보 수 */
   vcfDefend?: number;
+  /** 있으면 고속 엔진(fastSearch.ts)으로 둔다 */
+  fast?: FastLevel;
 }
 
 export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
@@ -43,6 +49,11 @@ export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
   { id: "ai-4", name: "AI 골드", label: "10급", rating: 1070, depth: 2, width: 12, nodeBudget: 12_000, noise: 25, randomPick: 0.01, randomPool: 4, missWin: 0, focus: 1 },
   { id: "ai-5", name: "AI 플래티넘", label: "7급", rating: 1250, depth: 3, width: 10, nodeBudget: 30_000, noise: 25, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.5 },
   { id: "ai-6", name: "AI 다이아", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
+  // 마스터·챌린저: 고속 엔진(fast.ts·fastSearch.ts — 놓기/되돌리기, 같은 판 기억, 강제수 연장)
+  { id: "ai-7", name: "AI 마스터", label: "1급", rating: 1620, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
+    fast: { depth: 6, timeMs: 200, width: 10, noise: 15, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.9, captureEval: false } },
+  { id: "ai-8", name: "AI 챌린저", label: "2단", rating: 1830, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
+    fast: { depth: 14, timeMs: 400, width: 12, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, captureEval: false } },
 ]);
 
 export function levelById(id: string): AiLevel | undefined {
@@ -51,5 +62,7 @@ export function levelById(id: string): AiLevel | undefined {
 
 /** 실험용: 기존 최강 단계 + 연속 위협 탐색 */
 export const EXPERIMENTAL: readonly AiLevel[] = Object.freeze([
-  { id: "x-vcf", name: "실험", label: "실험", rating: 0, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, vcfDepth: 6, vcfBudget: 4000, vcfDefend: 6 },
+  // 다음 실험의 기준: 챌린저와 같은 설정
+  { id: "x-fast", name: "실험-고속", label: "실험", rating: 0, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
+    fast: { depth: 14, timeMs: 400, width: 12, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1, captureEval: false } },
 ]);
