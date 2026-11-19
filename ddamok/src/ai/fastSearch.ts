@@ -28,6 +28,8 @@ export interface FastLevel {
   vcfMode?: "both" | "attack" | "defend";
   /** 형세 가중치(없으면 기본값) — 자동 조정 실험용 */
   weights?: readonly number[];
+  /** 열린 셋 수순 탐색: 섞을 수 있는 열린 셋 수(0 = 안 씀) */
+  vctThrees?: number;
 }
 
 class Timeout extends Error {}
@@ -159,6 +161,58 @@ export class FastSearcher {
   }
 
   /**
+   * 열린 셋 수순(VCT): 넉 점 수순(VCF) + "막지 않으면 막을 수 없는 넉 점이 되는" 열린 셋을 섞어 반드시 이기는 첫 수. 없으면 -1.
+   * 열린 셋에 대한 수비 응수는 넓게 본다: 그 돌을 지나는 네 줄의 4칸 이내 빈칸 전부 + 위협 자리 + 따내기 + 상대의 역공 넉 점.
+   * 그 모든 응수 뒤에도 (바로 승리 / 넉 점 수순 / 다시 열린 셋 수순)으로 이겨야 필승으로 본다.
+   */
+  vct(threes: number, budget: number, timeMs: number, vcfDepth = 8): number {
+    this.vcfNodes = 0;
+    this.vcfBudget = budget;
+    this.vctDeadline = performance.now() + timeMs;
+    this.vctVcfDepth = vcfDepth;
+    try {
+      return this.vctAt(threes);
+    } catch (e) {
+      if (e instanceof Timeout) return -1;
+      throw e;
+    }
+  }
+
+  private vctDeadline = 0;
+  private vctVcfDepth = 8;
+
+  private vctAt(threes: number): number {
+    const b = this.b, me = b.toMove, op: Color = me === 1 ? 2 : 1;
+    if ((++this.vcfNodes & 63) === 0 && performance.now() > this.vctDeadline) throw new Timeout();
+    if (this.vcfNodes > this.vcfBudget) return -1;
+    if (this.mayWin(op) && b.winningMoves(op).length) return -1;
+    const v = this.vcfAt(this.vctVcfDepth);
+    if (v >= 0) return v;
+    if (threes <= 0) return -1;
+    const cands = b.candidates().map((p) => ({ p, s: b.moveScore(p, me) })).sort((x, y) => y.s - x.s).slice(0, 16);
+    for (const { p } of cands) {
+      if (b.makesFour(p, me)) continue; // 넉 점은 위의 넉 점 수순이 이미 봤다
+      const res = b.play(p);
+      if (res === 1) { b.undo(); return p; }
+      if (res === 2 || !b.strongMoves(me).length) { b.undo(); continue; } // 위협이 아님
+      const replies = new Set<number>([...b.lineCells(p, 4), ...b.strongMoves(me)]);
+      for (const q of b.candidates()) if (b.capturesAt(q, op).length || b.makesFour(q, op)) replies.add(q);
+      let allWin = true;
+      for (const r of replies) {
+        const res2 = b.play(r);
+        let ok: boolean;
+        if (res2 !== 0) ok = false;
+        else ok = (this.mayWin(me) && b.winningMoves(me).length > 0) || this.vcfAt(this.vctVcfDepth) >= 0 || this.vctAt(threes - 1) >= 0;
+        b.undo();
+        if (!ok || this.vcfNodes > this.vcfBudget) { allWin = false; break; }
+      }
+      b.undo();
+      if (allWin) return p;
+    }
+    return -1;
+  }
+
+  /**
    * 뿌리 후보 각각의 점수. fullWindow면 잡음을 섞을 수 있게 모든 후보의 정확한 점수를 구한다.
    * 시간이 다 되면 마지막으로 끝까지 읽은 깊이의 결과를 쓴다.
    */
@@ -227,6 +281,10 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
   const focus = rand() < level.focus;
   const vcfDepth = focus ? level.vcfDepth ?? 0 : 0;
   const vcfMode = level.vcfMode ?? "both";
+  if (focus && level.vctThrees) {
+    const win = searcher.vct(level.vctThrees, 40_000, level.timeMs * 0.4);
+    if (win >= 0) return toPos(win);
+  }
   if (vcfDepth > 0 && vcfMode !== "defend") {
     const win = searcher.vcf(vcfDepth);
     if (win >= 0) return toPos(win);
