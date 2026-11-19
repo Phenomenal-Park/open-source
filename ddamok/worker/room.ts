@@ -9,7 +9,7 @@ import { chooseMove } from "../src/ai/search.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
-  DISCONNECT_MS, WS_PROTOCOL,
+  DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL,
   type ClientMessage, type GameSnapshot, type MatchMode, type OnlineResult, type ResultReason, type ServerMessage,
 } from "../src/online/protocol.ts";
 import { toRated, type UserRow } from "./users.ts";
@@ -51,9 +51,30 @@ const COLORS: readonly Player[] = ["black", "white"];
 export class GameRoom extends DurableObject<Env> {
   private data: RoomData | undefined;
 
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // PING에는 서버를 깨우지 않고 자동 응답(마지막 응답 시각은 getWebSocketAutoResponseTimestamp로 확인)
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
+  }
+
   private get disconnectMs(): number {
     const v = Number(this.env.DISCONNECT_MS);
     return Number.isFinite(v) && v > 0 ? v : DISCONNECT_MS;
+  }
+
+  private get heartbeatTimeoutMs(): number {
+    const v = Number(this.env.HEARTBEAT_TIMEOUT_MS);
+    return Number.isFinite(v) && v > 0 ? v : HEARTBEAT_TIMEOUT_MS;
+  }
+
+  /** 이 연결에서 마지막으로 신호(PING 자동 응답 또는 메시지)가 온 시각 */
+  private lastSeen(ws: WebSocket): number {
+    const at = (ws.deserializeAttachment() as { at?: number } | null)?.at ?? 0;
+    return Math.max(at, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0);
+  }
+
+  private openSockets(color: Player): WebSocket[] {
+    return this.ctx.getWebSockets(color).filter((x) => x.readyState === WebSocket.OPEN);
   }
 
   private async load(): Promise<RoomData | undefined> {
@@ -129,6 +150,7 @@ export class GameRoom extends DurableObject<Env> {
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server, [color]);
+    server.serializeAttachment({ at: Date.now() });
     if (d.status === "playing") {
       delete d.deadlines[color];
       d.joined[color] = true;
@@ -143,6 +165,7 @@ export class GameRoom extends DurableObject<Env> {
     const d = await this.load();
     const color = this.ctx.getTags(ws)[0] as Player | undefined;
     if (!d || !color) return;
+    ws.serializeAttachment({ at: Date.now() });
     let msg: ClientMessage;
     try {
       msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
@@ -187,15 +210,39 @@ export class GameRoom extends DurableObject<Env> {
 
   private async scheduleAlarm() {
     const d = this.data!;
-    const next = Math.min(...COLORS.map((c) => d.deadlines[c] ?? Infinity));
+    let next = Math.min(...COLORS.map((c) => d.deadlines[c] ?? Infinity));
+    // 대국 중 접속해 있는 사람이 있으면 신호 확인을 위해 주기적으로 깨어난다
+    if (d.status === "playing" && COLORS.some((c) => !d[c].bot && this.openSockets(c).length)) {
+      next = Math.min(next, Date.now() + Math.min(10_000, this.heartbeatTimeoutMs / 2));
+    }
     if (Number.isFinite(next)) await this.ctx.storage.setAlarm(next);
     else await this.ctx.storage.deleteAlarm();
+  }
+
+  /** 신호가 끊긴 연결(조용히 끊김)을 찾아 닫고, 그 시점부터 접속 끊김 시간을 센다. 바뀌었으면 true */
+  private sweepHeartbeats(now: number): boolean {
+    const d = this.data!;
+    let changed = false;
+    for (const c of COLORS) {
+      if (d[c].bot || d.deadlines[c] || !d.joined[c]) continue;
+      const open = this.openSockets(c);
+      const alive = open.some((ws) => now - this.lastSeen(ws) < this.heartbeatTimeoutMs);
+      if (alive) continue;
+      for (const ws of open) { try { ws.close(4002, "heartbeat timeout"); } catch { /* */ } }
+      d.deadlines[c] = now + this.disconnectMs;
+      changed = true;
+    }
+    return changed;
   }
 
   async alarm() {
     const d = await this.load();
     if (!d || d.status !== "playing") return;
     const now = Date.now();
+    if (this.sweepHeartbeats(now)) {
+      await this.save();
+      this.broadcast();
+    }
     const expired = COLORS.filter((c) => (d.deadlines[c] ?? Infinity) <= now).sort((a, b) => d.deadlines[a]! - d.deadlines[b]!);
     if (!expired.length) return this.scheduleAlarm();
     if (!d.joined.black && !d.joined.white) return this.abort(); // 둘 다 들어오지 않음: 무효

@@ -3,7 +3,7 @@
 //   친선매치: 친선매치를 누른 사람 중 무작위 1명
 //   친구매치: 같은 코드를 입력한 사람
 import { DurableObject } from "cloudflare:workers";
-import { WS_PROTOCOL, type MatchMode, type ServerMessage } from "../src/online/protocol.ts";
+import { HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL, type MatchMode, type ServerMessage } from "../src/online/protocol.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import { isProvisional } from "../src/rating/elo.ts";
 import { dueForAi, nextCheck, pickBot, pickPairs, type Waiter } from "./pairing.ts";
@@ -42,11 +42,20 @@ const player = (r: Row): RoomPlayer => ({
 });
 
 export class Matchmaker extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
+  }
+
+  /** 기다리는 중이고 신호가 살아 있는 연결들(조용히 끊긴 사람과는 매칭하지 않는다) */
   private open(): { ws: WebSocket; t: Ticket }[] {
+    const now = Date.now();
+    const timeout = Number(this.env.HEARTBEAT_TIMEOUT_MS) || HEARTBEAT_TIMEOUT_MS;
     return this.ctx.getWebSockets()
       .filter((ws) => ws.readyState === WebSocket.OPEN)
       .map((ws) => ({ ws, t: ws.deserializeAttachment() as Ticket }))
-      .filter((x) => x.t && !x.t.taken);
+      .filter((x) => x.t && !x.t.taken)
+      .filter((x) => now - Math.max(x.t.joinedAt, this.ctx.getWebSocketAutoResponseTimestamp(x.ws)?.getTime() ?? 0) < timeout);
   }
 
   private take(ws: WebSocket, t: Ticket) {

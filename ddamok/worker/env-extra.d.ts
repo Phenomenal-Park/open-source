@@ -6,6 +6,8 @@ interface Env {
   MAIL_FROM?: string;
   /** "1"이면 인증 코드를 메일 대신 로그와 응답(devCode)에 싣는다. 로컬 개발 전용 — wrangler dev --var DEV_MAIL_LOG:1 */
   DEV_MAIL_LOG?: string;
+  /** 신호 확인 시간(기본 25000ms). 테스트용으로만 바꾼다. */
+  HEARTBEAT_TIMEOUT_MS?: string;
   /** 사람별 기보 보관 개수(기본 100). 테스트용으로만 바꾼다. */
   RECORDS_LIMIT?: string;
 }

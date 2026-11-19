@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { startServer } from "./serve.mjs";
 
-const server = await startServer({ DISCONNECT_MS: "3000", RECORDS_LIMIT: "2" });
+const server = await startServer({ DISCONNECT_MS: "3000", RECORDS_LIMIT: "2", HEARTBEAT_TIMEOUT_MS: "3000" });
 const { base, port } = server;
 
 let failures = 0;
@@ -27,13 +27,16 @@ async function api(path, body, token) {
   return { status: res.status, data: await res.json() };
 }
 
-/** WebSocket을 열고 메시지를 큐로 받는다 */
-function socket(path, token) {
+/** WebSocket을 열고 메시지를 큐로 받는다. 브라우저처럼 신호(ping)를 보낸다(noPing이면 조용히 끊긴 연결 흉내). */
+function socket(path, token, { noPing = false } = {}) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, ["ddamok", token]);
+  const beat = noPing ? null : setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), 1000);
+  ws.addEventListener("close", () => beat && clearInterval(beat));
   const queue = [];
   const waiters = [];
   ws.addEventListener("message", (e) => {
     const m = JSON.parse(e.data);
+    if (m.type === "pong") return;
     queue.push(m);
     for (const w of [...waiters]) if (w.pred(m)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(m); }
   });
@@ -54,7 +57,7 @@ function socket(path, token) {
       });
     },
     send: (m) => ws.send(JSON.stringify(m)),
-    close: () => ws.close(),
+    close: () => { if (beat) clearInterval(beat); ws.close(); },
   };
 }
 
@@ -219,6 +222,39 @@ await check("연결 끊김: 돌아오지 않으면(테스트 3초, 실제 45초)
   assert.equal(fin.game.result.winner, "black");
   assert.equal(fin.game.result.reason, "disconnect");
   black.sock.close();
+});
+
+await check("조용히 끊긴 연결(신호 없음)도 알아채고, 그때부터 접속 끊김 시간을 센다", async () => {
+  const ma = await match(A.token, "mode=friend&code=777");
+  await ma.next((m) => m.type === "waiting");
+  const mb = await match(B.token, "mode=friend&code=777");
+  const { gameId } = await ma.next((m) => m.type === "matched");
+  await mb.next((m) => m.type === "matched");
+  const ga = socket(`/api/games/${gameId}/ws`, A.token);
+  const gb = socket(`/api/games/${gameId}/ws`, B.token, { noPing: true }); // 닫지도 않고 신호도 안 보냄
+  await ga.next((m) => m.type === "state");
+  await gb.next((m) => m.type === "state");
+  const t0 = Date.now();
+  const st = await ga.next((m) => m.type === "state" && Object.keys(m.game.disconnected).length > 0, 15000);
+  const silent = Object.keys(st.game.disconnected)[0];
+  assert.equal(st.game.players[silent].username, "white_1");
+  assert.ok(Date.now() - t0 >= 2000, "신호 확인 시간(테스트 3초) 전에는 끊김으로 보지 않음");
+  const fin = await ga.next((m) => m.type === "state" && m.game.status === "finished", 10000);
+  assert.equal(fin.game.result.reason, "disconnect");
+  assert.equal(fin.game.players[fin.game.result.winner].username, "흑돌왕");
+  ga.close(); gb.close();
+});
+
+await check("매칭 대기 중 조용히 끊긴 사람과는 매칭하지 않는다", async () => {
+  const ghost = socket("/api/match?mode=casual", A.token, { noPing: true });
+  await ghost.next((m) => m.type === "waiting");
+  await sleep(4000); // 신호 확인 시간(테스트 3초) 초과
+  const b = await match(B.token, "mode=casual");
+  await b.next((m) => m.type === "waiting");
+  await sleep(500);
+  assert.ok(!b.queue.some((m) => m.type === "matched"));
+  ghost.close(); b.close();
+  await sleep(300);
 });
 
 await check("끊겼다가 시간 안에 돌아오면 계속 둔다 / 진행 중 대국이 있으면 매칭 대신 그 대국으로", async () => {

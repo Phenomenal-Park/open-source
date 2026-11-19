@@ -11,8 +11,17 @@ export const FRIEND_CODE_RE = /^\d{1,8}$/;
 /** WebSocket 하위 프로토콜 이름. 브라우저 WebSocket은 헤더를 못 넣으므로 [WS_PROTOCOL, 토큰]으로 인증한다. */
 export const WS_PROTOCOL = "ddamok";
 
-/** 접속이 끊긴 뒤 이 시간 안에 돌아오지 않으면 패배 */
+/** 접속이 끊긴 것을 서버가 알아챈 뒤 이 시간 안에 돌아오지 않으면 패배 */
 export const DISCONNECT_MS = 45_000;
+
+/**
+ * 신호 확인(하트비트): 브라우저는 HEARTBEAT_MS마다 PING을 보낸다(서버는 깨어나지 않고 자동으로 PONG).
+ * 서버는 HEARTBEAT_TIMEOUT_MS 동안 아무 신호가 없으면 "조용히 끊긴" 것으로 보고 그때부터 DISCONNECT_MS를 센다.
+ */
+export const HEARTBEAT_MS = 10_000;
+export const HEARTBEAT_TIMEOUT_MS = 25_000;
+export const PING = '{"type":"ping"}';
+export const PONG = '{"type":"pong"}';
 
 export type ResultReason = "five" | "capture" | "resign" | "disconnect";
 
@@ -62,7 +71,8 @@ export type ServerMessage =
   | { type: "waiting" }
   | { type: "matched"; gameId: string }
   | { type: "error"; message: string }
-  | { type: "state"; you: Player; game: GameSnapshot };
+  | { type: "state"; you: Player; game: GameSnapshot }
+  | { type: "pong" };
 
 export type ClientMessage =
   | { type: "move"; row: number; col: number; moveNo: number }
