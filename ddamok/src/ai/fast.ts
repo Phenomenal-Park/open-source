@@ -15,6 +15,29 @@ export const WIN_VALUE = [0, 1, 14, 160, 2200, 0];
 const DIRS8 = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]] as const;
 const AXES = [[0, 1], [1, 0], [1, 1], [1, -1]] as const;
 
+/** 기본 특징 14개 + 위협 자리 특징 4개(가중치가 18개일 때만 계산) */
+export const FEATURE_COUNT = 18;
+export const BASE_FEATURES = 14;
+export type EvalWeights = readonly number[];
+
+/** 손으로 정한 첫 가중치(자동 조정 전): 내 창은 ×1.15, 따낸 쌍 320, 승리까지 1쌍 2500 · 2쌍 600 */
+export const HAND_WEIGHTS: EvalWeights = Object.freeze([
+  1 * 1.15, 14 * 1.15, 160 * 1.15, 2200 * 1.15,
+  -1, -14, -160, -2200,
+  320, -320,
+  2500, 600, -2500, -600,
+]);
+
+/**
+ * 자동 조정한 가중치(scripts/tune-eval.ts, 2회 반복: 고속 AI끼리 510판·형세 9,539개).
+ * 1회차 가중치가 손으로 정한 가중치를 40판 중 29승(72.5%, 약 +146점), 2회차가 1회차를 23승(57.5%).
+ * 위협 자리 특징 4개를 더한 3회차는 40판 중 16승으로 약해져 채택하지 않았다.
+ */
+export const TUNED_WEIGHTS: EvalWeights = Object.freeze([0.1, 31.6, 210.6, 2492.3, 1, -18.7, -158.9, -2167.2, 207.2, -150.3, 2462.8, 422.1, -2462.8, -526.1]);
+
+/** 실제로 쓰는 가중치 */
+export const DEFAULT_WEIGHTS: EvalWeights = TUNED_WEIGHTS;
+
 interface Undo {
   pos: number;
   color: Color;
@@ -34,8 +57,12 @@ export class FastBoard {
   private ww: Int8Array;
   /** 칸 → 그 칸을 지나는 창 번호들 */
   private cellWindows: Int32Array[];
-  /** 색별 창 점수 합 */
-  score: [number, number, number] = [0, 0, 0];
+  /** 창 번호 → 방향(0~3) */
+  private windowAxis: Int8Array;
+  /** 창 개수: cnt[색 × 5 + k] = 그 색만 k개(1~4) 있는 5칸 창의 수 */
+  readonly cnt = new Int32Array(15);
+  /** 형세 가중치(EVAL_WEIGHTS 기본, 자동 조정 결과로 바꿀 수 있다) */
+  weights: EvalWeights = DEFAULT_WEIGHTS;
   /** 색별 "4개 + 빈칸 1" 창 수(바로 이길 수 있는 자리의 근사) */
   fours: [number, number, number] = [0, 0, 0];
   /** 근처(2칸 이내) 돌 수 — 후보 수 */
@@ -52,16 +79,19 @@ export class FastBoard {
     this.empties = n * n;
     this.near = new Int16Array(n * n);
     const windows: number[][] = [];
-    for (const [dr, dc] of AXES) {
+    const axisOf: number[] = [];
+    for (const [ai, [dr, dc]] of AXES.entries()) {
       for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
         const er = r + 4 * dr, ec = c + 4 * dc;
         if (er < 0 || er >= n || ec < 0 || ec >= n) continue;
         windows.push([0, 1, 2, 3, 4].map((i) => (r + i * dr) * n + (c + i * dc)));
+        axisOf.push(ai);
       }
     }
     const per: number[][] = Array.from({ length: n * n }, () => []);
     windows.forEach((w, i) => w.forEach((cell) => per[cell].push(i)));
     this.cellWindows = per.map((x) => Int32Array.from(x));
+    this.windowAxis = Int8Array.from(axisOf);
     this.wb = new Int8Array(windows.length);
     this.ww = new Int8Array(windows.length);
     let seed = 0x9e3779b9;
@@ -89,12 +119,12 @@ export class FastBoard {
     for (const w of this.cellWindows[pos]) {
       const b = this.wb[w], wh = this.ww[w];
       // 이전 값 빼기
-      if (!wh && b) { this.score[1] -= WIN_VALUE[b]; if (b === 4) this.fours[1]--; }
-      if (!b && wh) { this.score[2] -= WIN_VALUE[wh]; if (wh === 4) this.fours[2]--; }
+      if (!wh && b && b < 5) { this.cnt[5 + b]--; if (b === 4) this.fours[1]--; }
+      if (!b && wh && wh < 5) { this.cnt[10 + wh]--; if (wh === 4) this.fours[2]--; }
       if (color === BLACK) this.wb[w]++; else this.ww[w]++;
       const b2 = this.wb[w], w2 = this.ww[w];
-      if (!w2 && b2) { this.score[1] += WIN_VALUE[b2]; if (b2 === 4) this.fours[1]++; }
-      if (!b2 && w2) { this.score[2] += WIN_VALUE[w2]; if (w2 === 4) this.fours[2]++; }
+      if (!w2 && b2 && b2 < 5) { this.cnt[5 + b2]++; if (b2 === 4) this.fours[1]++; }
+      if (!b2 && w2 && w2 < 5) { this.cnt[10 + w2]++; if (w2 === 4) this.fours[2]++; }
     }
     this.cells[pos] = color;
     this.empties--;
@@ -106,12 +136,12 @@ export class FastBoard {
     const color = this.cells[pos] as Color;
     for (const w of this.cellWindows[pos]) {
       const b = this.wb[w], wh = this.ww[w];
-      if (!wh && b) { this.score[1] -= WIN_VALUE[b]; if (b === 4) this.fours[1]--; }
-      if (!b && wh) { this.score[2] -= WIN_VALUE[wh]; if (wh === 4) this.fours[2]--; }
+      if (!wh && b && b < 5) { this.cnt[5 + b]--; if (b === 4) this.fours[1]--; }
+      if (!b && wh && wh < 5) { this.cnt[10 + wh]--; if (wh === 4) this.fours[2]--; }
       if (color === BLACK) this.wb[w]--; else this.ww[w]--;
       const b2 = this.wb[w], w2 = this.ww[w];
-      if (!w2 && b2) { this.score[1] += WIN_VALUE[b2]; if (b2 === 4) this.fours[1]++; }
-      if (!b2 && w2) { this.score[2] += WIN_VALUE[w2]; if (w2 === 4) this.fours[2]++; }
+      if (!w2 && b2 && b2 < 5) { this.cnt[5 + b2]++; if (b2 === 4) this.fours[1]++; }
+      if (!b2 && w2 && w2 < 5) { this.cnt[10 + w2]++; if (w2 === 4) this.fours[2]++; }
     }
     this.cells[pos] = EMPTY;
     this.empties++;
@@ -214,30 +244,53 @@ export class FastBoard {
     return false;
   }
 
-  /** 형세 판단에 "지금 따낼 수 있는 자리"를 넣을지(실험 결과에 따라 켠다) */
-  captureEval = true;
-
-  /** 형세(둘 차례 입장) */
-  evaluate(): number {
+  /**
+   * 형세 특징(둘 차례 입장): [내 창 1~4개 수(4), 상대 창 1~4개 수(4), 내 따낸 쌍, 상대 따낸 쌍,
+   * 내 승리까지 1쌍 남음, 2쌍 남음, 상대 1쌍 남음, 2쌍 남음]
+   */
+  features(out: Float64Array = new Float64Array(FEATURE_COUNT)): Float64Array {
     const me = this.toMove, op = other(me);
-    const capVal = (c: Color) => {
-      const left = (this.target[c] - this.caps[c]) / 2;
-      return (this.caps[c] / 2) * 320 + (left <= 1 ? 2500 : left <= 2 ? 600 : 0);
-    };
-    let v = this.score[me] * 1.15 - this.score[op] + capVal(me) - capVal(op);
-    if (this.captureEval) {
-      // 내 차례에 따낼 수 있는 자리 = 곧 얻을 점수, 상대가 따낼 수 있는 자리 = 내 약점(한 번에 하나만 막을 수 있다)
-      let mine = 0, theirs = 0;
-      const tmp: number[] = [];
+    for (let k = 1; k <= 4; k++) {
+      out[k - 1] = this.cnt[me * 5 + k];
+      out[3 + k] = this.cnt[op * 5 + k];
+    }
+    const left = (c: Color) => (this.target[c] - this.caps[c]) / 2;
+    out[8] = this.caps[me] / 2;
+    out[9] = this.caps[op] / 2;
+    out[10] = left(me) <= 1 ? 1 : 0;
+    out[11] = left(me) === 2 ? 1 : 0;
+    out[12] = left(op) <= 1 ? 1 : 0;
+    out[13] = left(op) === 2 ? 1 : 0;
+    if (out.length > BASE_FEATURES) {
+      // 위협 자리: 두면 넉 점이 되는 빈칸 수, 두 방향 이상으로 동시에 넉 점이 되는 빈칸 수
+      let f1 = 0, f2 = 0, o1 = 0, o2 = 0;
       for (let p = 0; p < this.cells.length; p++) {
         if (this.cells[p] || !this.near[p]) continue;
-        tmp.length = 0;
-        if (this.capturesAt(p, me, tmp).length) mine = Math.max(mine, tmp.length);
-        tmp.length = 0;
-        if (this.capturesAt(p, op, tmp).length) theirs += tmp.length / 2;
+        let am = 0, ao = 0;
+        for (const w of this.cellWindows[p]) {
+          const bit = 1 << this.windowAxis[w];
+          const b = this.wb[w], wh = this.ww[w];
+          const mine = me === BLACK ? b : wh, theirs = me === BLACK ? wh : b;
+          if (mine === 3 && !theirs) am |= bit;
+          if (theirs === 3 && !mine) ao |= bit;
+        }
+        if (am) { f1++; if (am & (am - 1)) f2++; }
+        if (ao) { o1++; if (ao & (ao - 1)) o2++; }
       }
-      v += (mine / 2) * 200 - Math.min(theirs, 3) * 120;
+      out[14] = f1; out[15] = f2; out[16] = o1; out[17] = o2;
     }
+    return out;
+  }
+
+  private featBase = new Float64Array(BASE_FEATURES);
+  private featFull = new Float64Array(FEATURE_COUNT);
+
+  /** 형세(둘 차례 입장) = 특징 · 가중치. 가중치가 기본 14개뿐이면 위협 자리 계산을 건너뛴다(빠름) */
+  evaluate(): number {
+    const w = this.weights;
+    const f = this.features(w.length > BASE_FEATURES ? this.featFull : this.featBase);
+    let v = 0;
+    for (let i = 0; i < f.length; i++) v += f[i] * w[i];
     return v;
   }
 

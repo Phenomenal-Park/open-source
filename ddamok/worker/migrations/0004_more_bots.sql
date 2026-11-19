@@ -1,3 +1,3 @@
 -- AI 계정 추가: 마스터·챌린저(고속 엔진). 점수는 사람과의 대국으로 저절로 맞춰진다.
-INSERT INTO users (id, username, username_key, password_hash, rating, mmr, rd, games, is_bot, bot_level, allow_ai, email_verified, max_rating, created_at) VALUES ('bot-ai-7', 'AI 마스터', 'bot:ai-7', '!', 1620, 1620, 90, 100, 1, 'ai-7', 0, 1, 1620, '2026-11-19T00:00:00.000Z');
-INSERT INTO users (id, username, username_key, password_hash, rating, mmr, rd, games, is_bot, bot_level, allow_ai, email_verified, max_rating, created_at) VALUES ('bot-ai-8', 'AI 챌린저', 'bot:ai-8', '!', 1830, 1830, 90, 100, 1, 'ai-8', 0, 1, 1830, '2026-11-19T00:00:00.000Z');
+INSERT INTO users (id, username, username_key, password_hash, rating, mmr, rd, games, is_bot, bot_level, allow_ai, email_verified, max_rating, created_at) VALUES ('bot-ai-7', 'AI 마스터', 'bot:ai-7', '!', 1730, 1730, 90, 100, 1, 'ai-7', 0, 1, 1730, '2026-11-19T00:00:00.000Z');
+INSERT INTO users (id, username, username_key, password_hash, rating, mmr, rd, games, is_bot, bot_level, allow_ai, email_verified, max_rating, created_at) VALUES ('bot-ai-8', 'AI 챌린저', 'bot:ai-8', '!', 1960, 1960, 90, 100, 1, 'ai-8', 0, 1, 1960, '2026-11-19T00:00:00.000Z');

@@ -4,6 +4,7 @@
 // 결과의 "점수 차"를 이어 붙이면 단계 사다리가 된다. 가장 약한 단계를 18급(500점)으로 놓는 것은 추정이다.
 // 각 판은 무작위 시작 3수(가운데 5×5)에서 출발하고, 같은 시작으로 흑백을 바꿔 두 번 둔다
 // (무작위성이 없는 강한 AI끼리는 그렇지 않으면 같은 판만 반복된다).
+import { readFileSync } from "node:fs";
 import { createGame } from "../src/game/gameState.ts";
 import { tryMove } from "../src/game/rules.ts";
 import type { GameState } from "../src/game/types.ts";
@@ -11,7 +12,14 @@ import { AI_LEVELS, chooseMove, type AiLevel } from "../src/ai/index.ts";
 import { EXPERIMENTAL } from "../src/ai/levels.ts";
 
 const ALL = [...AI_LEVELS, ...EXPERIMENTAL];
-const pick = (x: string) => (/^\d+$/.test(x) ? ALL[+x] : ALL.find((l) => l.id === x || l.label === x)!);
+/** "x-tuned:경로.json" = 챌린저 설정 + 그 파일의 형세 가중치(자동 조정 실험용) */
+const pick = (x: string): AiLevel => {
+  if (x.startsWith("x-tuned:")) {
+    const base = EXPERIMENTAL.find((l) => l.id === "x-fast")!;
+    return { ...base, id: x, name: x, fast: { ...base.fast!, weights: JSON.parse(readFileSync(x.slice(8), "utf8")) } };
+  }
+  return /^\d+$/.test(x) ? ALL[+x] : ALL.find((l) => l.id === x || l.label === x)!;
+};
 import { RATING_SCALE } from "../src/rating/elo.ts";
 
 function mulberry32(seed: number) {

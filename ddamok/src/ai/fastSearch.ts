@@ -26,8 +26,8 @@ export interface FastLevel {
   vcfDepth?: number;
   /** 실험용: 공격(내 필승 찾기)만 / 방어만 */
   vcfMode?: "both" | "attack" | "defend";
-  /** 형세 판단에 따낼 수 있는 자리 반영(기본 켬) */
-  captureEval?: boolean;
+  /** 형세 가중치(없으면 기본값) — 자동 조정 실험용 */
+  weights?: readonly number[];
 }
 
 class Timeout extends Error {}
@@ -208,7 +208,7 @@ function gaussian(rand: () => number): number {
 export function fastChooseMove(state: GameState, level: FastLevel, rand: () => number = Math.random, stats?: FastStats): Position {
   if (state.isFinished) throw new Error("game is finished");
   const b = FastBoard.fromState(state);
-  b.captureEval = level.captureEval ?? true;
+  if (level.weights) b.weights = level.weights;
   const n = b.n;
   const toPos = (p: number): Position => ({ row: (p / n) | 0, col: p % n });
   const me = b.toMove;
