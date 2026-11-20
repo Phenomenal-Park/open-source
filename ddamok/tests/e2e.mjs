@@ -49,6 +49,12 @@ const DESKTOP = { viewport: { width: 1280, height: 800 }, locale: "ko-KR" };
 for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DESKTOP]]) {
   const context = await browser.newContext(ctx);
   await openFolds(context);
+  // 소리 세기: 착수음은 진동자 1개, 따냄 "딸그락"은 여러 개를 더 쓴다
+  await context.addInitScript(() => {
+    window.__osc = 0;
+    const orig = AudioContext.prototype.createOscillator;
+    AudioContext.prototype.createOscillator = function () { window.__osc++; return orig.call(this); };
+  });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -70,10 +76,14 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
     // 흑(7,7) 백(7,6) 흑(7,8) 백(7,9) → 백이 흑 두 점 포획
     for (const [r, c] of [[7, 7], [7, 6], [7, 8]]) await tap(page, r, c, { touch });
     assert.equal(await stones(page), 3);
+    assert.equal(await page.evaluate(() => window.__osc), 3, "착수마다 착수음 한 번");
     await tap(page, 7, 8, { touch }); // 이미 돌이 있는 곳: 변화 없음
     assert.equal(await stones(page), 3);
+    const osc = () => page.evaluate(() => window.__osc);
+    const before = await osc();
     await tap(page, 7, 9, { touch });
     assert.equal(await stones(page), 2);
+    assert.ok((await osc()) - before >= 6, "따내면 착수음 뒤에 딸그락 소리");
     assert.deepEqual(await counts(page), ["0", "2"]);
     assert.equal(await page.locator(".capture-fx .captured").count(), 2);
     await shot(page, `${touch ? "phone" : "desktop"}-capture`);
