@@ -193,8 +193,8 @@ export function MainPage() {
       if (left !== last) {
         last = left;
         if (left <= 3 && left > 0) navigator.vibrate?.(40);
-        tick((x) => x + 1);
       }
+      tick((x) => x + 1); // 남은 시간 막대를 부드럽게
       if (left <= 0) {
         setArmedUntil(null);
         setHistory((h) => [...h.slice(0, -1), forfeitHidden(currentState(h))]);
@@ -327,7 +327,7 @@ export function MainPage() {
   else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
-  else if (armedUntil !== null) status = t("hidden.armed", { n: Math.max(0, Math.ceil((armedUntil - Date.now()) / 1000)) });
+  else if (armedUntil !== null) status = t("hidden.armed");
   else if (notice?.kind === "found" && notice.at === state.moveCount && state.currentPlayer === "black") status = t("hidden.foundStatus");
   else if (notice?.kind === "lost" && notice.at === state.moveCount) status = t("hidden.lost");
   else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
@@ -370,14 +370,21 @@ export function MainPage() {
           {banner > 0 && (
             <div key={banner} className="hidden-banner" aria-hidden><span>{t("hidden.banner")}</span></div>
           )}
-          {armedUntil !== null && (() => {
-            const left = Math.max(0, Math.ceil((armedUntil - Date.now()) / 1000));
-            return <div className={`hidden-count${left <= 3 ? " urgent" : ""}`} aria-hidden><span key={left}>{left}</span></div>;
-          })()}
           {result && resultOpen && (
             <GameResult result={result} canUndo={canUndo} onNewGame={newGame} onUndo={undo} onClose={() => setResultOpen(false)} />
           )}
         </div>
+        {armedUntil !== null && (() => {
+          // 히든 카운트다운: 판을 가리지 않게 바둑판 바로 아래에
+          const msLeft = Math.max(0, armedUntil - Date.now());
+          const left = Math.ceil(msLeft / 1000);
+          return (
+            <div className={`hidden-timer${left <= 3 ? " urgent" : ""}`} aria-hidden>
+              <span key={left} className="hidden-timer-n">{left}</span>
+              <span className="hidden-timer-bar"><i style={{ width: `${(msLeft / HIDDEN_MS) * 100}%` }} /></span>
+            </div>
+          );
+        })()}
         <div className="controls">
           <p className={`status ${state.isFinished ? "done" : state.currentPlayer}`} aria-live="polite">
             <span className={`dot ${online?.game?.result ? online.game.result.winner ?? "" : state.isFinished ? state.winner ?? "" : state.currentPlayer}`} aria-hidden /> {status}

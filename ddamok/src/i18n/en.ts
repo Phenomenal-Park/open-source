@@ -38,7 +38,7 @@ export const en: Messages = {
   "btn.undo": "Undo",
   "btn.hidden": "Hidden",
   "hidden.banner": "White's Hidden Move!",
-  "hidden.armed": "Hidden · place it within {n}s",
+  "hidden.armed": "Hidden · tap where to hide it",
   "hidden.lost": "Time's up — the hidden move is gone",
   "hidden.lurking": "A white stone is hidden",
   "hidden.badge": "Hidden 1",

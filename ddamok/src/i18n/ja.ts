@@ -38,7 +38,7 @@ export const ja: Messages = {
   "btn.undo": "待った",
   "btn.hidden": "隠し手",
   "hidden.banner": "白の隠し手！",
-  "hidden.armed": "隠し手 · {n}秒以内に置いてください",
+  "hidden.armed": "隠し手 · 隠す場所に置いてください",
   "hidden.lost": "時間切れ — 隠し手は使えなくなりました",
   "hidden.lurking": "白石が一つ隠れています",
   "hidden.badge": "隠し石 1",

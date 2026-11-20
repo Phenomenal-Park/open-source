@@ -38,7 +38,7 @@ export const ko = {
   "btn.undo": "무르기",
   "btn.hidden": "히든",
   "hidden.banner": "백 히든!",
-  "hidden.armed": "히든 · {n}초 안에 숨길 자리에 두세요",
+  "hidden.armed": "히든 · 숨길 자리에 두세요",
   "hidden.lost": "시간이 지나 히든 기회가 사라졌습니다",
   "hidden.lurking": "숨은 백 돌이 있습니다",
   "hidden.badge": "숨은 돌 1",
