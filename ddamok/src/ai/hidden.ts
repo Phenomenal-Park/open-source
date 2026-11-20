@@ -30,11 +30,29 @@ export function blackProbe(view: GameState): Position | null {
   return best >= 0 ? toPos(best, b.n) : null;
 }
 
+export interface BeliefCell {
+  pos: number;
+  /** 숨은 돌이 여기 있을 확률(추정) */
+  w: number;
+  /** 여기 숨은 돌이 있으면 백이 바로 다음 수에 이긴다 */
+  danger1: boolean;
+  /** 여기 숨은 돌이 있으면 백이 한 수로 막을 수 없는 넉(열린 4·쌍4)을 만든다 */
+  danger2: boolean;
+}
+
+const near = (a: number, b: number, n: number, d: number) => Math.abs(((a / n) | 0) - ((b / n) | 0)) <= d && Math.abs((a % n) - (b % n)) <= d;
+const sameLine = (a: number, b: number, n: number) => {
+  const dr = ((b / n) | 0) - ((a / n) | 0), dc = (b % n) - (a % n);
+  return (dr === 0 || dc === 0 || Math.abs(dr) === Math.abs(dc)) && Math.max(Math.abs(dr), Math.abs(dc)) <= 4;
+};
+
 /**
- * 숨은 돌이 어디 있을지에 대한 흑의 짐작: 백이 히든을 둔 그 순간의 판(흑이 다 아는 판)에서
- * "백이 두기 좋은 자리"일수록 높은 무게(순위가 하나 내려갈 때마다 ×0.7). 지금 돌이 보이는 칸은 뺀다.
+ * 숨은 돌이 어디 있을지에 대한 흑의 짐작.
+ * - 사전 확률: 백이 히든을 둔 그 순간의 판(흑이 다 아는 판)에서 백이 두기 좋은 자리일수록 높다(순위마다 ×0.7, 12위 밖은 아주 낮게).
+ * - 지금의 증거: 그 뒤 백이 보이게 둔 돌들과 잘 어울리는 자리일수록 높다(백은 숨은 돌을 쓰려고 그 주변에 둔다).
+ * - 위험: 거기 숨은 돌이 있으면 백이 바로 이기거나(danger1) 막을 수 없는 넉을 만드는(danger2) 자리는 크게 의심한다.
  */
-export function hiddenBelief(view: GameState, maxCells = 8): { pos: number; w: number }[] {
+export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
   const h = view.hidden;
   if (!h || h.revealed || h.index < 0) return [];
   // 히든 직전 판 다시 만들기(그 앞의 수는 모두 보인다)
@@ -44,21 +62,42 @@ export function hiddenBelief(view: GameState, maxCells = 8): { pos: number; w: n
     if (!r.ok) return [];
     before = r.state;
   }
-  const b = FastBoard.fromState(before);
-  const n = b.n;
-  const scored = b.candidates()
-    .filter((p) => view.board[(p / n) | 0][p % n] === null)
-    .map((p) => ({ pos: p, s: b.moveScore(p, 2) }))
-    .sort((x, y) => y.s - x.s)
-    .slice(0, maxCells);
-  let w = 1, sum = 0;
-  const out = scored.map((x) => { const o = { pos: x.pos, w }; sum += w; w *= 0.7; return o; });
-  return out.map((x) => ({ pos: x.pos, w: x.w / sum }));
+  const b0 = FastBoard.fromState(before);
+  const n = b0.n;
+  const rank = new Map(b0.candidates().map((p) => ({ p, s: b0.moveScore(p, 2) })).sort((x, y) => y.s - x.s).map((x, i) => [x.p, i] as const));
+  const vb = FastBoard.fromState(view);
+  const whites: number[] = [];
+  for (let p = 0; p < n * n; p++) if (vb.cells[p] === 2) whites.push(p);
+  const out: BeliefCell[] = [];
+  for (let c = 0; c < n * n; c++) {
+    if (vb.cells[c] || before.board[(c / n) | 0][c % n] !== null) continue; // 숨길 때 비어 있었고 지금도 비어 보이는 칸
+    const r = rank.get(c);
+    const prior = r === undefined ? 0.004 : r < 12 ? 0.7 ** r : 0.01;
+    const use = Math.max(0, vb.moveScore(c, 2));
+    vb.cells[c] = 2;
+    const danger1 = vb.winningMoves(2).length > 0;
+    let danger2 = false;
+    if (!danger1 && whites.some((w) => near(w, c, n, 4))) {
+      for (let m = 0; m < n * n && !danger2; m++) {
+        if (vb.cells[m] || !sameLine(c, m, n)) continue;
+        vb.cells[m] = 2;
+        if (vb.winningMoves(2).length >= 2) danger2 = true;
+        vb.cells[m] = 0;
+      }
+    }
+    vb.cells[c] = 0;
+    out.push({ pos: c, w: prior * (1 + use / 300) * (danger1 ? 30 : danger2 ? 8 : 1), danger1, danger2 });
+  }
+  out.sort((x, y) => y.w - x.w);
+  const sum = out.reduce((a, x) => a + x.w, 0) || 1;
+  return out.slice(0, maxCells).map((x) => ({ ...x, w: x.w / sum }));
 }
 
 /**
- * 추리하는 흑: 숨은 돌이 있을 법한 자리 몇 곳(가설)마다, 후보 수를 두었을 때 형세를 읽어
- * 무게를 곱해 더한 기대값이 가장 좋은 수를 둔다. 숨은 돌 자리를 두면(찾으면) 드러나고 다시 두므로 그만큼 이득으로 친다.
+ * 추리하는 흑.
+ * 1) 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 그럴듯하면 먼저 눌러 본다 — 숨은 돌이면 드러나고 차례가 이어지며,
+ *    아니어도 그 줄을 막는 수가 된다.
+ * 2) 아니면 숨은 돌이 있을 법한 자리 몇 곳(가설)마다 후보 수를 읽어, 무게를 곱해 더한 기대값이 가장 좋은 수를 둔다.
  */
 export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random): Position {
   const plain = chooseMove(view, level, rand);
@@ -70,9 +109,15 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   const vb = FastBoard.fromState(view);
   const wins = vb.winningMoves(1);
   if (wins.length) return toPos(wins[0], n);
+  if (vb.winningMoves(2).length) return plain; // 보이는 백의 위협부터 막는다
+  // 1) 위험 칸
+  const d1 = belief.filter((x) => x.danger1);
+  if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
+  // 2) 가설별 기대값
   const t = level.fast.timeMs;
   const cand = new FastSearcher(vb, level.fast.width).searchRoot(level.fast.depth, Math.max(30, t * 0.2), true, true).scores.slice(0, 6).map((x) => x.p);
   for (const x of belief.slice(0, 3)) if (!cand.includes(x.pos)) cand.push(x.pos);
+  for (const x of belief) if (x.danger2 && !cand.includes(x.pos) && cand.length < 12) cand.push(x.pos);
   const hyp = belief.slice(0, 6);
   const wsum = hyp.reduce((a, x) => a + x.w, 0);
   const leafMs = Math.max(15, (t * 0.75) / (cand.length * hyp.length));
@@ -97,7 +142,7 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
           v = fb.winningMoves(2).length ? -1e8 : -(new FastSearcher(fb, level.fast.width).searchRoot(6, leafMs, false, true).scores[0]?.s ?? 0);
         }
       }
-      ev += (hp.w / wsum) * v;
+      ev += (hp.w / wsum) * Math.max(-1e5, Math.min(1e5, v));
     }
     if (ev > bestV) { bestV = ev; best = toPos(m, n); }
   }
