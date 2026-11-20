@@ -194,7 +194,7 @@ export interface WhiteHiddenOptions {
 /** 백 AI의 수와 숨길지 여부 */
 export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Math.random, opts: WhiteHiddenOptions = {}): { move: Position; hidden: boolean } {
   const plain = chooseMove(state, level, rand);
-  if (!canUseHidden(state)) return { move: plain, hidden: false };
+  if (!canUseHidden(state)) return { move: stealthy(state, level, plain), hidden: false };
   // 엔진이 약한 단계(아이언~실버): 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
   const L = withHidden(level);
   if (!L.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
@@ -257,6 +257,45 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
   }
   return best;
 }
+
+/**
+ * 티 안 내기: 숨은 돌이 아직 들키지 않았으면, 비슷하게 좋은 수 중 흑의 짐작에서 숨은 돌 자리가 덜 의심받는 수를 둔다.
+ * (가장 좋은 수만 두면 숨은 돌로 줄을 이어 가는 수가 계속 나와 "여기 숨었다"고 알려 주는 꼴이 된다.)
+ * 이기는 수, 막을 수 없는 공격처럼 결정적인 수는 그대로 둔다.
+ */
+function stealthy(state: GameState, level: AiLevel, plain: Position): Position {
+  const h = state.hidden;
+  const fast = withHidden(level).fast;
+  if (!fast || !h || h.revealed || h.index < 0 || state.currentPlayer !== "white" || state.isFinished) return plain;
+  const n = state.config.boardSize;
+  const hp = h.pos.row * n + h.pos.col;
+  const b = FastBoard.fromState(state);
+  if (b.winningMoves(2).length || b.winningMoves(1).length) return plain; // 이기거나 막아야 할 때
+  const sc = new FastSearcher(b, fast.width).searchRoot(Math.min(fast.depth, 8), Math.max(30, fast.timeMs * 0.5), true, true).scores;
+  if (!sc.length) return plain;
+  const top = sc[0].s;
+  if (top >= STEALTH_DECISIVE) return plain;
+  const p0 = plain.row * n + plain.col;
+  const pool = sc.filter((x) => x.s >= top - STEALTH_MARGIN).slice(0, 6);
+  if (!pool.some((x) => x.p === p0)) pool.unshift({ p: p0, s: sc.find((x) => x.p === p0)?.s ?? top });
+  let best = p0, bestV = -Infinity;
+  for (const x of pool) {
+    const r = tryMove(state, toPos(x.p, n));
+    if (!r.ok) continue;
+    const bel = hiddenBelief(viewFor(r.state, "black"), 20);
+    const c = bel.find((y) => y.pos === hp);
+    const sus = c ? c.w * (bel.indexOf(c) < 4 ? 2 : 1) : 0; // 흑이 깊게 읽는 상위 4자리에 들면 더 크게 본다
+    const v = x.s - STEALTH_WEIGHT * sus;
+    if (v > bestV) { bestV = v; best = x.p; }
+  }
+  return toPos(best, n);
+}
+/** 티 안 내기: 가장 좋은 수보다 이만큼 덜 좋은 수까지 고려한다 */
+const STEALTH_MARGIN = 150;
+/** 티 안 내기: 숨은 돌 자리 의심(확률) 1당 깎는 점수 */
+const STEALTH_WEIGHT = 1500;
+/** 이 점수 이상인 수(사실상 이기는 공격)는 티를 내더라도 둔다 */
+const STEALTH_DECISIVE = 5000;
 
 /** 숨길 자리 고르기의 흔들림: 비슷하게 좋은 자리 중에서 판마다 다르게 숨긴다(늘 같은 자리면 사람이 금방 외운다) */
 const HIDE_JITTER = 250;
