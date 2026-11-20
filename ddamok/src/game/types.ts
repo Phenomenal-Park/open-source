@@ -33,6 +33,8 @@ export interface GameConfig {
    * 0 = 제한 없음(기본). 흑백 밸런스 실험용.
    */
   secondMoveMinDistance: number;
+  /** (실험용) 흑의 두 번째 수(전체 3수째)는 천원을 지나는 가로줄·세로줄(판 전체)에 둘 수 없다. 대각선은 된다. 기본 false */
+  secondMoveNoCross: boolean;
 }
 
 export interface GameState {
@@ -58,7 +60,7 @@ export interface GameState {
   isFinished: boolean;
 }
 
-export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance";
+export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance" | "second-move-cross";
 
 export type MoveResult =
   | { ok: true; state: GameState; captured: Position[] }

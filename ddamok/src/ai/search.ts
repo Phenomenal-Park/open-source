@@ -1,6 +1,7 @@
 // 따목 AI — 수읽기(알파베타)와 기력 조절.
 import type { GameState, Position } from "../game/types.ts";
 import { tryMove } from "../game/rules.ts";
+import { secondMoveRestricted } from "../game/config.ts";
 import { candidateMoves, evaluate, isUrgent, quickScore, WIN_SCORE } from "./evaluate.ts";
 import type { AiLevel } from "./levels.ts";
 import { findVcf } from "./threats.ts";
@@ -59,7 +60,7 @@ export function chooseMove(state: GameState, level: AiLevel, rand: Rng = Math.ra
   if (state.isFinished) throw new Error("game is finished");
   if (level.fast) return fastChooseMove(state, level.fast, rand);
   // (실험용) 흑 두 번째 수 제한이 켜진 판의 그 한 수: 예전 엔진은 후보가 천원 근처뿐이라, 둘 수 있는 자리 중에서 고속 엔진으로 고른다
-  if (state.config.secondMoveMinDistance > 0 && state.moveCount === 2) {
+  if (secondMoveRestricted(state.config) && state.moveCount === 2) {
     return fastChooseMove(state, { depth: 4, timeMs: 100, width: 12, noise: level.noise, randomPick: level.randomPick, randomPool: Math.max(level.randomPool, 4), missWin: 0, focus: 1 }, rand);
   }
   // 이번 수에 집중하는가: 아니면 한 수 덜 읽고, 급한 자리도 빠뜨릴 수 있다(약한 단계의 "놓침")

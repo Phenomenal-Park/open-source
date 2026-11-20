@@ -466,6 +466,29 @@ describe("(실험용) 펜테식 제한: 흑의 두 번째 수는 천원에서 3�
   });
 });
 
+describe("(실험용) 흑의 두 번째 수는 천원 십자(가로줄·세로줄) 금지", () => {
+  it("켜면 천원의 가로줄·세로줄 어디든 거부, 대각선과 그 밖은 허용", () => {
+    const on = play(createGame(15, { secondMoveNoCross: true }), at(7, 7), at(8, 9));
+    expect(tryMove(on, at(7, 8))).toEqual({ ok: false, reason: "second-move-cross" });
+    expect(isLegalMove(on, at(0, 7))).toBe(false);
+    expect(isLegalMove(on, at(7, 14))).toBe(false);
+    expect(isLegalMove(on, at(6, 6))).toBe(true);
+    expect(isLegalMove(on, at(8, 8))).toBe(true);
+    expect(isLegalMove(on, at(5, 8))).toBe(true);
+    // 백은 제한 없음(백의 첫 수도 십자에 둘 수 있다), 흑의 그 다음 수부터도 제한 없음
+    expect(isLegalMove(play(createGame(15, { secondMoveNoCross: true }), at(7, 7)), at(7, 8))).toBe(true);
+    expect(isLegalMove(play(on, at(6, 6), at(5, 5)), at(7, 8))).toBe(true);
+  });
+
+  it("5×5 금지와 함께 켜면 둘 다 적용", () => {
+    const on = play(createGame(15, { secondMoveNoCross: true, secondMoveMinDistance: 3 }), at(7, 7), at(8, 9));
+    expect(isLegalMove(on, at(6, 6))).toBe(false);
+    expect(isLegalMove(on, at(7, 11))).toBe(false);
+    expect(isLegalMove(on, at(4, 4))).toBe(true);
+    expect(isLegalMove(on, at(4, 9))).toBe(true);
+  });
+});
+
 describe("(실험용) 백만 장목 승리", () => {
   it("켜면 백의 6목은 승리, 흑의 6목은 여전히 승리가 아니다", () => {
     const w = applyMove(fromDiagram(["OOO.OO"], "white", { size: 15 }), at(0, 3));

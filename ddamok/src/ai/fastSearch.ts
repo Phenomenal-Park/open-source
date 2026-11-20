@@ -3,6 +3,7 @@
 //   - 상대가 다음 수에 이길 자리가 있으면(넉 점·포획 승리 위협) 그 자리 막기·따내서 깨기만 둔다(깊이를 줄이지 않음).
 import type { GameState, Position } from "../game/types.ts";
 import { isLegalMove } from "../game/rules.ts";
+import { secondMoveRestricted } from "../game/config.ts";
 import { FastBoard, type Color } from "./fast.ts";
 
 export const WIN = 1_000_000;
@@ -225,10 +226,12 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     return toPos(pool[(rand() * pool.length) | 0].p);
   }
   // 규칙상 특정 자리만 둘 수 있는 수(예: 펜테식 제한의 흑 3수째)는 둘 수 있는 자리 중에서만 고른다
-  const restricted = state.config.secondMoveMinDistance > 0 && state.moveCount === 2;
+  const restricted = secondMoveRestricted(state.config) && state.moveCount === 2;
+  // 둘 수 있는 자리 중 천원 가까운 곳만(거리 제한이면 그 바로 바깥 줄까지, 아니면 천원에서 3칸 이내)
+  const radius = state.config.secondMoveMinDistance > 0 ? state.config.secondMoveMinDistance + 1 : 3;
   const rootMoves = restricted
     ? Array.from({ length: n * n }, (_, p) => p).filter((p) => !b.cells[p] && isLegalMove(state, toPos(p)))
-        .filter((p) => { const r = (p / n) | 0, c = p % n, h = (n / 2) | 0; return Math.max(Math.abs(r - h), Math.abs(c - h)) <= state.config.secondMoveMinDistance + 1; })
+        .filter((p) => { const r = (p / n) | 0, c = p % n, h = (n / 2) | 0; return Math.max(Math.abs(r - h), Math.abs(c - h)) <= radius; })
     : undefined;
   if (restricted && rand() < level.randomPick) return toPos(rootMoves![(rand() * rootMoves!.length) | 0]);
   const searcher = new FastSearcher(b, level.width);

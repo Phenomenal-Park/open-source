@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from "react";
-import { isLegalMove, type GameState, type Player, type Position } from "../game/index.ts";
+import { isLegalMove, secondMoveRestricted, type GameState, type Player, type Position } from "../game/index.ts";
 import { Stone, StoneDefs } from "./Stone.tsx";
 import { t } from "../i18n/index.ts";
 
@@ -50,11 +50,9 @@ export function Board({ state, onPlay, disabled, fx }: BoardProps) {
   const canHover = hover && !disabled && isLegalMove(state, hover);
   // 흑 두 번째 수 제한(켜진 대국만): 둘 수 없는 천원 주변 빈칸에 ⛔
   const banned: Position[] = [];
-  const dist = state.config.secondMoveMinDistance;
-  if (dist > 0 && state.moveCount === 2 && !state.isFinished && state.currentPlayer === "black") {
-    const c = Math.floor(n / 2);
-    for (let r = c - dist + 1; r <= c + dist - 1; r++) for (let col = c - dist + 1; col <= c + dist - 1; col++) {
-      if (r >= 0 && r < n && col >= 0 && col < n && state.board[r][col] === null) banned.push({ row: r, col });
+  if (secondMoveRestricted(state.config) && state.moveCount === 2 && !state.isFinished && state.currentPlayer === "black") {
+    for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
+      if (state.board[r][col] === null && !isLegalMove(state, { row: r, col })) banned.push({ row: r, col });
     }
   }
   const win = state.winningLine;

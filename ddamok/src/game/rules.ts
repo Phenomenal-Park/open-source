@@ -21,6 +21,11 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     const c = centerOf(state.config.boardSize);
     if (Math.max(Math.abs(row - c.row), Math.abs(col - c.col)) < state.config.secondMoveMinDistance) return "second-move-distance";
   }
+  // (실험용, 기본 꺼짐) 흑의 두 번째 수는 천원을 지나는 가로줄·세로줄에 둘 수 없다
+  if (state.config.secondMoveNoCross && state.moveCount === 2 && state.currentPlayer === "black") {
+    const c = centerOf(state.config.boardSize);
+    if (row === c.row || col === c.col) return "second-move-cross";
+  }
   return null;
 }
 
