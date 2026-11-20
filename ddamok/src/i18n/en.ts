@@ -36,6 +36,7 @@ export const en: Messages = {
 
   "btn.newGame": "New game",
   "btn.undo": "Undo",
+  "btn.close": "Close",
   "btn.hidden": "Hidden",
   "hidden.banner": "White's Hidden Move!",
   "end.line1": "{color} · {n} moves",
@@ -71,7 +72,6 @@ export const en: Messages = {
   "status.secondFar": "Black's 2nd move: outside the center 5×5",
   "status.turn": "{color} to play",
   "confirm.resign": "Resign this game?",
-  "confirm.size": "Changing the board size starts a new game.",
 
   "mode.rated": "Rated",
   "mode.casual": "Casual",
@@ -94,9 +94,6 @@ export const en: Messages = {
   "account.login": "Log in",
   "account.verifyTitle": "Verify email",
 
-  "size.label": "Board size",
-  "size.default": " (default)",
-  "size.note": "For local and AI games. Online games are 15×15.",
 
   "rules.title": "Rules",
   "rules.1": "Black moves first; players take turns placing one stone on an empty point. Black's **first move is the center point**. No forbidden moves (3-3, 4-4 and overlines are allowed).",
@@ -106,7 +103,7 @@ export const en: Messages = {
   "rules.5": "Black wins by capturing **12** stones, White by capturing **10**.",
   "rules.6": "In AI and online games, White may play one **hidden move** per game. Placed within 10 seconds, it stays invisible to Black but counts for fives and captures. Miss the time and the chance is gone. In games with the hidden move, both sides win by capturing **10**.",
   "rules.7": "If Black taps the hidden point, the stone appears and Black plays again. It also appears when it helps capture or when the game ends.",
-  "look.title": "Board & stones",
+  "look.title": "Design",
   "look.board": "Board",
   "look.stones": "Stones",
   "look.basic": "Standard",

@@ -333,3 +333,17 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .leaderboard summary::-webkit-details-marker, .rules summary::-webkit-details-marker { display: none; }
 details[open] > summary .chev { transform: rotate(180deg); }
 .friend-form input::placeholder { letter-spacing: 0; font-size: 14px; }
+
+/* 순위·규칙 팝업 */
+.info-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+dialog.popup {
+  border: 0; border-radius: 16px; padding: 16px 18px; width: min(440px, calc(100vw - 32px)); max-height: min(80vh, 640px);
+  background: var(--panel); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.5);
+}
+dialog.popup::backdrop { background: rgba(10,8,6,.6); }
+.popup-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.popup-head h2 { margin: 0; font-size: 18px; }
+.popup-close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--panel-2); color: var(--text); font-size: 22px; line-height: 1; cursor: pointer; }
+.popup-body { overflow: auto; }
+.rules-list { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); display: grid; gap: 8px; }
+.rules-list b { color: var(--text); }

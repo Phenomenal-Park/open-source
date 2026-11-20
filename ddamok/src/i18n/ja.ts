@@ -36,6 +36,7 @@ export const ja: Messages = {
 
   "btn.newGame": "新しい対局",
   "btn.undo": "待った",
+  "btn.close": "閉じる",
   "btn.hidden": "隠し手",
   "hidden.banner": "白の隠し手！",
   "end.line1": "{color}・{n}手まで",
@@ -71,7 +72,6 @@ export const ja: Messages = {
   "status.secondFar": "黒の2手目は天元の5×5の外",
   "status.turn": "{color}の番",
   "confirm.resign": "投了しますか？",
-  "confirm.size": "盤のサイズを変えると新しい対局になります。",
 
   "mode.rated": "レーティング戦",
   "mode.casual": "フリー対局",
@@ -94,9 +94,6 @@ export const ja: Messages = {
   "account.login": "ログイン",
   "account.verifyTitle": "メール認証",
 
-  "size.label": "盤のサイズ",
-  "size.default": "（標準）",
-  "size.note": "同じ画面での対局とAI対局用です。オンライン対局は15×15です。",
 
   "rules.title": "ルール",
   "rules.1": "黒から交互に、空いている交点へ石を1つずつ置きます。黒の**初手は天元**（中央）です。禁じ手（三三・四四・長連）はありません。",
@@ -106,7 +103,7 @@ export const ja: Messages = {
   "rules.5": "黒は**12個**、白は**10個**取ると勝ち。",
   "rules.6": "AI対局とオンライン対局では、白は1局に1回**隠し手**を使えます。10秒以内に置いた石は黒には見えませんが、五目や石取りにそのまま使えます。時間を過ぎると使えなくなります。 隠し手のある対局は、黒白とも**10個**取ると勝ち。",
   "rules.7": "黒が隠し石の場所を押すと石が現れ、黒は打ち直します。隠し石で石を取ったときや対局終了時にも現れます。",
-  "look.title": "盤と石",
+  "look.title": "デザイン",
   "look.board": "碁盤",
   "look.stones": "碁石",
   "look.basic": "標準",

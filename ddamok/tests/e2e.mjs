@@ -20,9 +20,9 @@ const browser = await chromium.launch();
 let failures = 0;
 
 
-/** 사이드 상자(로그인·온라인·AI·판 크기·모양)는 처음엔 접혀 있다 — 기능 테스트에서는 펼친 상태로 시작 */
+/** 사이드 상자(로그인·온라인·AI·디자인)는 처음엔 접혀 있다 — 기능 테스트에서는 펼친 상태로 시작 */
 const openFolds = (context) => context.addInitScript(() => {
-  for (const k of ["login", "online", "ai", "size", "look"]) localStorage.setItem(`ddamok.fold.${k}`, "1");
+  for (const k of ["login", "online", "ai", "look"]) localStorage.setItem(`ddamok.fold.${k}`, "1");
 });
 
 async function check(name, fn) {
@@ -101,11 +101,16 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
   await context.close();
 }
 
-await check("[접는 상자] 로그인·온라인·AI·판 크기·모양 상자는 처음엔 제목만, ⌄를 누르면 펼쳐지고 기억된다", async () => {
+await check("[접는 상자·팝업] 로그인·온라인·AI·디자인 상자는 처음엔 제목만, ⌄로 펼치고 기억 / 순위·규칙은 팝업 / 판 크기 선택 없음", async () => {
   const context = await browser.newContext(PHONE);
   const page = await context.newPage();
   await page.goto(base);
-  assert.equal(await page.locator(".fold").count(), 5);
+  assert.equal(await page.locator(".fold").count(), 4);
+  assert.equal(await page.getByText("판 크기").count(), 0);
+  await page.locator(".info-buttons").getByRole("button", { name: "규칙" }).click();
+  await page.locator("dialog.popup[open]").getByText("정확히 5개", { exact: false }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator("dialog.popup[open]").count(), 0);
   assert.equal(await page.locator(".fold-body").count(), 0);
   const online = page.getByRole("button", { name: "온라인 대국" });
   assert.equal(await online.getAttribute("aria-expanded"), "false");
@@ -129,8 +134,9 @@ await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에
     assert.equal(await page.locator(".brand h1").textContent(), name);
     assert.equal(await page.locator(".nav-link.active").textContent(), play);
     assert.equal(await page.evaluate(() => document.documentElement.lang), locale.slice(0, 2));
-    await page.locator("details.rules summary").click();
-    assert.match(await page.locator("details.rules").textContent(), new RegExp(rule));
+    await page.locator(".info-buttons .btn").nth(1).click();
+    assert.match(await page.locator("dialog.popup[open]").textContent(), new RegExp(rule));
+    await page.keyboard.press("Escape");
     // 언어 선택 목록(한국어/English/日本語)은 각 언어 자체 표기이므로 제외
     const text = await page.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll(".lang-select").forEach((x) => x.remove()); return c.innerText; });
     assert.ok(!/[가-힣]/.test(text), `${locale}: 한국어가 섞이지 않음`);
@@ -157,12 +163,16 @@ await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차
   await page.getByLabel("기력").selectOption("ai-6");
   await page.getByRole("button", { name: "흑으로 두기" }).click();
   await page.locator(".score-name", { hasText: "AI 다이아" }).waitFor();
+  // AI(백)가 히든으로 둘 수도 있어(그러면 흑 화면에 돌이 안 보인다) 돌 개수 대신 수 번호로 확인
+  const myTurnAt = (n) => page.waitForFunction((k) => new RegExp(`흑 차례 · ${k}수째`).test(document.querySelector(".status")?.textContent ?? ""), n, { timeout: 15000 });
   await tap(page, 7, 7, { touch: true });
-  await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 2, null, { timeout: 10000 });
+  await myTurnAt(3);
+  const visible = await stones(page);
   await tap(page, 1, 13, { touch: true });
-  await page.waitForFunction(() => document.querySelectorAll("svg.board .stone").length === 4, null, { timeout: 10000 });
+  await myTurnAt(5);
   await page.getByRole("button", { name: "무르기" }).first().click();
-  assert.equal(await stones(page), 2);
+  await myTurnAt(3);
+  assert.equal(await stones(page), visible);
   await context.close();
 });
 

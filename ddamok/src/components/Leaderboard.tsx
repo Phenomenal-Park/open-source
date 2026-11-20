@@ -1,21 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type PublicUser } from "../api.ts";
 import { formatRating } from "../online/protocol.ts";
 import { rankName, t } from "../i18n/index.ts";
-import { Chevron } from "./Fold.tsx";
 
+/** 순위표(팝업 안에서 연다 — 열 때 불러온다) */
 export function Leaderboard() {
   const [players, setPlayers] = useState<PublicUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.leaderboard().then((r) => setPlayers(r.players), (err) => setError(err.message));
+  }, []);
   return (
-    <details
-      className="panel leaderboard"
-      onToggle={(e) => {
-        if ((e.target as HTMLDetailsElement).open) api.leaderboard().then((r) => setPlayers(r.players), (err) => setError(err.message));
-      }}
-    >
-      <summary>{t("lb.title")}<Chevron /></summary>
+    <div className="leaderboard">
       {error && <p className="form-error">{error}</p>}
+      {!players && !error && <p className="muted">{t("rec.loading")}</p>}
       {players && players.length === 0 && <p className="muted">{t("lb.empty")}</p>}
       {players && players.length > 0 && (
         <ol>
@@ -28,6 +26,6 @@ export function Leaderboard() {
           ))}
         </ol>
       )}
-    </details>
+    </div>
   );
 }

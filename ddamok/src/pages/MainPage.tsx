@@ -14,12 +14,12 @@ import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
 import { Leaderboard } from "../components/Leaderboard.tsx";
 import { LookPicker } from "../components/LookPicker.tsx";
-import { Chevron, Fold } from "../components/Fold.tsx";
+import { Fold } from "../components/Fold.tsx";
+import { Popup } from "../components/Popup.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
 
-const BOARD_SIZES = [13, 15, 19];
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
 /** 백 히든은 AI 대국에서만(같은 화면 2인 대국은 숨길 수 없다) */
@@ -44,7 +44,9 @@ interface Online {
 
 export function MainPage() {
   const [session, setSession] = useState<Session | null>(loadSession);
-  const [boardSize, setBoardSize] = useState(DEFAULT_BOARD_SIZE);
+  /** 판 크기는 15×15로 통일 */
+  const boardSize = DEFAULT_BOARD_SIZE;
+  const [popup, setPopup] = useState<"lb" | "rules" | null>(null);
   const [history, setHistory] = useState<GameHistory>(() => createHistory(freshGame(DEFAULT_BOARD_SIZE)));
   const [fx, setFx] = useState<CaptureFx | null>(null);
   const [resultOpen, setResultOpen] = useState(true);
@@ -505,35 +507,22 @@ export function MainPage() {
                 reset(boardSize);
               }}
             />
-            <Fold id="size" title={t("size.label")}>
-              <label className="size-picker">
-                <select
-                  aria-label={t("size.label")}
-                  value={boardSize}
-                  onChange={(e) => {
-                    const size = Number(e.target.value);
-                    if (state.moveCount > 0 && !state.isFinished && !window.confirm(t("confirm.size"))) return;
-                    setBoardSize(size);
-                    reset(size, !!aiGame);
-                  }}
-                >
-                  {BOARD_SIZES.map((s) => (
-                    <option key={s} value={s}>{s}×{s}{s === DEFAULT_BOARD_SIZE ? t("size.default") : ""}</option>
-                  ))}
-                </select>
-              </label>
-              <p className="muted small-note">{t("size.note")}</p>
-            </Fold>
-            <Leaderboard />
           </>
         )}
         <LookPicker />
-        <details className="panel rules">
-          <summary>{t("rules.title")}<Chevron /></summary>
-          <ul>
+        {/* 순위·규칙은 팝업으로 */}
+        <section className="panel info-buttons">
+          <button className="btn" onClick={() => setPopup("lb")}>{t("lb.title")}</button>
+          <button className="btn" onClick={() => setPopup("rules")}>{t("rules.title")}</button>
+        </section>
+        <Popup title={t("lb.title")} open={popup === "lb"} onClose={() => setPopup(null)}>
+          <Leaderboard />
+        </Popup>
+        <Popup title={t("rules.title")} open={popup === "rules"} onClose={() => setPopup(null)}>
+          <ul className="rules-list">
             {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
           </ul>
-        </details>
+        </Popup>
       </aside>
     </main>
   );

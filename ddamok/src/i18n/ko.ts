@@ -36,6 +36,7 @@ export const ko = {
 
   "btn.newGame": "새 대국",
   "btn.undo": "무르기",
+  "btn.close": "닫기",
   "btn.hidden": "히든",
   "hidden.banner": "백 히든!",
   "end.line1": "{color}, {n}수 끝",
@@ -71,7 +72,6 @@ export const ko = {
   "status.secondFar": "흑 두 번째 수는 천원 5×5 바깥",
   "status.turn": "{color} 차례",
   "confirm.resign": "기권할까요?",
-  "confirm.size": "판 크기를 바꾸면 새 대국이 시작됩니다.",
 
   "mode.rated": "레이팅매치",
   "mode.casual": "친선매치",
@@ -94,9 +94,6 @@ export const ko = {
   "account.login": "로그인",
   "account.verifyTitle": "이메일 인증",
 
-  "size.label": "판 크기",
-  "size.default": " (기본)",
-  "size.note": "같은 화면 2인 대국·AI 대국용입니다. 온라인 대국은 15×15입니다.",
 
   "rules.title": "규칙",
   "rules.1": "흑부터 번갈아 빈 교차점에 한 점씩 둡니다. 흑의 **첫 수는 천원**(가운데)입니다. 금수(33·44·장목)는 없습니다.",
@@ -106,7 +103,7 @@ export const ko = {
   "rules.5": "흑은 **12개**, 백은 **10개**를 따내면 승리.",
   "rules.6": "AI·온라인 대국에서 백은 한 판에 한 번 **히든**을 쓸 수 있습니다. 10초 안에 둔 돌은 흑에게 보이지 않지만 5목·따내기에 그대로 쓰입니다. 시간을 넘기면 기회가 사라집니다. 히든이 있는 대국은 흑·백 모두 **10개**를 따내면 승리합니다.",
   "rules.7": "흑이 숨은 돌 자리를 누르면 돌이 드러나고 흑이 다시 둡니다. 숨은 돌로 따내거나 대국이 끝나도 드러납니다.",
-  "look.title": "판·돌 모양",
+  "look.title": "디자인",
   "look.board": "바둑판",
   "look.stones": "바둑돌",
   "look.basic": "기본",
