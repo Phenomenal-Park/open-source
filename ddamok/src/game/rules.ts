@@ -21,10 +21,11 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     const c = centerOf(state.config.boardSize);
     if (Math.max(Math.abs(row - c.row), Math.abs(col - c.col)) < state.config.secondMoveMinDistance) return "second-move-distance";
   }
-  // (실험용, 기본 꺼짐) 흑의 두 번째 수는 천원을 지나는 가로줄·세로줄에 둘 수 없다
-  if (state.config.secondMoveNoCross && state.moveCount === 2 && state.currentPlayer === "black") {
-    const c = centerOf(state.config.boardSize);
-    if (row === c.row || col === c.col) return "second-move-cross";
+  // (실험용, 기본 꺼짐) 흑의 두 번째 수는 천원을 지나는 줄(가로·세로, star면 대각선까지)에 둘 수 없다
+  const ban = state.config.secondMoveLineBan;
+  if (ban !== "none" && state.moveCount === 2 && state.currentPlayer === "black") {
+    const c = centerOf(state.config.boardSize), dr = row - c.row, dc = col - c.col;
+    if (dr === 0 || dc === 0 || (ban === "star" && Math.abs(dr) === Math.abs(dc))) return "second-move-line";
   }
   return null;
 }

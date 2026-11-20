@@ -21,13 +21,13 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     whiteFirstStoneImmune: overrides.whiteFirstStoneImmune ?? false,
     firstMoveCenter: overrides.firstMoveCenter ?? true,
     secondMoveMinDistance: overrides.secondMoveMinDistance ?? 0,
-    secondMoveNoCross: overrides.secondMoveNoCross ?? false,
+    secondMoveLineBan: overrides.secondMoveLineBan ?? "none",
   };
 }
 
 /** 흑의 두 번째 수에 자리 제한이 있는 규칙인가 */
 export function secondMoveRestricted(config: GameConfig): boolean {
-  return config.secondMoveMinDistance > 0 || config.secondMoveNoCross;
+  return config.secondMoveMinDistance > 0 || config.secondMoveLineBan !== "none";
 }
 
 /** 천원(가운데) 좌표 */
