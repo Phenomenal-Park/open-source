@@ -1,5 +1,5 @@
 import type { GameState, IllegalReason, MoveResult, Player, Position } from "./types.ts";
-import { centerOf, inBounds, opponent, overlineWinsFor } from "./config.ts";
+import { centerOf, DIRECTIONS, inBounds, opponent, overlineWinsFor } from "./config.ts";
 import { getCapturedStones } from "./captures.ts";
 import { checkCaptureVictory, findFiveInRow } from "./victory.ts";
 
@@ -34,13 +34,49 @@ export function isLegalMove(state: GameState, position: Position, player: Player
   return whyIllegal(state, position, player) === null;
 }
 
+export interface MoveOptions {
+  /** 백 히든: 이 돌을 숨겨서 둔다 */
+  hidden?: boolean;
+}
+
+const samePos = (a: Position | null | undefined, b: Position | null | undefined) => !!a && !!b && a.row === b.row && a.col === b.col;
+
+/** 백 히든을 지금 쓸 수 있는가 */
+export function canUseHidden(state: GameState): boolean {
+  return state.config.hiddenMove && !state.isFinished && state.currentPlayer === "white" && state.hidden === null;
+}
+
+/** 백이 히든을 누르고 제한 시간 안에 두지 못했다: 이 판의 히든 기회가 사라진다(백 차례 그대로) */
+export function forfeitHidden(state: GameState): GameState {
+  if (!canUseHidden(state)) return state;
+  return { ...state, hidden: { index: -1, pos: { row: -1, col: -1 }, revealed: true } };
+}
+
+/**
+ * `viewer`에게 보이는 판. 아직 드러나지 않은 백 히든 돌은 백만 볼 수 있다(흑·관전자에게는 빈칸, 기보 좌표도 가린다).
+ */
+export function viewFor(state: GameState, viewer: Player | null): GameState {
+  const h = state.hidden;
+  if (!h || h.revealed || viewer === "white") return state;
+  const board = state.board.map((r) => r.slice());
+  if (board[h.pos.row][h.pos.col] === "white") board[h.pos.row][h.pos.col] = null;
+  const moves = state.moves.map((m, i) => (i === h.index ? { row: -1, col: -1 } : m));
+  return { ...state, board, moves, lastMove: samePos(state.lastMove, h.pos) ? null : state.lastMove, hidden: { ...h, pos: { row: -1, col: -1 } } };
+}
+
 /**
  * 착수 한 번을 처리한다(지시서 §6 순서). 원본 state는 수정하지 않는다.
  * `player`를 넘기면 서버처럼 "누가 두려 하는지"까지 검증한다.
+ * 흑이 아직 드러나지 않은 백 히든 돌 자리에 두려 하면, 돌이 드러나고 흑 차례가 그대로 이어진다(revealedHidden).
  */
-export function tryMove(state: GameState, position: Position, player: Player = state.currentPlayer): MoveResult {
+export function tryMove(state: GameState, position: Position, player: Player = state.currentPlayer, opts: MoveOptions = {}): MoveResult {
+  const h = state.hidden;
+  if (!opts.hidden && h && !h.revealed && !state.isFinished && player === state.currentPlayer && player === "black" && samePos(h.pos, position)) {
+    return { ok: true, state: { ...state, hidden: { ...h, revealed: true }, lastCaptured: [] }, captured: [], revealedHidden: true };
+  }
   const reason = whyIllegal(state, position, player);
   if (reason) return { ok: false, reason };
+  if (opts.hidden && !canUseHidden(state)) return { ok: false, reason: "hidden-unavailable" };
 
   const me = state.currentPlayer;
   const pos = { row: position.row, col: position.col };
@@ -70,11 +106,21 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     lastMove: pos,
     lastCaptured: captured,
     moves: [...state.moves, pos],
+    hidden: opts.hidden ? { index: state.moves.length, pos, revealed: false } : state.hidden,
     winner: null,
     winReason: null,
     winningLine: null,
     isFinished: false,
   };
+
+  // 백 히든 돌이 드러나는 경우: 숨은 돌을 두면서 따냈거나, 백이 숨은 돌을 받침으로 따냈거나, 흑이 숨은 돌을 따냈을 때
+  const hs = next.hidden;
+  if (hs && !hs.revealed && captured.length) {
+    const anchored = me === "white" && DIRECTIONS.some(([dr, dc]) =>
+      pos.row + 3 * dr === hs.pos.row && pos.col + 3 * dc === hs.pos.col
+      && captured.some((c) => c.row === pos.row + dr && c.col === pos.col + dc));
+    if (opts.hidden || anchored || captured.some((c) => samePos(c, hs.pos))) next.hidden = { ...hs, revealed: true };
+  }
 
   // 10. 포획 승리
   const captureWin = checkCaptureVictory(next, me);
@@ -95,6 +141,8 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     // 13. 차례 넘김
     next.currentPlayer = opponent(me);
   }
+  // 대국이 끝나면 숨은 돌도 드러난다
+  if (next.isFinished && next.hidden && !next.hidden.revealed) next.hidden = { ...next.hidden, revealed: true };
   return { ok: true, state: next, captured };
 }
 

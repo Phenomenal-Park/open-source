@@ -18,6 +18,10 @@ interface BoardProps {
   onPlay: (pos: Position) => void;
   disabled?: boolean;
   fx: CaptureFx | null;
+  /** 백 히든: 내(백)가 숨겨 둔 돌 — 흐리게 보인다 */
+  ghost?: Position | null;
+  /** 백 히든: 드러난 숨은 돌 — 스르르 나타난다 */
+  reveal?: Position | null;
 }
 
 function starPoints(n: number): Position[] {
@@ -32,7 +36,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, reveal }: BoardProps) {
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -96,7 +100,11 @@ export function Board({ state, onPlay, disabled, fx }: BoardProps) {
                 cx={xy(c)}
                 cy={xy(r)}
                 r={R}
-                className={state.lastMove?.row === r && state.lastMove?.col === c ? "stone placed" : "stone"}
+                className={
+                  ghost?.row === r && ghost?.col === c ? "stone ghost"
+                    : reveal?.row === r && reveal?.col === c ? "stone reveal"
+                      : state.lastMove?.row === r && state.lastMove?.col === c ? "stone placed" : "stone"
+                }
               />
             ) : null,
           ),

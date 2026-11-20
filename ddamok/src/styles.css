@@ -74,6 +74,31 @@ button, input, select { font: inherit; }
 
 .bump { animation: bump .45s ease-out; }
 
+/* 백 히든 */
+.stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
+.stone.reveal { animation: reveal 1.5s ease-out; }
+.hidden-banner, .hidden-count { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 4; }
+.hidden-banner span {
+  max-width: 92%; text-align: center; line-height: 1.05;
+  font-size: clamp(2rem, 9vw, 4.4rem); font-weight: 900; letter-spacing: .01em; color: var(--text);
+  -webkit-text-stroke: 2px var(--bg); paint-order: stroke fill;
+  text-shadow: 0 0 22px var(--accent), 0 0 6px var(--accent), 0 5px 0 rgba(0,0,0,.55);
+  animation: banner 1.9s cubic-bezier(.2, 1.4, .4, 1) forwards;
+}
+.hidden-count span {
+  font-size: clamp(5rem, 32vw, 12rem); font-weight: 900; font-variant-numeric: tabular-nums; color: var(--text); opacity: .5;
+  text-shadow: 0 0 26px var(--accent); animation: tick 1s ease-out;
+}
+.hidden-count.urgent span { color: var(--red); opacity: .7; }
+@keyframes reveal { 0% { opacity: 0; transform: scale(1.7); } 55% { opacity: .9; transform: scale(.94); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes banner {
+  0% { transform: scale(2.6) rotate(-7deg); opacity: 0; }
+  16% { transform: scale(1) rotate(-3deg); opacity: 1; }
+  78% { transform: scale(1.05) rotate(-3deg); opacity: 1; }
+  100% { transform: scale(.92) rotate(-3deg); opacity: 0; }
+}
+@keyframes tick { from { transform: scale(1.4); opacity: .95; } to { transform: scale(1); opacity: .5; } }
+
 @keyframes place { from { transform: scale(1.15); } to { transform: scale(1); } }
 @keyframes capture {
   0% { transform: scale(1); opacity: 1; }

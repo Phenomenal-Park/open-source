@@ -1,6 +1,6 @@
 import type { GameConfig, GameState, Player, Position } from "./types.ts";
 import { makeConfig } from "./config.ts";
-import { tryMove } from "./rules.ts";
+import { tryMove, type MoveOptions } from "./rules.ts";
 
 export function createGame(boardSize?: number, options: Partial<Omit<GameConfig, "boardSize">> = {}): GameState {
   const config = makeConfig(boardSize, options);
@@ -18,6 +18,7 @@ export function createGameFromConfig(config: GameConfig): GameState {
     lastMove: null,
     lastCaptured: [],
     moves: [],
+    hidden: null,
     winner: null,
     winReason: null,
     winningLine: null,
@@ -40,8 +41,8 @@ export function currentState(history: GameHistory): GameState {
 }
 
 /** 착수 성공 시 이력에 스냅샷을 추가한다. 실패하면 같은 이력 객체를 돌려준다. */
-export function playMove(history: GameHistory, position: Position, player?: Player): GameHistory {
-  const result = tryMove(currentState(history), position, player);
+export function playMove(history: GameHistory, position: Position, player?: Player, opts: MoveOptions = {}): GameHistory {
+  const result = tryMove(currentState(history), position, player, opts);
   return result.ok ? [...history, result.state] : history;
 }
 
@@ -54,12 +55,12 @@ export type ReplayResult =
   | { ok: true; state: GameState }
   | { ok: false; moveIndex: number; reason: string };
 
-/** 기보를 처음부터 다시 두어 검증한다(서버의 결과 검증용). 종료 후 수가 더 있으면 실패. */
-export function replayMoves(config: GameConfig, moves: readonly Position[]): ReplayResult {
+/** 기보를 처음부터 다시 두어 검증한다(서버의 결과 검증용). 종료 후 수가 더 있으면 실패. hiddenIndex = 백 히든 수의 순번 */
+export function replayMoves(config: GameConfig, moves: readonly Position[], hiddenIndex: number | null = null): ReplayResult {
   let state = createGameFromConfig(config);
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
-    const result = tryMove(state, { row: m?.row, col: m?.col } as Position);
+    const result = tryMove(state, { row: m?.row, col: m?.col } as Position, undefined, { hidden: i === hiddenIndex });
     if (!result.ok) return { ok: false, moveIndex: i, reason: result.reason };
     state = result.state;
   }

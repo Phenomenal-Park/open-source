@@ -38,6 +38,17 @@ export interface GameConfig {
    * "cross" = 가로줄·세로줄, "star" = 가로·세로 + 두 대각선. 기본 "none"
    */
   secondMoveLineBan: "none" | "cross" | "star";
+  /** 백 히든: 백은 한 판에 한 번, 돌을 숨겨서 둘 수 있다(같은 화면 2인 대국에서는 끈다). 기본 false */
+  hiddenMove: boolean;
+}
+
+/** 백이 숨겨 둔 돌 */
+export interface HiddenStone {
+  /** moves에서 몇 번째 수인가 */
+  index: number;
+  pos: Position;
+  /** 흑도 볼 수 있게 드러났는가(흑이 그 자리를 눌렀을 때, 그 돌로 따냈을 때, 따였을 때, 대국이 끝났을 때) */
+  revealed: boolean;
 }
 
 export interface GameState {
@@ -54,6 +65,8 @@ export interface GameState {
   lastCaptured: Position[];
   /** 지금까지의 착수 좌표 (서버 재검증·기보용). */
   moves: Position[];
+  /** 백 히든 돌(쓰지 않았으면 null) */
+  hidden: HiddenStone | null;
 
   /** 무승부면 null(winReason "draw") */
   winner: Player | null;
@@ -63,8 +76,8 @@ export interface GameState {
   isFinished: boolean;
 }
 
-export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance" | "second-move-line";
+export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance" | "second-move-line" | "hidden-unavailable";
 
 export type MoveResult =
-  | { ok: true; state: GameState; captured: Position[] }
+  | { ok: true; state: GameState; captured: Position[]; /** 흑이 숨은 돌 자리를 눌러 돌이 드러났다(흑 차례 그대로) */ revealedHidden?: boolean }
   | { ok: false; reason: IllegalReason };
