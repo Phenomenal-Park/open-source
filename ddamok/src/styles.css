@@ -218,7 +218,7 @@ a { color: var(--accent); }
 }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .check input { margin-top: 2px; width: 18px; height: 18px; flex: none; }
-.friend-hidden { margin-top: 8px; color: var(--text); }
+.friend-hidden { margin: 0; color: var(--text); align-items: center; }
 .me { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .me-name { font-weight: 800; font-size: 16px; color: var(--text); }
 .score-rating { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -390,7 +390,7 @@ dialog.popup::backdrop { background: rgba(10,8,6,.6); }
 
 /* ── 휴대폰: 대국 화면이 한 화면에 들어오도록 촘촘하게(모양은 그대로, 여백·크기만 줄임) ── */
 @media (max-width: 600px) {
-  .app { padding: 8px 12px 12px; }
+  .app { padding: 8px 12px 6px; }
   .app-header { margin-bottom: 6px; }
   .layout { gap: 8px; }
   .play { gap: 8px; }
@@ -418,3 +418,22 @@ dialog.popup::backdrop { background: rgba(10,8,6,.6); }
 }
 /* 키가 작은 휴대폰: 판을 조금 줄여 한 화면에 */
 @media (max-width: 600px) { .board-wrap { max-width: min(100%, calc(100svh - 420px)); min-width: 0; } }
+/* 키가 큰 휴대폰: 남는 높이를 아래 여백으로 두지 않고 상자·버튼을 조금씩 키워 고르게 채운다(740px 기준, 작은 폰은 그대로) */
+@media (max-width: 600px) {
+  .side { gap: clamp(6px, calc(6px + (100svh - 740px) * 0.03), 12px); }
+  .layout, .play { gap: clamp(8px, calc(8px + (100svh - 740px) * 0.03), 14px); }
+  .fold { padding-block: clamp(8px, calc(8px + (100svh - 740px) * 0.025), 14px); }
+  .fold-toggle { min-height: clamp(28px, calc(28px + (100svh - 740px) * 0.04), 42px); }
+  .fold-toggle h2 { font-size: clamp(15px, calc(15px + (100svh - 740px) * 0.012), 17px); }
+  .info-buttons .btn { min-height: clamp(40px, calc(40px + (100svh - 740px) * 0.07), 56px); }
+  .count { font-size: clamp(24px, calc(24px + (100svh - 740px) * 0.03), 30px); }
+  .score-card { padding-block: clamp(6px, calc(6px + (100svh - 740px) * 0.02), 10px); }
+}
+
+/* 친구매치 설정 한 줄: 히든 모드 · 시간 */
+.friend-options { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.friend-time { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 36px; font-size: 14px; }
+/* 대국 시계(점수판 오른쪽) */
+.score-count .clock { margin-left: auto; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); }
+.score-count .clock.on { color: var(--text); }
+.score-count .clock.low.on { color: var(--red); }

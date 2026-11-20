@@ -30,7 +30,23 @@ export const HIDDEN_GRACE_MS = 1_500;
 /** 온라인 대국 규칙: 백 히든이 있는 판은 흑·백 모두 10개 따내면 승리 */
 export const HIDDEN_CAPTURE_TARGET = { black: 10, white: 10 } as const;
 
-export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "draw";
+export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "timeout" | "draw";
+
+/** 대국 시계(피셔 방식): 처음 시간 + 한 수 둘 때마다 1초 추가. 레이팅·친선은 3분, 친구매치는 1·3·5·10분 중 선택 */
+export const CLOCK_INCREMENT_MS = 1_000;
+export const DEFAULT_CLOCK_MIN = 3;
+export const FRIEND_CLOCK_MINUTES = [1, 3, 5, 10] as const;
+export type ClockMinutes = (typeof FRIEND_CLOCK_MINUTES)[number];
+
+export interface ClockView {
+  /** 처음 시간(ms)·한 수마다 더하는 시간(ms) */
+  baseMs: number;
+  incMs: number;
+  /** 남은 시간(ms) — 서버가 이 상태를 보낸 순간 기준 */
+  remaining: Record<Player, number>;
+  /** 지금 줄어드는 쪽(멈춰 있으면 null — 시작 전·히든 고르는 중·끝남) */
+  running: Player | null;
+}
 
 export interface PlayerInfo {
   username: string;
@@ -87,6 +103,8 @@ export interface GameSnapshot {
   view?: GameState;
   /** 백이 히든을 눌렀고 아직 두지 않았다: 남은 시간(ms) */
   hiddenArmedMs?: number;
+  /** 대국 시계 */
+  clock?: ClockView;
 }
 
 export type ServerMessage =

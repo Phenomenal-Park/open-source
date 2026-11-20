@@ -31,7 +31,8 @@ export function GameResult({ result: r, canUndo, onNewGame, onUndo, onClose }: G
     : r.reason === "capture" ? t("result.capture", { n: r.captured })
       : r.reason === "five" ? t("result.five")
         : r.reason === "resign" ? t("result.resigned", { color: loser })
-          : t("result.disconnected", { color: loser });
+          : r.reason === "timeout" ? t("result.timedOut", { color: loser })
+            : t("result.disconnected", { color: loser });
   const title = r.winner === null ? t("result.draw")
     : r.you ? (r.you === r.winner ? t("result.youWin") : t("result.youLose"))
       : t("result.colorWins", { color: colorName(r.winner) });

@@ -12,6 +12,8 @@ interface Env {
   SECOND_MOVE_MIN_DISTANCE?: string;
   /** 백 히든 규칙(기본 켜짐, "0"이면 끔 — 끄면 따냄 목표는 흑 12 / 백 10) */
   HIDDEN_MOVE?: string;
+  /** 대국 시계 처음 시간(ms). 테스트용으로만 바꾼다(기본: 레이팅·친선 3분, 친구 선택) */
+  CLOCK_TEST_MS?: string;
   /** 온라인 대국 판 크기(기본 15). 테스트용으로만 바꾼다. */
   BOARD_SIZE?: string;
   /** 사람별 기보 보관 개수(기본 100). 테스트용으로만 바꾼다. */

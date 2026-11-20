@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Session } from "../api.ts";
-import { FRIEND_CODE_RE, type MatchMode } from "../online/protocol.ts";
+import { DEFAULT_CLOCK_MIN, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, type MatchMode } from "../online/protocol.ts";
 import { t } from "../i18n/index.ts";
 import { Fold } from "./Fold.tsx";
 
@@ -8,13 +8,14 @@ interface OnlinePanelProps {
   session: Session | null;
   waiting: { mode: MatchMode; code: string | null; hidden?: boolean } | null;
   error: string | null;
-  onFind: (mode: MatchMode, code: string | null, hidden?: boolean) => void;
+  onFind: (mode: MatchMode, code: string | null, hidden?: boolean, clockMin?: number) => void;
   onCancel: () => void;
 }
 
 export function OnlinePanel({ session, waiting, error, onFind, onCancel }: OnlinePanelProps) {
   const [code, setCode] = useState("");
   const [hidden, setHidden] = useState(true);
+  const [clockMin, setClockMin] = useState<number>(DEFAULT_CLOCK_MIN);
   const ready = session?.verified;
   return (
     <Fold id="online" title={t("online.title")} label={t("online.title")} forceOpen={!!waiting}>
@@ -37,7 +38,7 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
             className="friend-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (FRIEND_CODE_RE.test(code)) onFind("friend", code, hidden);
+              if (FRIEND_CODE_RE.test(code)) onFind("friend", code, hidden, clockMin);
             }}
           >
             <input
@@ -46,10 +47,16 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
             />
             <button className="btn" type="submit" disabled={!ready || !FRIEND_CODE_RE.test(code)}>{t("mode.friend")}</button>
           </form>
-          <label className="check friend-hidden">
-            <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} disabled={!ready} />
-            {t("online.hiddenToggle")}
-          </label>
+          {/* 친구매치 설정: 히든 모드 · 시간(1·3·5·10분) */}
+          <div className="friend-options">
+            <label className="check friend-hidden">
+              <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} disabled={!ready} />
+              {t("online.hiddenToggle")}
+            </label>
+            <select className="friend-time" aria-label={t("online.clock")} value={clockMin} onChange={(e) => setClockMin(Number(e.target.value))} disabled={!ready}>
+              {FRIEND_CLOCK_MINUTES.map((m) => <option key={m} value={m}>{t("online.minutes", { n: m })}</option>)}
+            </select>
+          </div>
           <p className="muted small-note">{t("online.note")}</p>
         </>
       )}

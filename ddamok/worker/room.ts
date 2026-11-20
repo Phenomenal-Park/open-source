@@ -10,7 +10,8 @@ import { chooseBlackMove, chooseWhiteMove } from "../src/ai/hidden.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
-  DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, HIDDEN_CAPTURE_TARGET, HIDDEN_GRACE_MS, HIDDEN_MS, PING, PONG, WS_PROTOCOL,
+  CLOCK_INCREMENT_MS, DEFAULT_CLOCK_MIN, DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, HIDDEN_CAPTURE_TARGET, HIDDEN_GRACE_MS, HIDDEN_MS, PING, PONG, WS_PROTOCOL,
+  type ClockView,
   type ClientMessage, type GameSnapshot, type MatchMode, type OnlineResult, type ResultReason, type ServerMessage,
 } from "../src/online/protocol.ts";
 import { toRated, type UserRow } from "./users.ts";
@@ -34,6 +35,8 @@ export interface RoomInit {
   rated: boolean;
   /** 백 히든 모드(친구매치만 끌 수 있다, 없으면 켜짐) */
   hiddenMove?: boolean;
+  /** 처음 시간(분). 레이팅·친선 3분, 친구매치는 1·3·5·10분 */
+  clockMin?: number;
   black: RoomPlayer;
   white: RoomPlayer;
 }
@@ -53,6 +56,8 @@ interface RoomData extends RoomInit {
   hiddenForfeit?: boolean;
   /** 백이 히든을 누른 시각 + HIDDEN_MS (아직 두지 않았으면) */
   hiddenArmedUntil?: number | null;
+  /** 대국 시계(피셔): 남은 시간, 지금 줄어드는 쪽이 줄기 시작한 시각(멈췄으면 null) */
+  clock?: { baseMs: number; incMs: number; remaining: Record<Player, number>; since: number | null };
   status: "playing" | "finished" | "aborted";
   result: OnlineResult | null;
   /** 이 시각까지 돌아오지 않으면 패배(접속 끊김) */
@@ -81,6 +86,28 @@ export class GameRoom extends DurableObject<Env> {
   private get disconnectMs(): number {
     const v = Number(this.env.DISCONNECT_MS);
     return Number.isFinite(v) && v > 0 ? v : DISCONNECT_MS;
+  }
+
+  /** 처음 시간(ms). 테스트에서는 CLOCK_TEST_MS로 짧게 */
+  private clockBaseMs(min?: number): number {
+    const test = Number(this.env.CLOCK_TEST_MS);
+    if (Number.isFinite(test) && test > 0) return test;
+    return (min ?? DEFAULT_CLOCK_MIN) * 60_000;
+  }
+
+  /** 지금 차례인 쪽(시계가 도는 쪽). 시작 전(둘 다 들어오기 전)·히든 고르는 중·끝나면 null */
+  private clockTurn(d: RoomData, s: GameState): Player | null {
+    if (d.status !== "playing" || !d.clock || d.clock.since === null) return null;
+    return s.currentPlayer;
+  }
+
+  /** 지금 줄어드는 쪽의 시간을 now까지 반영해 멈춘다(이후 다시 시작하려면 since를 넣는다) */
+  private stopClock(d: RoomData, s: GameState, now: number) {
+    const c = d.clock;
+    const who = this.clockTurn(d, s);
+    if (!c || !who) return;
+    c.remaining[who] -= now - c.since!;
+    c.since = null;
   }
 
   private get heartbeatTimeoutMs(): number {
@@ -122,7 +149,8 @@ export class GameRoom extends DurableObject<Env> {
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
       ...init, boardSize: this.boardSize, secondMoveMinDistance: Number(this.env.SECOND_MOVE_MIN_DISTANCE) || 0, moves: [], status: "playing", result: null,
-      hiddenMove: this.env.HIDDEN_MOVE !== "0" && init.hiddenMove !== false, hiddenIndex: null, hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
+      hiddenMove: this.env.HIDDEN_MOVE !== "0" && init.hiddenMove !== false, hiddenIndex: null,
+      clock: newClock(this.clockBaseMs(init.clockMin)), hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
     for (const c of COLORS) if (!init[c].bot) this.data.deadlines[c] = deadline;
@@ -169,6 +197,15 @@ export class GameRoom extends DurableObject<Env> {
       this.maybeBotTurn();
       return null;
     }
+    // 시계: 둔 쪽 시간을 반영하고 1초를 더한 뒤 상대 시계를 돌린다(히든 고르는 동안은 이미 멈춰 있었다)
+    if (d.clock) {
+      const now = Date.now();
+      const c = d.clock;
+      if (c.since !== null) { c.remaining[color] -= now - c.since; }
+      if (c.remaining[color] <= 0) { await this.finish(opponent(color), "timeout"); return null; }
+      c.remaining[color] += c.incMs;
+      c.since = now;
+    }
     if (opts.hidden) { d.hiddenIndex = d.moves.length; d.hiddenArmedUntil = null; }
     d.moves.push({ row: pos.row, col: pos.col });
     if (r.state.isFinished && r.state.winReason) {
@@ -195,6 +232,8 @@ export class GameRoom extends DurableObject<Env> {
     if (d.status === "playing") {
       delete d.deadlines[color];
       d.joined[color] = true;
+      // 두 사람이 다 들어오면 시계가 돌기 시작한다(흑부터)
+      if (d.clock && d.clock.since === null && d.joined.black && d.joined.white && !d.hiddenArmedUntil && d.moves.length === 0) d.clock.since = Date.now();
       await this.save();
       await this.scheduleAlarm();
     }
@@ -222,6 +261,7 @@ export class GameRoom extends DurableObject<Env> {
       // 백 히든 누름: 10초 안에 숨겨 둬야 한다(못 두면 alarm에서 기회 소멸)
       if (color !== "white" || !d.hiddenMove || d.hiddenArmedUntil || !canUseHidden(this.replay(d))) return this.sendState(ws, color);
       d.hiddenArmedUntil = Date.now() + HIDDEN_MS;
+      this.stopClock(d, this.replay(d), Date.now()); // 히든 고르는 10초 동안 백 시계는 멈춘다
       await this.save();
       await this.scheduleAlarm();
       this.broadcast();
@@ -264,6 +304,10 @@ export class GameRoom extends DurableObject<Env> {
   private async scheduleAlarm() {
     const d = this.data!;
     let next = Math.min(...COLORS.map((c) => d.deadlines[c] ?? Infinity), d.hiddenArmedUntil ? d.hiddenArmedUntil + HIDDEN_GRACE_MS : Infinity);
+    if (d.status === "playing" && d.clock && d.clock.since !== null) {
+      const who = this.replay(d).currentPlayer;
+      next = Math.min(next, d.clock.since + Math.max(0, d.clock.remaining[who]) + 50);
+    }
     // 대국 중 접속해 있는 사람이 있으면 신호 확인을 위해 주기적으로 깨어난다
     if (d.status === "playing" && COLORS.some((c) => !d[c].bot && this.openSockets(c).length)) {
       next = Math.min(next, Date.now() + Math.min(10_000, this.heartbeatTimeoutMs / 2));
@@ -296,8 +340,18 @@ export class GameRoom extends DurableObject<Env> {
       // 히든을 누르고 시간 안에 두지 못함: 그 판의 히든 기회 소멸(백 차례 그대로)
       d.hiddenArmedUntil = null;
       d.hiddenForfeit = true;
+      if (d.clock) d.clock.since = now; // 백 시계 다시
       await this.save();
       this.broadcast();
+    }
+    // 시간 초과
+    if (d.clock && d.clock.since !== null) {
+      const s = this.replay(d);
+      if (d.clock.remaining[s.currentPlayer] - (now - d.clock.since) <= 0) {
+        this.stopClock(d, s, now);
+        d.clock.remaining[s.currentPlayer] = 0;
+        return this.finish(opponent(s.currentPlayer), "timeout");
+      }
     }
     if (this.sweepHeartbeats(now)) {
       await this.save();
@@ -322,6 +376,7 @@ export class GameRoom extends DurableObject<Env> {
     const d = this.data!;
     if (d.status !== "playing") return;
     d.status = "finished";
+    if (d.clock && d.clock.since !== null) { this.stopClock(d, this.replay(d), Date.now()); }
     d.deadlines = {};
     d.hiddenArmedUntil = null;
     d.result = { winner, reason };
@@ -402,7 +457,16 @@ export class GameRoom extends DurableObject<Env> {
       moves: view.moves, status: d.status, result: d.result, disconnected,
       hiddenMove: !!d.hiddenMove, view,
       ...(d.hiddenArmedUntil ? { hiddenArmedMs: Math.max(0, d.hiddenArmedUntil - now) } : {}),
+      ...(d.clock ? { clock: this.clockView(d, now) } : {}),
     };
+  }
+
+  private clockView(d: RoomData, now: number): ClockView {
+    const c = d.clock!;
+    const running = d.status === "playing" && c.since !== null ? this.replay(d).currentPlayer : null;
+    const remaining = { ...c.remaining };
+    if (running) remaining[running] = Math.max(0, remaining[running] - (now - c.since!));
+    return { baseMs: c.baseMs, incMs: c.incMs, remaining, running };
   }
 
   private sendTo(ws: WebSocket, msg: ServerMessage) {
@@ -420,6 +484,10 @@ export class GameRoom extends DurableObject<Env> {
       this.sendTo(ws, { type: "state", you, game: (games[you] ??= this.snapshot(you)) });
     }
   }
+}
+
+function newClock(baseMs: number) {
+  return { baseMs, incMs: CLOCK_INCREMENT_MS, remaining: { black: baseMs, white: baseMs }, since: null as number | null };
 }
 
 /** 이 대국의 규칙: 백 히든 판은 흑·백 모두 10개 따내면 승리 */

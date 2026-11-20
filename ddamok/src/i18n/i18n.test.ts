@@ -24,8 +24,8 @@ describe("다국어", () => {
     }
   });
 
-  it("게임 이름: 따목 / ddamok / タモク — 로마자 표기는 반드시 소문자 ddamok", () => {
-    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["따목", "ddamok", "タモク"]);
+  it("게임 이름: 히든따목 / hidden ddamok / ヒドゥンタモク — 로마자 표기는 반드시 소문자 ddamok", () => {
+    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["히든따목", "hidden ddamok", "ヒドゥンタモク"]);
     for (const cat of Object.values(CATALOGS)) for (const v of Object.values(cat)) expect(v).not.toMatch(/Ddamok|DDAMOK|[Tt]tamok/);
   });
 

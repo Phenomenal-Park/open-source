@@ -94,6 +94,14 @@ export function MainPage() {
     lastLen.current = onlineState.moveCount;
   }, [onlineState]);
 
+  // 대국 시계 표시: 도는 동안 0.25초마다 다시 그린다
+  const clockRunning = !!online?.game?.clock?.running;
+  useEffect(() => {
+    if (!clockRunning) return;
+    const t = setInterval(() => tick((x) => x + 1), 250);
+    return () => clearInterval(t);
+  }, [clockRunning]);
+
   // 접속 끊김 카운트다운 표시용 1초 타이머
   const anyDisconnected = online?.game && Object.keys(online.game.disconnected).length > 0;
   useEffect(() => {
@@ -313,7 +321,7 @@ export function MainPage() {
     if (online && onlinePlaying && window.confirm(t("confirm.resign"))) conn.current?.send({ type: "resign" });
   }
 
-  function find(mode: MatchMode, code: string | null, hidden = true) {
+  function find(mode: MatchMode, code: string | null, hidden = true, clockMin?: number) {
     if (!session) return;
     setOnlineError(null);
     cancelMatch.current?.();
@@ -330,7 +338,7 @@ export function MainPage() {
         setWaiting(null);
         setOnlineError(message);
       },
-    }, hidden);
+    }, hidden, clockMin);
   }
 
   function cancelFind() {
@@ -350,6 +358,10 @@ export function MainPage() {
         rank: rankName(pl.rating),
         rating: formatRating(pl.rating, pl.provisional),
         disconnectedSec: left !== undefined ? Math.max(0, Math.ceil((left - (Date.now() - (online.at ?? Date.now()))) / 1000)) : undefined,
+        clock: online.game.clock && {
+          ms: online.game.clock.remaining[p] - (online.game.clock.running === p ? Date.now() - (online.at ?? Date.now()) : 0),
+          running: online.game.clock.running === p,
+        },
       };
     }
     if (aiGame && aiLevel) return aiGame.aiColor === p ? { name: t(`ai.name.${aiLevel.id}` as MessageKey) } : { name: t("name.me") };
@@ -479,6 +491,7 @@ export function MainPage() {
             <p className="muted">
               {t(online.game?.rated ? "online.ratedNote" : "online.unratedNote")} {t("online.rulesNote")}
               {online.game && <> {t(online.game.hiddenMove ? "online.hiddenOn" : "online.hiddenOff")}</>}
+              {online.game?.clock && <> {t("online.clockNote", { n: Math.round(online.game.clock.baseMs / 60000) })}</>}
             </p>
           </section>
         ) : (

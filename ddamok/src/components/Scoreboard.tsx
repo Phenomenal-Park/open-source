@@ -6,7 +6,15 @@ export interface SeatLabel {
   rating?: string;
   /** 접속 끊김: 패배까지 남은 초 */
   disconnectedSec?: number;
+  /** 대국 시계: 남은 시간(ms), 지금 줄어드는 중인가 */
+  clock?: { ms: number; running: boolean };
 }
+
+/** 2:58 · 0:09 */
+const fmtClock = (ms: number) => {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
 
 interface ScoreboardProps {
   state: GameState;
@@ -41,6 +49,11 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
               <span className="target">/ {target}</span>
               {mover === p && justCaptured > 0 && (
                 <span key={`plus-${state.moveCount}`} className="plus">+{justCaptured}</span>
+              )}
+              {user?.clock && (
+                <span className={`clock${user.clock.running ? " on" : ""}${user.clock.ms <= 10_000 ? " low" : ""}`} aria-label={t("online.clock")}>
+                  {fmtClock(user.clock.ms)}
+                </span>
               )}
             </div>
             <div className="meter" aria-hidden>

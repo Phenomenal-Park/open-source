@@ -15,8 +15,8 @@ export interface MatchHandlers {
 }
 
 /** 매칭 대기. 돌려주는 함수를 부르면 취소. */
-export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, hidden = true): () => void {
-  const q = new URLSearchParams({ mode, ...(mode === "friend" && code ? { code, hidden: hidden ? "1" : "0" } : {}) });
+export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, hidden = true, clockMin?: number): () => void {
+  const q = new URLSearchParams({ mode, ...(mode === "friend" && code ? { code, hidden: hidden ? "1" : "0", time: String(clockMin ?? 3) } : {}) });
   const ws = new WebSocket(wsUrl(`/api/match?${q}`), [WS_PROTOCOL, token]);
   let done = false;
   const beat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(PING), HEARTBEAT_MS);

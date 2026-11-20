@@ -311,6 +311,31 @@ await check("기보: 대국 종류(레이팅·친선·친구)로 나눠 보기, 
   assert.equal(rated.total, rated.games.length);
 });
 
+await check("시계(피셔): 친구매치는 고른 시간(다른 시간끼리는 안 붙음), 흑부터 줄고 한 수마다 1초 추가", async () => {
+  const x = await match(A.token, "mode=friend&code=8888&time=1");
+  await x.next((m) => m.type === "waiting");
+  const y = await match(B.token, "mode=friend&code=8888&time=5");
+  await y.next((m) => m.type === "waiting");
+  await sleep(500);
+  assert.ok(!x.queue.some((m) => m.type === "matched"));
+  x.close(); y.close();
+  await sleep(300);
+  const { black, white, game } = await pairUp(A.token, B.token, "mode=friend&code=8889&time=5");
+  const st = await black.sock.next((m) => m.type === "state" && m.game.clock?.running === "black");
+  assert.equal(st.game.clock.baseMs, 300000);
+  assert.equal(st.game.clock.incMs, 1000);
+  await sleep(1200);
+  const after = await play(black, 7, 7, 0);
+  assert.equal(after.game.clock.running, "white");
+  const b = after.game.clock.remaining.black;
+  assert.ok(b < 300000 && b > 299000, `흑: 1.2초 쓰고 1초 받음 → ${b}`);
+  assert.ok(after.game.clock.remaining.white > 299000);
+  black.sock.send({ type: "resign" });
+  await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+  void game;
+});
+
 await check("친구매치: 같은 코드끼리, 숫자 1~8자리만", async () => {
   for (const bad of ["12a4", "123456789", ""]) {
     const s = socket(`/api/match?mode=friend&code=${bad}`, A.token);
@@ -519,7 +544,7 @@ server.stop();
 
 // ── 무승부: 5×5 판 전용 서버(판이 다 차는 대국을 짧게 재현) ──
 const DRAW_SEQ = [[2,2],[1,1],[4,3],[2,4],[4,2],[2,0],[0,3],[3,2],[0,4],[4,4],[0,1],[1,3],[1,4],[3,0],[3,1],[3,3],[0,2],[3,4],[2,3],[1,2],[2,1],[0,0],[4,0],[1,0],[4,1]]; // 첫 수는 천원(2,2)
-const small = await startServer({ BOARD_SIZE: "5" });
+const small = await startServer({ BOARD_SIZE: "5", CLOCK_TEST_MS: "4000" });
 const sapi = async (path, body, token) => {
   const res = await fetch(small.base + path, {
     method: body === undefined ? "GET" : "POST",
@@ -572,6 +597,31 @@ await check("무승부: 판이 다 차면 무승부, 통산 전적에 무승부 
   assert.equal(rec.result, "draw");
   assert.equal(rec.moveCount, 25);
   assert.equal((await sapi(`/api/games/${gameId}`)).data.winner, null);
+});
+await check("시간 초과: 시계가 다 되면 그 쪽 패배(시간패), 기보에도 남는다(테스트 4초)", async () => {
+  const users = [];
+  for (const n of ["clock_a", "clock_b"]) {
+    const r = await sapi("/api/signup", { username: n, email: `${n}@example.com`, password: "password1", over14: true });
+    await sapi("/api/verify", { code: r.data.devCode }, r.data.token);
+    users.push(r.data.token);
+  }
+  const ma = ssock("/api/match?mode=friend&code=1234", users[0]);
+  await ma.next((m) => m.type === "waiting");
+  const mb = ssock("/api/match?mode=friend&code=1234", users[1]);
+  const { gameId } = await ma.next((m) => m.type === "matched");
+  await mb.next((m) => m.type === "matched");
+  const ga = ssock(`/api/games/${gameId}/ws`, users[0]), gb = ssock(`/api/games/${gameId}/ws`, users[1]);
+  const sa = await ga.next((m) => m.type === "state");
+  await gb.next((m) => m.type === "state");
+  const byColor = sa.you === "black" ? { black: ga, white: gb } : { black: gb, white: ga };
+  byColor.black.send({ type: "move", row: 2, col: 2, moveNo: 0 });
+  // 백이 두지 않으면 4초(+흑이 받은 1초와 무관) 뒤 백 시간패
+  const fin = await byColor.black.next((m) => m.type === "state" && m.game.status === "finished");
+  assert.equal(fin.game.result.reason, "timeout");
+  assert.equal(fin.game.result.winner, "black");
+  assert.equal(fin.game.clock.remaining.white, 0);
+  ga.close(); gb.close();
+  assert.equal((await sapi(`/api/games/${gameId}`)).data.reason, "timeout");
 });
 small.stop();
 console.log(failures ? `${failures}개 실패` : "모두 통과");
