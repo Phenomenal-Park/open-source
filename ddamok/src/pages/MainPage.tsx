@@ -21,7 +21,9 @@ const BOARD_SIZES = [13, 15, 19];
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
 /** 백 히든은 AI 대국에서만(같은 화면 2인 대국은 숨길 수 없다) */
-const freshGame = (size: number, hiddenMove = false) => createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove });
+/** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
+const freshGame = (size: number, hiddenMove = false) =>
+  createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 10, white: 10 } } : {}) });
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
