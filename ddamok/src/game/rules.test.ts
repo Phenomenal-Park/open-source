@@ -479,6 +479,27 @@ describe("(실험용) 백만 장목 승리", () => {
   });
 });
 
+describe("(실험용) 백 첫 돌 불사", () => {
+  it("켜면 백의 첫 돌이 낀 두 돌은 따이지 않고, 다른 백돌은 평소대로 따인다", () => {
+    const rule = { firstMoveCenter: true, whiteFirstStoneImmune: true };
+    // 흑(7,7) 백(7,8)=첫 돌 흑(0,0) 백(7,9) 흑(7,10) → 흑이 (7,10)에 두면 ●○○● 이지만 첫 돌이 끼어 있어 무사
+    let s = play(createGame(15, rule), at(7, 7), at(7, 8), at(0, 0), at(7, 9));
+    s = applyMove(s, at(7, 10));
+    expect(s.board[7][8]).toBe("white");
+    expect(s.board[7][9]).toBe("white");
+    expect(s.capturedByBlack).toBe(0);
+    // 같은 수순, 규칙 꺼짐 → 평소대로 따임
+    let off = play(createGame(15), at(7, 7), at(7, 8), at(0, 0), at(7, 9));
+    off = applyMove(off, at(7, 10));
+    expect(off.capturedByBlack).toBe(2);
+    // 첫 돌이 아닌 백 두 점은 따인다
+    let t = play(createGame(15, rule), at(7, 7), at(0, 14), at(5, 5), at(3, 3), at(6, 6), at(4, 4));
+    // 흑(2,2): ↘ (3,3)○ (4,4)○ (5,5)● → 포획
+    t = applyMove(t, at(2, 2));
+    expect(t.capturedByBlack).toBe(2);
+  });
+});
+
 describe("무승부", () => {
   // 5×5 판, (4,4) 한 칸만 비어 있다. 흑이 두면 5목도 포획도 없이 판이 다 찬다.
   const full = () => fromDiagram(["XOXOX", "XOXOO", "OXOXO", "OXOXO", "XOXO."], "black", { size: 5 });

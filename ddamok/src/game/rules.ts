@@ -44,7 +44,8 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   board[pos.row][pos.col] = me;
 
   // 6–7. 이번 착수점 기준 8방향 포획 대상 수집
-  const captured = getCapturedStones(board, pos, me);
+  const immune = state.config.whiteFirstStoneImmune && state.moves.length >= 2 ? state.moves[1] : null;
+  const captured = getCapturedStones(board, pos, me, immune);
 
   // 8. 동시에 제거
   for (const { row, col } of captured) board[row][col] = null;

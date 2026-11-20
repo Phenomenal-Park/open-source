@@ -24,6 +24,8 @@ export interface GameConfig {
   overlineWins: boolean;
   /** (실험용, 기본 false) 백만 6목 이상도 승리 — 흑은 overlineWins를 따른다 */
   whiteOverlineWins: boolean;
+  /** (실험용, 기본 false) 백의 첫 돌(전체 2수째)은 절대 따이지 않는다 — 그 돌이 낀 두 돌은 둘 다 무사 */
+  whiteFirstStoneImmune: boolean;
   /** 흑의 첫 수는 반드시 천원(가운데). 기본 true — 테스트에서 다른 규칙만 따로 확인할 때만 끈다 */
   firstMoveCenter: boolean;
   /**

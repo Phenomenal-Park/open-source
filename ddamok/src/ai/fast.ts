@@ -42,6 +42,8 @@ interface Undo {
   pos: number;
   color: Color;
   captured: number[];
+  /** 이 수가 백의 첫 수라 불사 돌로 정해졌는가 */
+  setImmune: boolean;
 }
 
 export class FastBoard {
@@ -72,11 +74,18 @@ export class FastBoard {
   private zobrist: Int32Array;
   private stack: Undo[] = [];
 
-  constructor(n: number, target: [number, number] = [12, 10], overlineWins = false, whiteOverlineWins = false) {
+  /** (실험용) 백 첫 돌 불사 규칙: 켜져 있으면 백의 첫 돌 칸(없으면 -1) */
+  readonly whiteImmuneRule: boolean;
+  immune = -1;
+  /** 이 판을 만들 때까지 둔 수(백의 첫 수를 알아보기 위해) */
+  baseMoves = 0;
+
+  constructor(n: number, target: [number, number] = [12, 10], overlineWins = false, whiteOverlineWins = false, whiteImmuneRule = false) {
     this.n = n;
     this.cells = new Int8Array(n * n);
     this.target = [0, target[0], target[1]];
     this.overline = [false, overlineWins, overlineWins || whiteOverlineWins];
+    this.whiteImmuneRule = whiteImmuneRule;
     this.empties = n * n;
     this.near = new Int16Array(n * n);
     const windows: number[][] = [];
@@ -105,7 +114,9 @@ export class FastBoard {
 
   static fromState(s: GameState): FastBoard {
     const n = s.config.boardSize;
-    const b = new FastBoard(n, [s.config.captureTarget.black, s.config.captureTarget.white], s.config.overlineWins, s.config.whiteOverlineWins);
+    const b = new FastBoard(n, [s.config.captureTarget.black, s.config.captureTarget.white], s.config.overlineWins, s.config.whiteOverlineWins, s.config.whiteFirstStoneImmune);
+    b.baseMoves = s.moveCount;
+    if (s.config.whiteFirstStoneImmune && s.moves.length >= 2) b.immune = s.moves[1].row * n + s.moves[1].col;
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
@@ -163,7 +174,7 @@ export class FastBoard {
       const r3 = r + 3 * dr, c3 = c + 3 * dc;
       if (r3 < 0 || r3 >= n || c3 < 0 || c3 >= n) continue;
       const p1 = (r + dr) * n + c + dc, p2 = (r + 2 * dr) * n + c + 2 * dc;
-      if (this.cells[p1] === enemy && this.cells[p2] === enemy && this.cells[r3 * n + c3] === color) out.push(p1, p2);
+      if (this.cells[p1] === enemy && this.cells[p2] === enemy && this.cells[r3 * n + c3] === color && p1 !== this.immune && p2 !== this.immune) out.push(p1, p2);
     }
     return out;
   }
@@ -189,7 +200,10 @@ export class FastBoard {
     this.put(pos, color);
     for (const p of captured) this.remove(p);
     this.caps[color] += captured.length;
-    this.stack.push({ pos, color, captured });
+    // (실험용) 백의 첫 수(전체 2수째)는 이후 절대 따이지 않는다
+    const setImmune = this.whiteImmuneRule && this.immune < 0 && color === WHITE && this.baseMoves + this.stack.length === 1;
+    if (setImmune) this.immune = pos;
+    this.stack.push({ pos, color, captured, setImmune });
     this.toMove = other(color);
     this.hash ^= 1;
     if (this.caps[color] >= this.target[color] || this.isFive(pos, color)) return 1;
@@ -198,6 +212,7 @@ export class FastBoard {
 
   undo() {
     const u = this.stack.pop()!;
+    if (u.setImmune) this.immune = -1;
     for (const p of u.captured) this.put(p, other(u.color));
     this.caps[u.color] -= u.captured.length;
     this.remove(u.pos);
