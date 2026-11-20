@@ -99,8 +99,8 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
  *    아니어도 그 줄을 막는 수가 된다.
  * 2) 아니면 숨은 돌이 있을 법한 자리 몇 곳(가설)마다 후보 수를 읽어, 무게를 곱해 더한 기대값이 가장 좋은 수를 둔다.
  */
-export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random): Position {
-  const plain = chooseMove(view, level, rand);
+export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random, plainLevel: AiLevel = level): Position {
+  const plain = chooseMove(view, plainLevel, rand);
   const belief = hiddenBelief(view);
   if (!belief.length || !level.fast) return blackProbe(view) ?? plain;
   const n = view.config.boardSize;
@@ -150,8 +150,20 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
 }
 
 /** 흑 AI의 수: 보이는 판으로만 생각한다(강한 단계는 숨은 돌 위치를 추리한다) */
+/**
+ * 히든 판단에 쓸 고속 엔진 설정. 마스터·챌린저는 자기 설정, 골드~다이아(예전 엔진)도 히든만큼은 고속 엔진으로
+ * 판단하게 한다(수 자체는 원래 엔진으로 둔다). 아이언~실버는 히든을 가끔 무작위로 쓴다.
+ */
+function withHidden(level: AiLevel): AiLevel {
+  if (level.fast) return level;
+  if (level.rating < 1000) return level;
+  const fast: FastLevel = { depth: level.depth + 2, timeMs: 120, width: Math.max(9, level.width), noise: Math.max(10, level.noise), randomPick: 0, randomPool: 1, missWin: 0, focus: 1 };
+  return { ...level, fast };
+}
+
 export function chooseBlackMove(view: GameState, level: AiLevel, rand: Rng = Math.random): Position {
-  if (level.fast && view.hidden && !view.hidden.revealed && view.hidden.index >= 0) return chooseBlackMoveBelief(view, level, rand);
+  const L = withHidden(level);
+  if (L.fast && view.hidden && !view.hidden.revealed && view.hidden.index >= 0) return chooseBlackMoveBelief(view, L, rand, level);
   const m = chooseMove(view, level, rand);
   const won = tryMove(view, m);
   if (won.ok && won.state.isFinished) return m;
@@ -183,14 +195,17 @@ export interface WhiteHiddenOptions {
 export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Math.random, opts: WhiteHiddenOptions = {}): { move: Position; hidden: boolean } {
   const plain = chooseMove(state, level, rand);
   if (!canUseHidden(state)) return { move: plain, hidden: false };
-  // 엔진이 약한 단계: 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
-  if (!level.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
+  // 엔진이 약한 단계(아이언~실버): 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
+  const L = withHidden(level);
+  if (!L.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
+  level = L;
+  const fast = L.fast;
   const n = state.config.boardSize;
   const b = FastBoard.fromState(state);
   const p0 = plain.row * n + plain.col;
-  const top = new FastSearcher(b, level.fast.width).searchRoot(level.fast.depth, Math.max(30, level.fast.timeMs * 0.3), true, true).scores.slice(0, 5).map((x) => x.p);
+  const top = new FastSearcher(b, fast.width).searchRoot(fast.depth, Math.max(30, fast.timeMs * 0.3), true, true).scores.slice(0, 5).map((x) => x.p);
   if (!top.includes(p0)) top.unshift(p0);
-  const leafMs = Math.max(20, level.fast.timeMs * 0.06);
+  const leafMs = Math.max(20, fast.timeMs * 0.06);
   const value = (p: number, hidden: boolean): number => {
     const r = tryMove(state, toPos(p, n), undefined, { hidden });
     if (!r.ok) return -Infinity;
@@ -198,7 +213,7 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     const s2 = simulateBlack(r.state);
     if (s2.isFinished) return s2.winner === "white" ? 1e9 : -1e9;
     const fb = FastBoard.fromState(s2);
-    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, level.fast!.width).searchRoot(6, leafMs, false, true).scores[0].s;
+    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
   };
   let findProb = (_p: number) => 0;
   if (opts.avoidObvious) {
@@ -215,7 +230,7 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     const f = findProb(p);
     const hid = opts.avoidObvious ? (1 - f) * clamp(raw) + f * clamp(vis) : raw;
     for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
-      const v = v0 + (rand() - 0.5) * 2 * (level.fast.noise || 0);
+      const v = v0 + (rand() - 0.5) * 2 * (fast.noise || 0);
       if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
     }
   }

@@ -52,12 +52,12 @@ export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
   { id: "ai-3", name: "AI 실버", label: "12급", rating: 900, depth: 2, width: 9, nodeBudget: 8_000, noise: 90, randomPick: 0.05, randomPool: 5, missWin: 0.03, focus: 0.8 },
   { id: "ai-4", name: "AI 골드", label: "10급", rating: 1070, depth: 2, width: 12, nodeBudget: 12_000, noise: 25, randomPick: 0.01, randomPool: 4, missWin: 0, focus: 1 },
   { id: "ai-5", name: "AI 플래티넘", label: "7급", rating: 1250, depth: 3, width: 10, nodeBudget: 30_000, noise: 25, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.5 },
-  { id: "ai-6", name: "AI 다이아", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
+  { id: "ai-6", name: "AI 다이아", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 8, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
   // 마스터·챌린저: 고속 엔진(fast.ts·fastSearch.ts — 놓기/되돌리기, 같은 판 기억, 강제수 연장)
   { id: "ai-7", name: "AI 마스터", label: "5단", rating: 2150, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
     fast: { depth: 6, timeMs: 200, width: 10, noise: 15, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.9 } },
   { id: "ai-8", name: "AI 챌린저", label: "8단", rating: 2400, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
-    fast: { depth: 14, timeMs: 400, width: 12, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 } },
+    fast: { depth: 14, timeMs: 400, width: 12, noise: 6, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 } },
 ]);
 
 export function levelById(id: string): AiLevel | undefined {
