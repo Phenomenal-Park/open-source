@@ -263,6 +263,7 @@ export const en: Messages = {
   "rulesPage.o2": "If you disconnect and don't return within 45 seconds, you lose.",
   "rulesPage.o3": "If the board fills up, the game is a draw.",
   "rulesPage.o4": "Only Rated games change your rating. A ? means the rating isn't settled yet (about 10 games).",
+  "rulesPage.o5": "Getting help from AI or other programs during a game, having someone else play for you, using multiple accounts to play yourself or fix games, deliberately losing, or any other unfair play may lead to penalties such as a rating reset or a ban.",
   "ad.label": "Advertisement",
 
   "err.generic": "Something went wrong.",
