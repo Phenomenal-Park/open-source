@@ -12,10 +12,7 @@ import { GameResult, type ResultView } from "../components/GameResult.tsx";
 import { AiPanel } from "../components/AiPanel.tsx";
 import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
-import { Leaderboard } from "../components/Leaderboard.tsx";
-import { LookPicker } from "../components/LookPicker.tsx";
 import { Fold } from "../components/Fold.tsx";
-import { Popup } from "../components/Popup.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
@@ -46,7 +43,6 @@ export function MainPage() {
   const [session, setSession] = useState<Session | null>(loadSession);
   /** 판 크기는 15×15로 통일 */
   const boardSize = DEFAULT_BOARD_SIZE;
-  const [popup, setPopup] = useState<"lb" | "rules" | null>(null);
   const [history, setHistory] = useState<GameHistory>(() => createHistory(freshGame(DEFAULT_BOARD_SIZE)));
   const [fx, setFx] = useState<CaptureFx | null>(null);
   const [resultOpen, setResultOpen] = useState(true);
@@ -407,6 +403,12 @@ export function MainPage() {
   return (
     <main className="layout">
       <section className="play">
+        {session?.verified && (
+          <p className="greeting">
+            <Rich text={t("greet", { name: session.user.username })} />{" "}
+            <a href="/profile" className="greet-rank">{rankName(session.user.rating)} · {t("points", { rating: formatRating(session.user.rating, session.user.provisional) })}</a>
+          </p>
+        )}
         <Scoreboard state={shown} names={{ black: seatLabel("black"), white: seatLabel("white") }} />
         <div className={`board-wrap${armedAt !== null ? " hidden-armed" : ""}`}>
           <Board
@@ -481,15 +483,7 @@ export function MainPage() {
           </section>
         ) : (
           <>
-            {session?.verified ? (
-              <section className="panel" aria-label={t("nav.profile")}>
-                <div className="me">
-                  <a href="/profile" className="me-name">{session.user.username}</a>
-                  <span className="score-rank">{rankName(session.user.rating)}</span>
-                  <span className="seat-rating">{t("points", { rating: formatRating(session.user.rating, session.user.provisional) })}</span>
-                </div>
-              </section>
-            ) : (
+            {session?.verified ? null : (
               // 인증 코드를 기다리는 중이면 펼쳐 둔다
               <Fold id="login" title={t(session ? "account.verifyTitle" : "account.login")} label={t("nav.profile")} forceOpen={!!session}>
                 <AuthBox session={session} onSession={setSess} />
@@ -509,20 +503,13 @@ export function MainPage() {
             />
           </>
         )}
-        <LookPicker />
-        {/* 순위·규칙은 팝업으로 */}
-        <section className="panel info-buttons">
-          <button className="btn" onClick={() => setPopup("lb")}>{t("lb.title")}</button>
-          <button className="btn" onClick={() => setPopup("rules")}>{t("rules.title")}</button>
-        </section>
-        <Popup title={t("lb.title")} open={popup === "lb"} onClose={() => setPopup(null)}>
-          <Leaderboard />
-        </Popup>
-        <Popup title={t("rules.title")} open={popup === "rules"} onClose={() => setPopup(null)}>
-          <ul className="rules-list">
-            {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
-          </ul>
-        </Popup>
+        {/* 프로필·랭킹·기보·업적: 누르면 화면이 바뀐다(그 화면에만 광고). 규칙은 맨 아래 링크 */}
+        <nav className="panel info-buttons" aria-label={t("nav.more")}>
+          <a className="btn" href="/profile">{t("nav.profile")}</a>
+          <a className="btn" href="/rankings">{t("nav.rankings")}</a>
+          <a className="btn" href={session?.verified ? `/records?user=${encodeURIComponent(session.user.username)}` : "/records"}>{t("nav.records")}</a>
+          <a className="btn" href="/achievements">{t("nav.achievements")}</a>
+        </nav>
       </aside>
     </main>
   );

@@ -178,8 +178,47 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   if (m === "GET" && path === "/api/me") {
-    const u = await requireUser(env, bearer(req));
+    const token = bearer(req);
+    const u = await requireUser(env, token);
+    // 로그인 유지: 접속할 때마다 로그인 기한을 다시 30일로 늘린다(하루에 한 번만 기록)
+    const now = Date.now();
+    await env.DB.prepare("UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at < ?")
+      .bind(now + SESSION_TTL_MS, await hashToken(token!), now + SESSION_TTL_MS - 24 * 60 * 60 * 1000).run();
     return json({ user: publicUser(u), verified: !!u.email_verified, activeGame: u.active_game, settings: { allowAi: !!u.allow_ai } });
+  }
+
+  // 계정 삭제: 비밀번호를 다시 확인한다. 진행 중인 대국이 있으면 끝낸 뒤에.
+  // 계정은 익명으로 바꾸고(닉네임 "deleted:…", 이메일·비밀번호·점수·전적·명승부 삭제), 다른 사람 기보에는 '탈퇴한 사용자'로 남는다.
+  if (m === "POST" && path === "/api/account/delete") {
+    await limited(env.AUTH_LIMITER, req); // 비밀번호 대입 막기
+    const u = await requireUser(env, bearer(req));
+    const body = await readJson(req);
+    if (u.is_bot) throw new HttpError(403, "forbidden", "삭제할 수 없는 계정입니다.");
+    if (typeof body.password !== "string" || !(await verifyPassword(body.password, u.password_hash))) {
+      throw new HttpError(401, "bad_credentials", "비밀번호가 맞지 않습니다.");
+    }
+    if (u.active_game) throw new HttpError(409, "in_game", "진행 중인 대국을 끝낸 뒤 삭제할 수 있습니다.");
+    const anon = `deleted:${u.id.slice(0, 8)}`;
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
+      env.DB.prepare("DELETE FROM email_codes WHERE user_id = ?").bind(u.id),
+      env.DB.prepare("DELETE FROM favorites WHERE user_id = ?").bind(u.id),
+      env.DB.prepare("DELETE FROM user_games WHERE user_id = ?").bind(u.id),
+      env.DB.prepare("UPDATE games SET black_name = ? WHERE black_id = ?").bind(anon, u.id),
+      env.DB.prepare("UPDATE games SET white_name = ? WHERE white_id = ?").bind(anon, u.id),
+      // 아무도 보관하지 않게 된 기보는 지운다
+      env.DB.prepare(
+        `DELETE FROM games WHERE (black_id = ?1 OR white_id = ?1)
+           AND NOT EXISTS (SELECT 1 FROM user_games ug WHERE ug.game_id = games.id)
+           AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.game_id = games.id)`,
+      ).bind(u.id),
+      env.DB.prepare(
+        `UPDATE users SET username = ?, username_key = ?, email = NULL, email_verified = 0, password_hash = '!',
+           rating = 500, mmr = 1500, rd = 350, games = 0, wins = 0, losses = 0, draws = 0, win_streak = 0, max_rating = 500,
+           allow_ai = 0, badges = '[]' WHERE id = ?`,
+      ).bind(anon, `deleted:${u.id}`, u.id),
+    ]);
+    return json({ ok: true });
   }
 
   if (m === "POST" && path === "/api/settings") {

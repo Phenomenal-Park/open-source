@@ -335,7 +335,10 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .friend-form input::placeholder { letter-spacing: 0; font-size: 14px; }
 
 /* 순위·규칙 팝업 */
-.info-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.info-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+@media (min-width: 861px) { .info-buttons { grid-template-columns: 1fr 1fr; } }
+.info-buttons .btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding-inline: 4px; letter-spacing: -0.04em; font-size: min(14px, 3.3vw); min-width: 0; }
+@media (min-width: 861px) { .info-buttons .btn { font-size: 14px; } }
 dialog.popup {
   border: 0; border-radius: 16px; padding: 16px 18px; width: min(440px, calc(100vw - 32px)); max-height: min(80vh, 640px);
   background: var(--panel); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.5);
@@ -347,3 +350,71 @@ dialog.popup::backdrop { background: rgba(10,8,6,.6); }
 .popup-body { overflow: auto; }
 .rules-list { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); display: grid; gap: 8px; }
 .rules-list b { color: var(--text); }
+
+/* 다른 화면 상단: 좌상단 [← 이전] + 화면 이름 */
+.app-header.sub { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.back-btn {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 6px 14px 6px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-weight: 700; font-size: 15px; cursor: pointer; white-space: nowrap;
+}
+.page-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand.small { color: var(--muted); text-decoration: none; font-weight: 800; font-size: 15px; }
+.nav-icon { padding: 8px 10px; }
+
+/* 설정·업적 */
+.settings-block { display: grid; gap: 10px; }
+.lang-select.wide { width: 100%; margin: 0; min-height: 44px; font-size: 15px; border-radius: 10px; color: var(--text); background: var(--bg); }
+.badges { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 4px; }
+.badge { display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 12px; border-radius: 50%; background: var(--panel-2); }
+.badge.big { width: 36px; height: 36px; font-size: 22px; }
+.ach-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.ach-list li { display: flex; gap: 10px; align-items: center; opacity: .55; }
+.ach-list li.got { opacity: 1; }
+.rec-tabs { margin-bottom: 4px; }
+
+/* 로그인한 사람 인사 */
+.greeting { margin: 0; font-size: 15px; color: var(--muted); line-height: 1.4; }
+.greeting b { color: var(--text); }
+.greet-rank { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+/* 계정(로그아웃·삭제) */
+.account-block { display: grid; gap: 10px; }
+.btn.danger { border-color: var(--red); color: var(--red); background: transparent; }
+.account-block input { width: 100%; font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 44px; }
+.nav-settings { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; font-size: 12px; font-weight: 600; padding: 6px 8px; border-radius: 999px; min-height: 36px; }
+.nav-settings:hover { color: var(--text); }
+
+/* 좌상단 로고 + 제목 */
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.app-header .brand h1 { font-weight: 700; }
+.logo { display: block; flex: none; }
+
+/* ── 휴대폰: 대국 화면이 한 화면에 들어오도록 촘촘하게(모양은 그대로, 여백·크기만 줄임) ── */
+@media (max-width: 600px) {
+  .app { padding: 8px 12px 12px; }
+  .app-header { margin-bottom: 6px; }
+  .layout { gap: 8px; }
+  .play { gap: 8px; }
+  .side { gap: 6px; }
+  .scoreboard { gap: 8px; }
+  .score-card { padding: 6px 10px; border-radius: 10px; }
+  .score-head { font-size: 13px; }
+  .score-count { margin: 2px 0 4px; }
+  .count { font-size: 24px; }
+  .meter { height: 4px; }
+  .fold { padding: 8px 12px; }
+  .fold-toggle { min-height: 28px; }
+  .fold-toggle h2 { font-size: 15px; }
+  .fold-body { margin-top: 8px; }
+  .info-buttons { padding: 0; background: none; }
+  .info-buttons .btn { min-height: 40px; padding-block: 6px; }
+  .greeting { font-size: 14px; }
+  .site-footer { margin: 10px 0 0; font-size: 12px; }
+  .site-footer a { padding: 2px 0; }
+}
+@media (max-width: 400px) {
+  .controls { flex-wrap: nowrap; gap: 6px; }
+  .controls .status { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .controls .buttons .btn { padding-inline: 10px; font-size: 14px; }
+}
+/* 키가 작은 휴대폰: 판을 조금 줄여 한 화면에 */
+@media (max-width: 600px) { .board-wrap { max-width: min(100%, calc(100svh - 420px)); min-width: 0; } }

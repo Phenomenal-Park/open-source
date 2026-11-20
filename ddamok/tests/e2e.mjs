@@ -22,7 +22,7 @@ let failures = 0;
 
 /** 사이드 상자(로그인·온라인·AI·디자인)는 처음엔 접혀 있다 — 기능 테스트에서는 펼친 상태로 시작 */
 const openFolds = (context) => context.addInitScript(() => {
-  for (const k of ["login", "online", "ai", "look"]) localStorage.setItem(`ddamok.fold.${k}`, "1");
+  for (const k of ["login", "online", "ai"]) localStorage.setItem(`ddamok.fold.${k}`, "1");
 });
 
 async function check(name, fn) {
@@ -101,16 +101,28 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
   await context.close();
 }
 
-await check("[접는 상자·팝업] 로그인·온라인·AI·디자인 상자는 처음엔 제목만, ⌄로 펼치고 기억 / 순위·규칙은 팝업 / 판 크기 선택 없음", async () => {
+await check("[화면 구성] 로그인·온라인·AI 상자는 처음엔 제목만(⌄로 펼치고 기억) / 프로필·랭킹·기보·업적 버튼과 규칙·설정은 화면 전환 + 좌상단 [← 이전] / 판 크기 선택 없음", async () => {
   const context = await browser.newContext(PHONE);
   const page = await context.newPage();
   await page.goto(base);
-  assert.equal(await page.locator(".fold").count(), 4);
+  assert.equal(await page.locator(".fold").count(), 3);
   assert.equal(await page.getByText("판 크기").count(), 0);
-  await page.locator(".info-buttons").getByRole("button", { name: "규칙" }).click();
-  await page.locator("dialog.popup[open]").getByText("정확히 5개", { exact: false }).waitFor();
-  await page.keyboard.press("Escape");
-  assert.equal(await page.locator("dialog.popup[open]").count(), 0);
+  // 규칙 → 화면 전환, [← 이전]으로 돌아온다
+  assert.deepEqual(await page.locator(".info-buttons .btn").allTextContents(), ["프로필", "랭킹", "기보", "업적"]);
+  await page.locator(".site-footer").getByRole("link", { name: "규칙" }).click();
+  await page.waitForURL(/\/rules$/);
+  await page.getByText("정확히 5개", { exact: false }).first().waitFor();
+  assert.equal(await page.locator(".page-title").textContent(), "규칙");
+  await page.getByRole("button", { name: "이전" }).click();
+  await page.waitForURL((u) => new URL(u).pathname === "/");
+  // 랭킹·업적·설정 화면
+  for (const [path, title] of [["/rankings", "랭킹"], ["/achievements", "업적"], ["/settings", "설정"]]) {
+    await page.goto(base + path);
+    assert.equal(await page.locator(".page-title").textContent(), title);
+  }
+  await page.getByRole("radiogroup", { name: "바둑판" }).getByRole("radio", { name: "카툰" }).click();
+  await page.goto(base);
+  assert.equal(await page.locator("svg.board.look-board-cartoon").count(), 1);
   assert.equal(await page.locator(".fold-body").count(), 0);
   const online = page.getByRole("button", { name: "온라인 대국" });
   assert.equal(await online.getAttribute("aria-expanded"), "false");
@@ -132,26 +144,26 @@ await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base);
     assert.equal(await page.locator(".brand h1").textContent(), name);
-    assert.equal(await page.locator(".nav-link.active").textContent(), play);
     assert.equal(await page.evaluate(() => document.documentElement.lang), locale.slice(0, 2));
-    await page.locator(".info-buttons .btn").nth(1).click();
-    assert.match(await page.locator("dialog.popup[open]").textContent(), new RegExp(rule));
-    await page.keyboard.press("Escape");
+    void play;
     // 언어 선택 목록(한국어/English/日本語)은 각 언어 자체 표기이므로 제외
     const text = await page.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll(".lang-select").forEach((x) => x.remove()); return c.innerText; });
     assert.ok(!/[가-힣]/.test(text), `${locale}: 한국어가 섞이지 않음`);
     await shot(page, `phone-${locale}`);
+    await page.goto(base + "/rules");
+    assert.match(await page.locator("main").textContent(), new RegExp(rule));
     assert.deepEqual(errors, []);
     await context.close();
   }
   const context = await browser.newContext({ ...PHONE, locale: "en-US" });
   const page = await context.newPage();
-  await page.goto(base);
+  await page.goto(base + "/settings");
   await page.getByLabel("Language").selectOption("ja");
-  await page.waitForLoadState("load");
+  await page.waitForFunction(() => document.documentElement.lang === "ja"); // 언어를 바꾸면 화면을 다시 연다
+  await page.goto(base);
   await page.locator(".brand h1", { hasText: "タモク" }).waitFor();
   await page.goto(base + "/records");
-  assert.equal(await page.locator(".nav-link.active").textContent(), "棋譜");
+  assert.equal(await page.locator(".page-title").textContent(), "棋譜");
   await context.close();
 });
 
@@ -190,7 +202,7 @@ async function signUp(page, name, email) {
   assert.ok(code, note);
   await page.getByLabel("인증 코드").fill(code);
   await page.getByRole("button", { name: "인증", exact: true }).click();
-  await page.locator(".me-name", { hasText: name }).waitFor();
+  await page.locator(".greeting", { hasText: name }).waitFor();
 }
 
 const ctxA = await browser.newContext(PHONE);
@@ -248,11 +260,11 @@ await check("[온라인] 레이팅매치: 가까운 점수끼리 매칭 → 기�
   assert.ok(rows.some((t) => t.includes("viewer_b") && t.includes("?") && t.includes("+")), rows.join(" | "));
   await shot(B, "desktop-online-rated-result");
   await B.getByRole("button", { name: "새 대국" }).first().click();
-  await B.locator(".me-name").waitFor();
-  assert.match(await B.locator(".me").textContent(), /\?점/);
+  await B.locator(".greeting").waitFor();
+  assert.match(await B.locator(".greeting").textContent(), /\?점/);
 });
 
-await check("[프로필] 급·점수(?)·전적, AI 상대 허용 설정이 저장된다", async () => {
+await check("[프로필·설정] 급·점수(?)·전적, 설정 화면의 AI 상대 허용이 저장된다", async () => {
   await B.goto(base + "/profile");
   await B.locator(".big-rank").waitFor();
   assert.match(await B.locator(".big-rating").textContent(), /\?점/);
@@ -260,15 +272,16 @@ await check("[프로필] 급·점수(?)·전적, AI 상대 허용 설정이 저�
   assert.match(await B.locator(".stats").textContent(), /승률100%/);
   assert.match(await B.locator(".records h2").first().textContent(), /명승부 0\/3/);
   assert.equal(await B.locator(".profile ~ .records .record-list li").count(), 2); // 최근 대국
+  await shot(B, "desktop-profile");
+  await B.goto(base + "/settings");
+  await B.waitForFunction(() => !document.querySelector(".setting input")?.disabled);
   const box = B.locator(".setting input");
   assert.equal(await box.isChecked(), true);
   await box.uncheck();
   await B.waitForTimeout(500);
   await B.reload();
-  await B.locator(".big-rank").waitFor();
   await B.waitForFunction(() => !document.querySelector(".setting input")?.disabled);
   assert.equal(await B.locator(".setting input").isChecked(), false);
-  await shot(B, "desktop-profile");
 });
 
 await check("[프로필] 다른 사람 프로필: 닉네임으로 찾아 급·점수·전적·명승부·최근 대국을 본다(설정은 없음)", async () => {

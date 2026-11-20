@@ -7,6 +7,7 @@ import { pointsToNextRank } from "../rating/ranks.ts";
 import { displayName, rankName, t } from "../i18n/index.ts";
 import { RecordItem, recordHref } from "../components/RecordList.tsx";
 import { RecentRecords } from "./RecordsPage.tsx";
+import { Badges } from "../components/Badges.tsx";
 
 export function ProfilePage() {
   const other = new URLSearchParams(location.search).get("user");
@@ -19,7 +20,6 @@ function MyProfile() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<Page | null>(null);
 
   useEffect(() => {
@@ -51,44 +51,14 @@ function MyProfile() {
       <ProfileSearch />
       <section className="panel profile">
         <ProfileStats u={u} />
-        <label className="check setting">
-          <input
-            type="checkbox"
-            checked={me?.settings.allowAi ?? true}
-            disabled={!me || saving}
-            onChange={async (e) => {
-              const allowAi = e.target.checked;
-              setMe((m) => (m ? { ...m, settings: { allowAi } } : m)); // 바로 반영, 실패하면 되돌림
-              setSaving(true);
-              try {
-                const r = await api.settings(session.token, allowAi);
-                setMe((m) => (m ? { ...m, settings: r.settings } : m));
-              } catch (err) {
-                setMe((m) => (m ? { ...m, settings: { allowAi: !allowAi } } : m));
-                setError(err instanceof Error ? err.message : t("err.saveFailed"));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          />
-          <span>{t("profile.allowAi")}</span>
-        </label>
         <div className="seat-buttons">
           <a className="btn small" href={`/records?user=${encodeURIComponent(u.username)}`}>{t("profile.myRecords")}</a>
-          <button
-            className="btn small ghost"
-            onClick={() => {
-              void api.logout(session.token).catch(() => undefined);
-              saveSession(null);
-              setSession(null);
-            }}
-          >
-            {t("profile.logout")}
-          </button>
+          <a className="btn small" href="/achievements">{t("profile.achievements")}</a>
         </div>
         {error && <p className="form-error">{error}</p>}
       </section>
       {records && <ProfileRecords records={records} />}
+      <AccountBox token={session.token} onGone={() => { saveSession(null); setSession(null); }} />
       <AdSlot slot={AD_SLOTS.profile} />
     </main>
   );
@@ -109,7 +79,7 @@ function ProfileStats({ u }: { u: PublicUser }) {
   const next = pointsToNextRank(u.rating);
   return (
     <>
-      <h2>{displayName(u.username)}</h2>
+      <h2>{displayName(u.username)} <Badges ids={u.badges} /></h2>
       <div className="profile-rank">
         <span className="big-rank">{rankName(u.rating)}</span>
         <span className="big-rating">{t("points", { rating: formatRating(u.rating, u.provisional) })}</span>
@@ -175,5 +145,49 @@ function PublicProfile({ name }: { name: string }) {
       )}
       <AdSlot slot={AD_SLOTS.profile} />
     </main>
+  );
+}
+
+/** 프로필 맨 아래: 로그아웃 · 계정 삭제(비밀번호 다시 입력 + 확인) */
+function AccountBox({ token, onGone }: { token: string; onGone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <section className="panel account-block">
+      <h2>{t("account.title")}</h2>
+      <div className="seat-buttons">
+        <button className="btn small" onClick={() => { void api.logout(token).catch(() => undefined); onGone(); }}>{t("profile.logout")}</button>
+        <button className="btn small danger" onClick={() => setOpen((x) => !x)} aria-expanded={open}>{t("account.delete")}</button>
+      </div>
+      {open && (
+        <form
+          className="account-block"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!window.confirm(t("account.deleteConfirm"))) return;
+            setBusy(true);
+            setError(null);
+            try {
+              await api.deleteAccount(token, password);
+              window.alert(t("account.deleted"));
+              onGone();
+              location.href = "/";
+            } catch (err) {
+              setError(err instanceof Error ? err.message : String(err));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <p className="muted small-note">{t("account.deleteNote")}</p>
+          <input type="password" autoComplete="current-password" aria-label={t("account.passwordAgain")} placeholder={t("account.passwordAgain")}
+            value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <button className="btn danger" type="submit" disabled={busy || !password}>{t("account.delete")}</button>
+          {error && <p className="form-error">{error}</p>}
+        </form>
+      )}
+    </section>
   );
 }

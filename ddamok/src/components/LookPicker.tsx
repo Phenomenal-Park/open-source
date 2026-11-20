@@ -1,8 +1,7 @@
 import { LOOK_STYLES, setLook, useLook, type Look } from "../theme.ts";
 import { t } from "../i18n/index.ts";
-import { Fold } from "./Fold.tsx";
 
-/** 설정: 바둑판·바둑돌 모양(이 기기에 저장) */
+/** 설정: 바둑판·바둑돌 디자인(이 기기에 저장) */
 export function LookPicker() {
   const look = useLook();
   const row = (key: keyof Look, label: string) => (
@@ -16,11 +15,9 @@ export function LookPicker() {
     </div>
   );
   return (
-    <Fold id="look" title={t("look.title")} label={t("look.title")}>
-      <div className="look-picker">
-        {row("board", t("look.board"))}
-        {row("stones", t("look.stones"))}
-      </div>
-    </Fold>
+    <div className="look-picker">
+      {row("board", t("look.board"))}
+      {row("stones", t("look.stones"))}
+    </div>
   );
 }

@@ -493,6 +493,27 @@ await check("AI 상대 허용을 끄면 AI와 붙지 않는다", async () => {
   s.close();
 });
 
+await check("계정 삭제: 비밀번호 확인, 진행 중 대국이면 거절, 삭제 뒤 로그인 불가·기보에는 탈퇴한 사용자", async () => {
+  const r = await api("/api/signup", { username: "leaver", email: "leaver@example.com", password: "password1", over14: true });
+  await api("/api/verify", { code: r.data.devCode }, r.data.token);
+  // 친구매치 한 판(기권)으로 상대 기보에 남게
+  const { black, white, game } = await pairUp(r.data.token, A.token, "mode=friend&code=7777");
+  const leaverColor = black.token === r.data.token ? "black" : "white";
+  assert.equal((await api("/api/account/delete", { password: "password1" }, r.data.token)).status, 409, "대국 중에는 삭제 불가");
+  (leaverColor === "black" ? black : white).sock.send({ type: "resign" });
+  await (leaverColor === "black" ? white : black).sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+  assert.equal((await api("/api/account/delete", { password: "wrong-pass" }, r.data.token)).status, 401);
+  assert.equal((await api("/api/account/delete", { password: "password1" }, r.data.token)).status, 200);
+  assert.equal((await api("/api/me", undefined, r.data.token)).status, 401, "세션도 끝");
+  assert.equal((await api("/api/login", { login: "leaver", password: "password1" })).status, 401);
+  assert.equal((await api("/api/records?user=leaver")).status, 404);
+  const g = (await api(`/api/games/${game.id}`)).data;
+  assert.match(g.players[leaverColor].username, /^deleted:/);
+  // 같은 닉네임으로 다시 가입할 수 있다
+  assert.equal((await api("/api/signup", { username: "leaver", email: "leaver2@example.com", password: "password1", over14: true })).status, 200);
+});
+
 if (failures) console.log(server.log().split("\n").filter((l) => /error|Error|✘/.test(l)).slice(-15).join("\n"));
 server.stop();
 

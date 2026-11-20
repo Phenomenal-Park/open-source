@@ -15,6 +15,8 @@ export interface PublicUser {
   maxRating: number;
   winStreak: number;
   bot: boolean;
+  /** 받은 업적 뱃지 id(닉네임 오른쪽에 작게) */
+  badges?: string[];
 }
 
 export interface Session {
@@ -107,6 +109,7 @@ export const api = {
     call<AuthResult>("/api/signup", { username, email, password, over14, lang }),
   login: (login: string, password: string) => call<AuthResult>("/api/login", { login, password }),
   logout: (token: string) => call<{ ok: true }>("/api/logout", {}, token),
+  deleteAccount: (token: string, password: string) => call<{ ok: true }>("/api/account/delete", { password }, token),
   verify: (token: string, code: string) => call<{ verified: boolean }>("/api/verify", { code }, token),
   resend: (token: string) => call<{ verified: boolean; devCode?: string; mailError?: string }>("/api/verify/resend", { lang }, token),
   me: (token: string) => call<Me>("/api/me", undefined, token),

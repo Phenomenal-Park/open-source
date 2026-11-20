@@ -37,7 +37,7 @@ npm run deploy   # 화면 빌드 → D1 테이블 만들기(원격) → Worker �
 프로필·기보 화면에만 광고 자리가 있다(대국 화면에는 없음). 애드센스 승인 후 빌드할 때 넣는다:
 
 ```bash
-VITE_ADSENSE_CLIENT=ca-pub-XXXX VITE_ADSENSE_SLOT_PROFILE=1111 VITE_ADSENSE_SLOT_RECORDS=2222 npm run deploy
+VITE_ADSENSE_CLIENT=ca-pub-XXXX VITE_ADSENSE_SLOT_PROFILE=1111 VITE_ADSENSE_SLOT_RECORDS=2222 VITE_ADSENSE_SLOT_RANKINGS=3333 VITE_ADSENSE_SLOT_RULES=5555 VITE_ADSENSE_SLOT_ACHIEVEMENTS=4444 npm run deploy
 ```
 
 ## 5. 문의 이메일

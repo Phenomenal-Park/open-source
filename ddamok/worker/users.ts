@@ -21,14 +21,22 @@ export interface UserRow {
   active_game: string | null;
   allow_ai: number;
   is_bot: number;
+  /** 받은 업적 뱃지 id(JSON 배열) */
+  badges?: string | null;
   bot_level: string | null;
   created_at: string;
+}
+
+/** 받은 업적 뱃지 id 목록(JSON 텍스트) */
+function parseBadges(raw: string | null | undefined): string[] {
+  try { const v = JSON.parse(raw ?? "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; }
 }
 
 export function publicUser(u: UserRow) {
   return {
     id: u.id, username: u.username, rating: u.rating, rank: rankFor(u.rating).label, provisional: isProvisional(u),
     games: u.games, wins: u.wins, losses: u.losses, draws: u.draws, maxRating: u.max_rating, winStreak: u.win_streak, bot: !!u.is_bot,
+    badges: parseBadges(u.badges),
   };
 }
 

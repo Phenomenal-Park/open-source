@@ -67,6 +67,7 @@ export const rankName = (rating: number) => rankLabel(lang, rating);
 
 /** AI 계정 이름(서버에는 한국어로 저장) → 현재 언어. 사람 닉네임은 그대로. */
 export function displayName(username: string): string {
+  if (username.startsWith("deleted:")) return t("user.deleted"); // 탈퇴한 사용자
   const lv = AI_LEVELS.find((x) => x.name === username);
   return lv ? t(`ai.name.${lv.id}` as MessageKey) : username;
 }

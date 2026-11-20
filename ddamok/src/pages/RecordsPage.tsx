@@ -156,8 +156,14 @@ export function RecordsPage() {
     api.records(user).then(setData, (e) => setError(e.message));
   }, [user]);
 
+  const [tab, setTab] = useState<"live" | "finished">("finished");
   return (
     <main className="page">
+      <div className="mode-filter rec-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "live"} className={`chip${tab === "live" ? " on" : ""}`} onClick={() => setTab("live")}>{t("rec.live")}</button>
+        <button role="tab" aria-selected={tab === "finished"} className={`chip${tab === "finished" ? " on" : ""}`} onClick={() => setTab("finished")}>{t("rec.finished")}</button>
+      </div>
+      {tab === "live" ? <LiveGame /> : <>
       <form className="panel search" method="get" action="/records">
         <input name="user" aria-label={t("rec.nickname")} placeholder={t("rec.search")} defaultValue={user} maxLength={20} required />
         <button className="btn primary" type="submit">{t("btn.find")}</button>
@@ -184,7 +190,25 @@ export function RecordsPage() {
           </section>
         </>
       )}
+      </>}
       <AdSlot slot={AD_SLOTS.records} />
     </main>
+  );
+}
+
+/** 진행 중인 대국: 내가 두고 있는 온라인 대국이 있으면 돌아가기 */
+function LiveGame() {
+  const session = loadSession();
+  const [active, setActive] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (session?.verified) api.me(session.token).then((m) => setActive(m.activeGame), () => setActive(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!session?.verified) return <section className="panel"><p className="muted">{t("rec.loginForLive")}</p></section>;
+  if (active === undefined) return <section className="panel"><p className="muted">{t("rec.loading")}</p></section>;
+  return (
+    <section className="panel">
+      {active ? <a className="btn primary wide" href="/">{t("rec.resume")}</a> : <p className="muted">{t("rec.noLive")}</p>}
+    </section>
   );
 }
