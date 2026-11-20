@@ -102,7 +102,7 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
  * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 그럴듯하면 먼저 눌러 본다.
  */
 export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random, plainLevel: AiLevel = level): Position {
-  const belief = hiddenBelief(view);
+  const belief = hiddenBelief(view, 20);
   if (!belief.length || !level.fast) return blackProbe(view) ?? chooseMove(view, plainLevel, rand);
   const n = view.config.boardSize;
   const vb = FastBoard.fromState(view);
@@ -113,6 +113,9 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
   const { timeMs: t, depth, width } = level.fast;
   const hyp = belief.slice(0, 4);
+  // 거기 숨은 돌이 있으면 백이 막을 수 없는 넉을 만드는 자리는 순위가 낮아도 꼭 따로 읽는다(최소 6%로 친다).
+  // 백은 천원에서 3~4칸 떨어진 곳에 숨기고 그쪽으로 줄을 이어 오는데, 흑 눈에는 별것 아닌 돌들로 보인다.
+  for (const x of belief) if (x.danger2 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.06) });
   const roots = new FastSearcher(vb, width).searchRoot(depth, t * 0.15, false, true).scores.slice(0, 10).map((x) => x.p);
   for (const x of belief.slice(0, 3)) if (!roots.includes(x.pos)) roots.push(x.pos);
   for (const x of belief) if (x.danger2 && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
