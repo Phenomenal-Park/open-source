@@ -32,6 +32,8 @@ export interface RoomInit {
   id: string;
   mode: MatchMode;
   rated: boolean;
+  /** 백 히든 모드(친구매치만 끌 수 있다, 없으면 켜짐) */
+  hiddenMove?: boolean;
   black: RoomPlayer;
   white: RoomPlayer;
 }
@@ -120,7 +122,7 @@ export class GameRoom extends DurableObject<Env> {
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
       ...init, boardSize: this.boardSize, secondMoveMinDistance: Number(this.env.SECOND_MOVE_MIN_DISTANCE) || 0, moves: [], status: "playing", result: null,
-      hiddenMove: this.env.HIDDEN_MOVE !== "0", hiddenIndex: null, hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
+      hiddenMove: this.env.HIDDEN_MOVE !== "0" && init.hiddenMove !== false, hiddenIndex: null, hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
     for (const c of COLORS) if (!init[c].bot) this.data.deadlines[c] = deadline;

@@ -48,7 +48,7 @@ export function MainPage() {
   const [resultOpen, setResultOpen] = useState(true);
   const [aiGame, setAiGame] = useState<{ levelId: string; aiColor: Player } | null>(null);
   const [online, setOnline] = useState<Online | null>(null);
-  const [waiting, setWaiting] = useState<{ mode: MatchMode; code: string | null } | null>(null);
+  const [waiting, setWaiting] = useState<{ mode: MatchMode; code: string | null; hidden?: boolean } | null>(null);
   const [onlineError, setOnlineError] = useState<string | null>(null);
   const [, tick] = useState(0);
   const workerRef = useRef<Worker | null>(null);
@@ -313,11 +313,11 @@ export function MainPage() {
     if (online && onlinePlaying && window.confirm(t("confirm.resign"))) conn.current?.send({ type: "resign" });
   }
 
-  function find(mode: MatchMode, code: string | null) {
+  function find(mode: MatchMode, code: string | null, hidden = true) {
     if (!session) return;
     setOnlineError(null);
     cancelMatch.current?.();
-    setWaiting({ mode, code });
+    setWaiting({ mode, code, hidden });
     cancelMatch.current = findMatch(session.token, mode, code, {
       onWaiting: () => undefined,
       onMatched: (gameId) => {
@@ -330,7 +330,7 @@ export function MainPage() {
         setWaiting(null);
         setOnlineError(message);
       },
-    });
+    }, hidden);
   }
 
   function cancelFind() {
@@ -472,6 +472,7 @@ export function MainPage() {
             <h2>{online.game ? t(`mode.${online.game.mode}`) : t("online.title")}</h2>
             <p className="muted">
               {t(online.game?.rated ? "online.ratedNote" : "online.unratedNote")} {t("online.rulesNote")}
+              {online.game && <> {t(online.game.hiddenMove ? "online.hiddenOn" : "online.hiddenOff")}</>}
             </p>
           </section>
         ) : (

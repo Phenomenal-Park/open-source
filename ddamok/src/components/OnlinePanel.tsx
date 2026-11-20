@@ -5,14 +5,15 @@ import { t } from "../i18n/index.ts";
 
 interface OnlinePanelProps {
   session: Session | null;
-  waiting: { mode: MatchMode; code: string | null } | null;
+  waiting: { mode: MatchMode; code: string | null; hidden?: boolean } | null;
   error: string | null;
-  onFind: (mode: MatchMode, code: string | null) => void;
+  onFind: (mode: MatchMode, code: string | null, hidden?: boolean) => void;
   onCancel: () => void;
 }
 
 export function OnlinePanel({ session, waiting, error, onFind, onCancel }: OnlinePanelProps) {
   const [code, setCode] = useState("");
+  const [hidden, setHidden] = useState(true);
   const ready = session?.verified;
   return (
     <section className="panel" aria-label={t("online.title")}>
@@ -22,7 +23,7 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
       {waiting ? (
         <div className="waiting">
           <p className="waiting-text" aria-live="polite">
-            <span className="spinner" aria-hidden /> {t("online.searching", { mode: t(`mode.${waiting.mode}`), code: waiting.code ? ` (${waiting.code})` : "" })}
+            <span className="spinner" aria-hidden /> {t("online.searching", { mode: t(`mode.${waiting.mode}`), code: waiting.code ? ` (${waiting.code}${waiting.hidden === false ? ` · ${t("online.noHidden")}` : ""})` : "" })}
           </p>
           <button className="btn small ghost" onClick={onCancel}>{t("btn.cancel")}</button>
         </div>
@@ -36,7 +37,7 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
             className="friend-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (FRIEND_CODE_RE.test(code)) onFind("friend", code);
+              if (FRIEND_CODE_RE.test(code)) onFind("friend", code, hidden);
             }}
           >
             <input
@@ -45,6 +46,10 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
             />
             <button className="btn" type="submit" disabled={!ready || !FRIEND_CODE_RE.test(code)}>{t("mode.friend")}</button>
           </form>
+          <label className="check friend-hidden">
+            <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} disabled={!ready} />
+            {t("online.hiddenToggle")}
+          </label>
           <p className="muted small-note">{t("online.note")}</p>
         </>
       )}

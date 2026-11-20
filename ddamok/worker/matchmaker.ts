@@ -1,7 +1,7 @@
 // 매칭 대기열(전역 Durable Object 하나).
 //   레이팅매치: 실력 점수가 가까운 사람(기다릴수록 범위가 넓어짐, pairing.ts), 15초 뒤 가장 가까운 AI 3개 중 하나(허용 시)
 //   친선매치: 친선매치를 누른 사람 중 무작위 1명
-//   친구매치: 같은 코드를 입력한 사람
+//   친구매치: 같은 코드·같은 히든 설정을 고른 사람(레이팅·친선은 항상 히든 모드)
 import { DurableObject } from "cloudflare:workers";
 import { HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL, type MatchMode, type ServerMessage } from "../src/online/protocol.ts";
 import { rankFor } from "../src/rating/ranks.ts";
@@ -14,6 +14,8 @@ interface Ticket {
   userId: string;
   mode: MatchMode;
   code: string | null;
+  /** 백 히든 모드(친구매치만 끌 수 있다) */
+  hidden: boolean;
   mmr: number;
   allowAi: boolean;
   joinedAt: number;
@@ -67,6 +69,7 @@ export class Matchmaker extends DurableObject<Env> {
     const userId = request.headers.get("x-user-id")!;
     const mode = url.searchParams.get("mode") as MatchMode;
     const code = mode === "friend" ? url.searchParams.get("code") : null;
+    const hidden = mode !== "friend" || url.searchParams.get("hidden") !== "0";
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -75,7 +78,7 @@ export class Matchmaker extends DurableObject<Env> {
 
     const me = await this.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first<Row>();
     const ticket: Ticket = {
-      key: crypto.randomUUID(), userId, mode, code, mmr: me?.mmr ?? 1500, allowAi: !!me?.allow_ai, joinedAt: Date.now(),
+      key: crypto.randomUUID(), userId, mode, code, hidden, mmr: me?.mmr ?? 1500, allowAi: !!me?.allow_ai, joinedAt: Date.now(),
     };
     server.serializeAttachment(ticket);
 
@@ -96,12 +99,12 @@ export class Matchmaker extends DurableObject<Env> {
     if (mode === "rated") {
       this.matchRated();
     } else {
-      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code);
+      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code && (t.hidden ?? true) === hidden);
       if (others.length) {
         const other = others[Math.floor(Math.random() * others.length)];
         this.take(other.ws, other.t);
         this.take(server, ticket);
-        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server]));
+        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server], hidden));
       }
     }
     return response;
@@ -143,13 +146,13 @@ export class Matchmaker extends DurableObject<Env> {
     if (stillWaiting) await this.ctx.storage.setAlarm(Date.now() + 2_000); // AI가 비기를 기다리며 다시 확인
   }
 
-  private async startGame(mode: MatchMode, userIds: [string, string], sockets: WebSocket[]) {
+  private async startGame(mode: MatchMode, userIds: [string, string], sockets: WebSocket[], hiddenMove = true) {
     try {
       const rows = (await this.env.DB.prepare("SELECT * FROM users WHERE id IN (?, ?)").bind(...userIds).all<Row>()).results;
       const [a, b] = userIds.map((id) => rows.find((r) => r.id === id)!);
       const [black, white] = Math.random() < 0.5 ? [a, b] : [b, a];
       const gameId = crypto.randomUUID();
-      const init: RoomInit = { id: gameId, mode, rated: mode === "rated", black: player(black), white: player(white) };
+      const init: RoomInit = { id: gameId, mode, rated: mode === "rated", hiddenMove, black: player(black), white: player(white) };
       const room = this.env.GAME_ROOM.get(this.env.GAME_ROOM.idFromName(gameId)) as unknown as DurableObjectStub<GameRoom>;
       await room.init(init);
       // 사람·AI 모두 "대국 중" 표시(AI는 이 표시가 있는 동안 다른 사람과 매칭되지 않는다)

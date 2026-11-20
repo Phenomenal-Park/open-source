@@ -85,7 +85,11 @@ export const en: Messages = {
   "online.searching": "Finding a {mode}{code} opponent…",
   "online.code": "Friend match code",
   "online.codePlaceholder": "Code (up to 8 digits)",
-  "online.note": "Only Rated games affect your rating. Friend pairs you with whoever enters the same code.",
+  "online.note": "Only Rated games affect your rating. Rated and Casual use the hidden mode. Friend pairs you with whoever enters the same code and mode.",
+  "online.hiddenToggle": "Hidden mode (off = no hidden)",
+  "online.noHidden": "no hidden",
+  "online.hiddenOn": "Hidden mode · both win by capturing 10.",
+  "online.hiddenOff": "No hidden · Black wins with 12 captures, White with 10.",
 
   "account.login": "Log in",
   "account.verifyTitle": "Verify email",

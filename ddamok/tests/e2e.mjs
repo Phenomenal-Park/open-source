@@ -147,7 +147,7 @@ async function signUp(page, name, email) {
   await page.getByLabel("닉네임").fill(name);
   await page.getByLabel("이메일").fill(email);
   await page.getByLabel("비밀번호").fill("password1");
-  await page.locator(".check input").check();
+  await page.locator(".check input[required]").check();
   await page.getByRole("button", { name: "가입하고 인증 코드 받기" }).click();
   const note = await page.locator(".auth-form .muted", { hasText: "인증 코드" }).last().textContent({ timeout: 10000 });
   const code = note.match(/(\d{6})/)?.[1];

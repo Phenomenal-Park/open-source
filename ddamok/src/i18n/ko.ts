@@ -85,7 +85,11 @@ export const ko = {
   "online.searching": "{mode}{code} 상대를 찾는 중…",
   "online.code": "친구매치 코드",
   "online.codePlaceholder": "코드 (숫자 8자리까지)",
-  "online.note": "레이팅매치만 점수에 반영됩니다. 친구매치는 같은 코드를 입력한 사람과 둡니다.",
+  "online.note": "레이팅매치만 점수에 반영됩니다. 레이팅·친선매치는 히든 모드입니다. 친구매치는 같은 코드와 같은 모드를 고른 사람과 둡니다.",
+  "online.hiddenToggle": "히든 모드 (끄면 노히든)",
+  "online.noHidden": "노히든",
+  "online.hiddenOn": "히든 모드 · 흑·백 모두 10개 따내면 승리.",
+  "online.hiddenOff": "노히든 모드 · 흑 12개, 백 10개 따내면 승리.",
 
   "account.login": "로그인",
   "account.verifyTitle": "이메일 인증",

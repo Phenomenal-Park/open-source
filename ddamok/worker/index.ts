@@ -306,7 +306,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     });
   }
 
-  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리]  (WebSocket)
+  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리][&hidden=0|1 친구매치만]  (WebSocket)
   if (m === "GET" && path === "/api/match") {
     if (req.headers.get("upgrade") !== "websocket") throw new HttpError(426, "upgrade", "WebSocket이 필요합니다.");
     const u = await requireUser(env, wsToken(req));
@@ -315,7 +315,9 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     if (!MATCH_MODES.includes(mode)) throw new HttpError(400, "bad_mode", "잘못된 매치 종류입니다.");
     const code = url.searchParams.get("code") ?? "";
     if (mode === "friend" && !FRIEND_CODE_RE.test(code)) throw new HttpError(400, "bad_code", "코드는 숫자 1~8자리입니다.");
-    const q = new URLSearchParams({ mode, ...(mode === "friend" ? { code } : {}) });
+    // 친구매치만 히든 모드를 고를 수 있다(레이팅·친선은 항상 히든). 같은 코드·같은 모드끼리 짝짓는다.
+    const hidden = mode !== "friend" || url.searchParams.get("hidden") !== "0";
+    const q = new URLSearchParams({ mode, hidden: hidden ? "1" : "0", ...(mode === "friend" ? { code } : {}) });
     return forwardWs(env.MATCHMAKER.get(env.MATCHMAKER.idFromName("global")), `https://matchmaker/join?${q}`, u);
   }
 

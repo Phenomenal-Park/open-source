@@ -219,7 +219,8 @@ await check("친선매치: 점수 미반영, 기권", async () => {
 
 await check("백 히든: 흑에게는 숨은 돌이 보이지 않고(좌표도 안 옴), 흑이 그 자리를 누르면 드러나고 흑 차례 유지, 한 판에 한 번", async () => {
   const { black, white, game } = await pairUp(A.token, B.token, "mode=friend&code=4321");
-  assert.equal(game.hiddenMove, true);
+  assert.equal(game.hiddenMove, true, "친구매치는 기본 히든 모드");
+  assert.deepEqual(game.view.config.captureTarget, { black: 10, white: 10 });
   await play(black, 7, 7, 0);
   await white.sock.next((m) => m.type === "state" && m.game.moves.length === 1);
   white.sock.send({ type: "hidden" });
@@ -273,6 +274,29 @@ await check("백 히든: 누르고 10초(+여유) 안에 두지 않으면 그 �
   await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
   black.sock.close(); white.sock.close();
 }, 40000);
+
+await check("친구매치 노히든: 같은 코드라도 히든 설정이 다르면 안 붙고, 노히든끼리는 히든 없이 흑 12 / 백 10", async () => {
+  const x = await match(A.token, "mode=friend&code=5555&hidden=0");
+  await x.next((m) => m.type === "waiting");
+  const y = await match(B.token, "mode=friend&code=5555&hidden=1");
+  await y.next((m) => m.type === "waiting");
+  await sleep(500);
+  assert.ok(!x.queue.some((m) => m.type === "matched"));
+  x.close(); y.close();
+  await sleep(300);
+  const { black, white, game } = await pairUp(A.token, B.token, "mode=friend&code=5556&hidden=0");
+  assert.equal(game.hiddenMove, false);
+  assert.deepEqual(game.view.config.captureTarget, { black: 12, white: 10 });
+  await play(black, 7, 7, 0);
+  await white.sock.next((m) => m.type === "state" && m.game.moves.length === 1);
+  white.sock.send({ type: "hidden" });
+  await sleep(500);
+  assert.ok(!black.sock.queue.some((m) => m.type === "state" && m.game.hiddenArmedMs !== undefined), "노히든 판에서는 히든을 받지 않는다");
+  black.sock.send({ type: "resign" });
+  await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+  assert.equal((await api(`/api/games/${game.id}`)).data.hiddenMove, false);
+});
 
 await check("친구매치: 같은 코드끼리, 숫자 1~8자리만", async () => {
   for (const bad of ["12a4", "123456789", ""]) {
