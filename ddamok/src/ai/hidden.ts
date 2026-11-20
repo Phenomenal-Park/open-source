@@ -195,10 +195,12 @@ function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Po
  * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 조금이라도 그럴듯할 때
  * - 막을 수 없는 넉이 되는 자리가 꽤 그럴듯할 때
  * - 아니면 한 자리에 의심이 크게 몰렸을 때(백이 그쪽으로 줄을 이어 오는 등)
- * 근거 없이 아무 데나 찍지 않는다 — 처음엔 의심이 고르게 퍼져 있어 쓰지 않고, 백이 숨은 돌을 쓰려 할 때 쓴다.
+ * 근거 없이 찍지 않는다 — 백이 숨긴 바로 다음(흑 2수째 등)에는 쓰지 않고, 백이 그 뒤에 둔 수로 흔적이 생긴 다음에 쓴다.
  */
 export function chooseBlackScan(view: GameState, level?: AiLevel): Position | null {
   if (!canScan(view)) return null;
+  // 근거 없이 찍지 않는다: 백이 숨긴 뒤 보이는 수를 한 번 이상 두어 흔적이 생긴 다음에만
+  if (view.moves.length < view.hidden!.index + 3) return null;
   const belief = hiddenBelief(view, 20, level && withHidden(level).fast && (level.fast || level.rating >= 1400) ? level : undefined);
   if (!belief.length) return null;
   const n = view.config.boardSize;
