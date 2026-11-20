@@ -17,6 +17,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     boardSize,
     captureTarget: { ...DEFAULT_CAPTURE_TARGET, ...overrides.captureTarget },
     overlineWins: overrides.overlineWins ?? false,
+    whiteOverlineWins: overrides.whiteOverlineWins ?? false,
     firstMoveCenter: overrides.firstMoveCenter ?? true,
     secondMoveMinDistance: overrides.secondMoveMinDistance ?? 0,
   };
@@ -26,6 +27,11 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
 export function centerOf(size: number): { row: number; col: number } {
   const c = Math.floor(size / 2);
   return { row: c, col: c };
+}
+
+/** 이 색에게 6목 이상이 승리인가 */
+export function overlineWinsFor(config: { overlineWins: boolean; whiteOverlineWins: boolean }, player: Player): boolean {
+  return config.overlineWins || (player === "white" && config.whiteOverlineWins);
 }
 
 export function opponent(player: Player): Player {

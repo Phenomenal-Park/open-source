@@ -1,5 +1,5 @@
 import type { GameState, IllegalReason, MoveResult, Player, Position } from "./types.ts";
-import { centerOf, inBounds, opponent } from "./config.ts";
+import { centerOf, inBounds, opponent, overlineWinsFor } from "./config.ts";
 import { getCapturedStones } from "./captures.ts";
 import { checkCaptureVictory, findFiveInRow } from "./victory.ts";
 
@@ -72,7 +72,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   // 10. 포획 승리
   const captureWin = checkCaptureVictory(next, me);
   // 11. 포획 후 최종 판에서 5목
-  const line = findFiveInRow(board, pos, me, state.config.overlineWins);
+  const line = findFiveInRow(board, pos, me, overlineWinsFor(state.config, me));
 
   if (captureWin || line) {
     // 12. 승리 → 종료. 같은 수에 둘 다 달성하면 처리 순서상 먼저 확인한 포획 승리로 기록하고 5목 줄도 남긴다.

@@ -20,8 +20,10 @@ describe("AI 고속 판 = 규칙 엔진 (차등 테스트)", () => {
     let finished = 0, captures = 0, draws = 0;
     for (let g = 0; g < 1000; g++) {
       const size = g % 3 === 0 ? 5 : g % 3 === 1 ? 7 : 9; // 작은 판: 포획·5목·무승부가 자주 나온다
-      let s = createGame(size);
-      const fb = new FastBoard(size);
+      // 절반은 "백만 장목 승리" 설정으로도 두 엔진을 비교
+      const whiteOverline = g % 2 === 1;
+      let s = createGame(size, { whiteOverlineWins: whiteOverline });
+      const fb = new FastBoard(size, [12, 10], false, whiteOverline);
       const hashes: number[] = [fb.hash];
       const snaps: GameState[] = [s];
       while (!s.isFinished) {

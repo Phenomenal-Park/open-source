@@ -5,7 +5,7 @@
 //   (1) 위협 자리를 막는다  (2) 따내기로 공격 돌을 없앤다  (3) 자기가 먼저 이긴다
 // 수비자의 모든 응수에 대해 공격자가 계속 이길 때만 "필승 수순"으로 본다.
 import type { GameState, Player, Position } from "../game/types.ts";
-import { opponent } from "../game/config.ts";
+import { opponent, overlineWinsFor } from "../game/config.ts";
 import { tryMove } from "../game/rules.ts";
 import { getCapturedStones } from "../game/captures.ts";
 import { findFiveInRow, capturedBy } from "../game/victory.ts";
@@ -20,7 +20,7 @@ export function winningCells(state: GameState, player: Player): Position[] {
   for (const c of candidateMoves(state.board)) {
     board[c.row][c.col] = player;
     const win =
-      findFiveInRow(board, c, player, state.config.overlineWins) !== null ||
+      findFiveInRow(board, c, player, overlineWinsFor(state.config, player)) !== null ||
       have + getCapturedStones(board, c, player).length >= target;
     board[c.row][c.col] = null;
     if (win) out.push(c);

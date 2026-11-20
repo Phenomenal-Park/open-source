@@ -466,6 +466,19 @@ describe("(실험용) 펜테식 제한: 흑의 두 번째 수는 천원에서 3�
   });
 });
 
+describe("(실험용) 백만 장목 승리", () => {
+  it("켜면 백의 6목은 승리, 흑의 6목은 여전히 승리가 아니다", () => {
+    const w = applyMove(fromDiagram(["OOO.OO"], "white", { size: 15 }), at(0, 3));
+    expect(w.isFinished).toBe(false); // 기본: 백도 6목은 승리 아님
+    const on = fromDiagram(["OOO.OO", "", "XXX.XX"], "white");
+    on.config = { ...on.config, whiteOverlineWins: true };
+    expect(applyMove(on, at(0, 3)).winner).toBe("white");
+    const onB = fromDiagram(["OOO.OO", "", "XXX.XX"], "black");
+    onB.config = { ...onB.config, whiteOverlineWins: true };
+    expect(applyMove(onB, at(2, 3)).isFinished).toBe(false);
+  });
+});
+
 describe("무승부", () => {
   // 5×5 판, (4,4) 한 칸만 비어 있다. 흑이 두면 5목도 포획도 없이 판이 다 찬다.
   const full = () => fromDiagram(["XOXOX", "XOXOO", "OXOXO", "OXOXO", "XOXO."], "black", { size: 5 });

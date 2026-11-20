@@ -48,7 +48,8 @@ export class FastBoard {
   readonly n: number;
   readonly cells: Int8Array;
   readonly target: [number, number, number];
-  readonly overlineWins: boolean;
+  /** 색별 6목 이상 승리 여부 [-, 흑, 백] */
+  readonly overline: [boolean, boolean, boolean];
   caps: [number, number, number] = [0, 0, 0];
   toMove: Color = BLACK;
   empties: number;
@@ -71,11 +72,11 @@ export class FastBoard {
   private zobrist: Int32Array;
   private stack: Undo[] = [];
 
-  constructor(n: number, target: [number, number] = [12, 10], overlineWins = false) {
+  constructor(n: number, target: [number, number] = [12, 10], overlineWins = false, whiteOverlineWins = false) {
     this.n = n;
     this.cells = new Int8Array(n * n);
     this.target = [0, target[0], target[1]];
-    this.overlineWins = overlineWins;
+    this.overline = [false, overlineWins, overlineWins || whiteOverlineWins];
     this.empties = n * n;
     this.near = new Int16Array(n * n);
     const windows: number[][] = [];
@@ -104,7 +105,7 @@ export class FastBoard {
 
   static fromState(s: GameState): FastBoard {
     const n = s.config.boardSize;
-    const b = new FastBoard(n, [s.config.captureTarget.black, s.config.captureTarget.white], s.config.overlineWins);
+    const b = new FastBoard(n, [s.config.captureTarget.black, s.config.captureTarget.white], s.config.overlineWins, s.config.whiteOverlineWins);
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
@@ -176,7 +177,7 @@ export class FastBoard {
         let rr = r + s * dr, cc = c + s * dc;
         while (rr >= 0 && rr < n && cc >= 0 && cc < n && this.cells[rr * n + cc] === color) { k++; rr += s * dr; cc += s * dc; }
       }
-      if (k === 5 || (this.overlineWins && k > 5)) return true;
+      if (k === 5 || (this.overline[color] && k > 5)) return true;
     }
     return false;
   }

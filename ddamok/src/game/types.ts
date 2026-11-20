@@ -22,6 +22,8 @@ export interface GameConfig {
    * 지시서 §9-15·§11-4에 따라 기본값은 false(정확히 5목만 승리). 6목 이상 착수 자체는 언제나 허용된다.
    */
   overlineWins: boolean;
+  /** (실험용, 기본 false) 백만 6목 이상도 승리 — 흑은 overlineWins를 따른다 */
+  whiteOverlineWins: boolean;
   /** 흑의 첫 수는 반드시 천원(가운데). 기본 true — 테스트에서 다른 규칙만 따로 확인할 때만 끈다 */
   firstMoveCenter: boolean;
   /**
