@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { api, loadSession, type Me } from "../api.ts";
 import { LookPicker } from "../components/LookPicker.tsx";
 import { lang, LANGS, setLang, t, type Lang } from "../i18n/index.ts";
+import { foundSound, setSound, stoneClick, useSound, type SoundChannel } from "../sound.ts";
 
-/** 설정: 디자인(바둑판·바둑돌) · 언어 · 레이팅매치 AI 상대 허용(로그인 시) */
+/** 설정: 디자인(바둑판·바둑돌) · 소리 · 언어 · 레이팅매치 AI 상대 허용(로그인 시) */
 export function SettingsPage() {
   const session = loadSession();
   const [me, setMe] = useState<Me | null>(null);
@@ -18,6 +19,11 @@ export function SettingsPage() {
       <section className="panel settings-block">
         <h2>{t("look.title")}</h2>
         <LookPicker />
+      </section>
+      <section className="panel settings-block">
+        <h2>{t("sound.title")}</h2>
+        <SoundRow channel="stone" label={t("sound.stone")} sample={stoneClick} />
+        <SoundRow channel="fx" label={t("sound.fx")} sample={foundSound} />
       </section>
       <section className="panel settings-block">
         <h2>{t("nav.language")}</h2>
@@ -54,5 +60,26 @@ export function SettingsPage() {
         </section>
       )}
     </main>
+  );
+}
+
+/** 소리 한 갈래: 볼륨 막대 + 음소거. 막대를 놓으면 그 크기로 한 번 들려준다 */
+function SoundRow({ channel, label, sample }: { channel: SoundChannel; label: string; sample: () => void }) {
+  const s = useSound()[channel];
+  return (
+    <div className="sound-row">
+      <span className="sound-label">{label}</span>
+      <input
+        type="range" min={0} max={100} step={5} value={s.vol} disabled={s.mute}
+        aria-label={`${label} ${t("sound.volume")}`}
+        onChange={(e) => setSound(channel, { vol: Number(e.target.value) })}
+        onPointerUp={sample} onKeyUp={sample}
+      />
+      <span className="sound-vol">{s.mute ? "–" : s.vol}</span>
+      <label className="check sound-mute">
+        <input type="checkbox" checked={s.mute} onChange={(e) => { setSound(channel, { mute: e.target.checked }); if (!e.target.checked) sample(); }} />
+        <span>{t("sound.mute")}</span>
+      </label>
+    </div>
   );
 }

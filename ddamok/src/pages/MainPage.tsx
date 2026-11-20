@@ -16,7 +16,7 @@ import { Fold } from "../components/Fold.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
-import { beep } from "../beep.ts";
+import { beep, foundSound, hiddenSound, stoneClick } from "../sound.ts";
 
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
@@ -96,6 +96,20 @@ export function MainPage() {
     if (onlineState.moveCount !== lastLen.current) setResultOpen(true);
     lastLen.current = onlineState.moveCount;
   }, [onlineState]);
+
+  // 착수음: 판에 돌이 하나 늘 때마다(내 수·상대 수·AI 수 모두) "탁". 새 대국으로 바뀌거나 되돌릴 때는 울리지 않는다.
+  const soundAt = useRef({ key: "", n: -1 });
+  const soundKey = online?.gameId ?? "local";
+  useEffect(() => {
+    const prev = soundAt.current;
+    if (prev.key === soundKey && state.moveCount === prev.n + 1) stoneClick();
+    soundAt.current = { key: soundKey, n: state.moveCount };
+  }, [state.moveCount, soundKey]);
+
+  // 효과음: "백 히든!" 배너가 뜰 때, 숨은 돌을 찾았을 때
+  useEffect(() => { if (banner > 0) hiddenSound(); }, [banner]);
+  const foundId = notice?.kind === "found" ? notice.id : 0;
+  useEffect(() => { if (foundId) foundSound(); }, [foundId]);
 
   // 대국 시계 표시: 도는 동안 0.25초마다 다시 그린다
   const clockRunning = !!online?.game?.clock?.running;

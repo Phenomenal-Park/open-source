@@ -167,9 +167,17 @@ await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에
   await context.close();
 });
 
-await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차례로", async () => {
+/** 착수음 세기: 착수음은 0.1초보다 짧은 잡음 버퍼를 튼다(히든 효과음은 길다) */
+const countStoneClicks = () => {
+  window.__clicks = 0;
+  const orig = AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start = function (...a) { if ((this.buffer?.duration ?? 1) < 0.1) window.__clicks++; return orig.apply(this, a); };
+};
+
+await check("[phone] AI 대국: 내가 두면 AI가 응수(착수음), 무르기는 내 차례로", async () => {
   const context = await browser.newContext(PHONE);
   await openFolds(context);
+  await context.addInitScript(countStoneClicks);
   const page = await context.newPage();
   await page.goto(base);
   await page.getByLabel("기력").selectOption("ai-6");
@@ -179,12 +187,36 @@ await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차
   const myTurnAt = (n) => page.waitForFunction((k) => new RegExp(`흑 차례 · ${k}수째`).test(document.querySelector(".status")?.textContent ?? ""), n, { timeout: 15000 });
   await tap(page, 7, 7, { touch: true });
   await myTurnAt(3);
+  assert.equal(await page.evaluate(() => window.__clicks), 2, "내 수와 AI 수에 착수음 한 번씩");
   const visible = await stones(page);
   await tap(page, 1, 13, { touch: true });
   await myTurnAt(5);
   await page.getByRole("button", { name: "무르기" }).first().click();
   await myTurnAt(3);
   assert.equal(await stones(page), visible);
+  assert.equal(await page.evaluate(() => window.__clicks), 4, "무르기에는 착수음이 없다");
+  await context.close();
+});
+
+await check("[설정] 소리: 착수음·효과음 볼륨과 음소거, 음소거하면 착수음이 안 난다", async () => {
+  const context = await browser.newContext(PHONE);
+  await openFolds(context);
+  await context.addInitScript(countStoneClicks);
+  const page = await context.newPage();
+  await page.goto(`${base}/settings`);
+  const stoneVol = page.getByLabel("착수음 볼륨");
+  await stoneVol.fill("40");
+  await page.getByLabel("효과음 볼륨").waitFor();
+  await page.locator(".sound-row", { hasText: "착수음" }).getByLabel("음소거").check();
+  assert.ok(await stoneVol.isDisabled());
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ddamok.sound")));
+  assert.deepEqual(saved.stone, { vol: 40, mute: true });
+  await page.goto(base);
+  await page.getByLabel("기력").selectOption("ai-1");
+  await page.getByRole("button", { name: "흑으로 두기" }).click();
+  await tap(page, 7, 7, { touch: true });
+  await page.waitForFunction(() => /흑 차례 · 3수째/.test(document.querySelector(".status")?.textContent ?? ""), null, { timeout: 15000 });
+  assert.equal(await page.evaluate(() => window.__clicks), 0);
   await context.close();
 });
 
