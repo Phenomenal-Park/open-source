@@ -81,6 +81,13 @@ button, input, select { font: inherit; }
 .btn.hidden-btn { border-color: var(--accent); color: var(--accent); font-weight: 800; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
 .stone.reveal { animation: reveal 1.5s ease-out; }
+.end-banner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; pointer-events: none; z-index: 5; animation: end-in 2.6s ease-out forwards; }
+.end-banner span { max-width: 94%; text-align: center; line-height: 1.05; font-weight: 900; -webkit-text-stroke: 2px var(--bg); paint-order: stroke fill; }
+.end-line1 { font-size: clamp(1.4rem, 7vw, 2.6rem); color: var(--text); text-shadow: 0 3px 0 rgba(0,0,0,.5); }
+.end-line2 { font-size: clamp(2.6rem, 13vw, 5.4rem); color: var(--accent); text-shadow: 0 0 22px var(--accent), 0 5px 0 rgba(0,0,0,.55); animation: end-pop .7s cubic-bezier(.2, 1.5, .4, 1) .15s both; }
+.end-line2.draw { color: var(--text); text-shadow: 0 5px 0 rgba(0,0,0,.55); }
+@keyframes end-in { 0% { opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes end-pop { from { transform: scale(2.2) rotate(-6deg); opacity: 0; } to { transform: scale(1) rotate(-3deg); opacity: 1; } }
 .hidden-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 4; }
 .hidden-banner { z-index: 5; }
 .hidden-banner span {

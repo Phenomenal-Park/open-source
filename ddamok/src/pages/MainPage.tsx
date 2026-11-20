@@ -28,6 +28,8 @@ const freshGame = (size: number, hiddenMove = false) =>
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
 const BANNER_MS = 1_900;
+/** 대국이 끝난 뒤 승리 문구를 보여 주는 시간(그 뒤 결과 창) */
+const END_BANNER_MS = 2_600;
 
 interface Online {
   gameId: string;
@@ -350,6 +352,15 @@ export function MainPage() {
     };
   }
 
+  // 대국이 끝나면 먼저 판 위에 "백, 23수 끝 / 오목 승!"을 크게 띄우고, 결과 창은 조금 뒤에
+  const endKey = result ? `${online?.gameId ?? "local"}-${result.moveCount}-${result.winner}-${result.reason}` : null;
+  const [cardKey, setCardKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!endKey) { setCardKey(null); return; }
+    const timer = setTimeout(() => setCardKey(endKey), END_BANNER_MS);
+    return () => clearTimeout(timer);
+  }, [endKey]);
+
   const canUndo = !online && history.length > 1 && !(aiGame && history.length === 2 && aiGame.aiColor === "black");
   const boardLocked = aiThinking || (!!online && (!online.game || online.game.status !== "playing" || state.currentPlayer !== online.you));
 
@@ -370,7 +381,13 @@ export function MainPage() {
           {banner > 0 && (
             <div key={banner} className="hidden-banner" aria-hidden><span>{t("hidden.banner")}</span></div>
           )}
-          {result && resultOpen && (
+          {result && cardKey !== endKey && (
+            <div key={endKey} className="end-banner" aria-hidden>
+              <span className="end-line1">{result.winner ? t("end.line1", { color: colorName(result.winner), n: result.moveCount }) : t("end.drawLine1", { n: result.moveCount })}</span>
+              <span className={`end-line2 ${result.winner ?? "draw"}`}>{t(`end.${result.winner ? result.reason : "draw"}` as MessageKey)}</span>
+            </div>
+          )}
+          {result && resultOpen && cardKey === endKey && (
             <GameResult result={result} canUndo={canUndo} onNewGame={newGame} onUndo={undo} onClose={() => setResultOpen(false)} />
           )}
         </div>
