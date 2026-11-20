@@ -126,49 +126,9 @@ function simulateBlack(s: GameState): GameState {
   return s;
 }
 
-/**
- * 숨은 돌이 아직 들키지 않은 동안의 백: 흑은 그 돌을 모른 채 둔다는 걸 알고 둔다.
- * 후보(다 보는 판의 상위 수 + 흑이 보는 판의 상위 수)마다 흑의 반응을 흉내 내고,
- * 그 뒤 실제 판(숨은 돌 포함)의 형세가 가장 좋은 수를 고른다 → 흑 눈에는 3인 4, 2인 3 같은 "안 보이는 위협"을 키운다.
- */
-function exploitHidden(state: GameState, level: AiLevel, plain: Position, rand: Rng): Position {
-  const fast = level.fast!;
-  const n = state.config.boardSize;
-  const full = FastBoard.fromState(state);
-  const wins = full.winningMoves(2);
-  if (wins.length) return toPos(wins[0], n);
-  const t = fast.timeMs;
-  const fullTop = new FastSearcher(full, fast.width).searchRoot(fast.depth, Math.max(30, t * 0.25), true, true).scores.slice(0, 5).map((x) => x.p);
-  const hp = state.hidden!.pos.row * n + state.hidden!.pos.col;
-  const viewTop = new FastSearcher(FastBoard.fromState(viewFor(state, "black")), fast.width).searchRoot(fast.depth, Math.max(20, t * 0.15), true, true)
-    .scores.slice(0, 4).map((x) => x.p).filter((p) => p !== hp);
-  const cand = [...new Set([plain.row * n + plain.col, ...fullTop, ...viewTop])];
-  const leafMs = Math.max(15, (t * 0.5) / cand.length);
-  let best = plain, bestV = -Infinity;
-  for (const p of cand) {
-    const r = tryMove(state, toPos(p, n));
-    if (!r.ok) continue;
-    let v: number;
-    if (r.state.isFinished) v = r.state.winner === "white" ? 1e9 : -1e9;
-    else {
-      const s2 = simulateBlack(r.state);
-      if (s2.isFinished) v = s2.winner === "white" ? 1e9 : -1e9;
-      else {
-        const fb = FastBoard.fromState(s2);
-        v = fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
-      }
-    }
-    v += (rand() - 0.5) * 2 * (fast.noise || 0);
-    if (v > bestV) { bestV = v; best = toPos(p, n); }
-  }
-  return best;
-}
-
 /** 백 AI의 수와 숨길지 여부 */
 export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Math.random): { move: Position; hidden: boolean } {
   const plain = chooseMove(state, level, rand);
-  const lurking = state.hidden && !state.hidden.revealed && state.hidden.index >= 0;
-  if (lurking && level.fast) return { move: exploitHidden(state, level, plain, rand), hidden: false };
   if (!canUseHidden(state)) return { move: plain, hidden: false };
   // 엔진이 약한 단계: 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
   if (!level.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
@@ -178,33 +138,22 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
   const top = new FastSearcher(b, level.fast.width).searchRoot(level.fast.depth, Math.max(30, level.fast.timeMs * 0.3), true, true).scores.slice(0, 5).map((x) => x.p);
   if (!top.includes(p0)) top.unshift(p0);
   const leafMs = Math.max(20, level.fast.timeMs * 0.06);
-  // 흑은 "백이 두기 가장 좋은 자리"부터 의심한다(hiddenBelief) → 그런 자리에 숨기면 들킬 확률이 높다.
-  // 들키면 그냥 보이게 둔 것과 같아지므로, 숨긴 값 = (1 − 들킬 확률) × 숨긴 값 + 들킬 확률 × 보이게 둔 값.
-  const rank = b.candidates().map((p) => ({ p, s: b.moveScore(p, 2) })).sort((x, y) => y.s - x.s);
-  const seen = new Map<number, number>();
-  let wsum = 0;
-  rank.slice(0, 8).forEach((x, i) => { const w = 0.7 ** i; seen.set(x.p, w); wsum += w; });
-  const findProb = (p: number) => Math.min(0.9, 2 * ((seen.get(p) ?? 0) / (wsum || 1)));
-  const value = (p: number, hidden: boolean): number => {
-    const r = tryMove(state, toPos(p, n), undefined, { hidden });
-    if (!r.ok) return -Infinity;
-    if (r.state.isFinished) return 1e9;
-    const s2 = simulateBlack(r.state);
-    if (s2.isFinished) return s2.winner === "white" ? 1e9 : -1e9;
-    const fb = FastBoard.fromState(s2);
-    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, level.fast!.width).searchRoot(6, leafMs, false, true).scores[0].s;
-  };
   let best = { move: plain, hidden: false }, bestV = -Infinity;
-  for (const p of top) {
-    const vis = value(p, false);
-    const f = findProb(p);
-    // 흉내 낸 흑은 숨은 돌을 찾지 않으니 "필승"으로 보이기 쉽다 → 기대값을 낼 때는 값을 형세 범위로 자른다
-    const clamp = (v: number) => Math.max(-3000, Math.min(3000, v));
-    const hid = (1 - f) * clamp(value(p, true)) + f * clamp(vis) + (vis > 3000 ? vis - 3000 : 0);
-    for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
-      const v = v0 + (rand() - 0.5) * 2 * (level.fast.noise || 0);
-      if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
+  for (const p of top) for (const hidden of [false, true]) {
+    const r = tryMove(state, toPos(p, n), undefined, { hidden });
+    if (!r.ok) continue;
+    let v: number;
+    if (r.state.isFinished) v = 1e9;
+    else {
+      const s2 = simulateBlack(r.state);
+      if (s2.isFinished) v = s2.winner === "white" ? 1e9 : -1e9;
+      else {
+        const fb = FastBoard.fromState(s2);
+        v = fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, level.fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
+      }
     }
+    v += (rand() - 0.5) * 2 * (level.fast.noise || 0);
+    if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
   }
   return best;
 }
