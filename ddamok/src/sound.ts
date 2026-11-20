@@ -200,3 +200,21 @@ export function captureSound(pairs = 1) {
   bowl.start(t0);
   bowl.stop(at + 0.2);
 }
+
+/** 스캔 빗나감: 짧게 낮아지는 "뿅" */
+export function scanMissSound() {
+  const o = out("fx");
+  if (!o) return;
+  const [a, master] = o;
+  const t = a.currentTime;
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(700, t);
+  osc.frequency.exponentialRampToValueAtTime(260, t + 0.22);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+  osc.connect(g).connect(master);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}

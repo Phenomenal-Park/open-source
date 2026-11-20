@@ -3,7 +3,7 @@
 //   (흑이 그 자리를 누르면 드러나고 흑이 다시 두는 것까지 흉내 낸다.) 약한 단계는 가끔 무작위로 숨긴다.
 // - 흑: 숨은 돌이 있다는 것만 안다. "백 돌이 거기 있으면 백이 바로 이기는" 빈칸이 있으면 그 자리를 눌러 본다
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
-import { canUseHidden, createGameFromConfig, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
+import { canScan, canUseHidden, createGameFromConfig, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
@@ -187,6 +187,29 @@ function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Po
   const d2 = belief.find((x) => x.danger2 && x.w >= 0.15);
   return d2 ? toPos(d2.pos, n) : m;
 }
+
+/**
+ * 흑 스캔(한 판에 한 번, 차례를 쓰지 않음): 정말 의심되는 자리에만 쓴다.
+ * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 조금이라도 그럴듯할 때
+ * - 막을 수 없는 넉이 되는 자리가 꽤 그럴듯할 때
+ * - 아니면 한 자리에 의심이 크게 몰렸을 때(백이 그쪽으로 줄을 이어 오는 등)
+ * 근거 없이 아무 데나 찍지 않는다 — 처음엔 의심이 고르게 퍼져 있어 쓰지 않고, 백이 숨은 돌을 쓰려 할 때 쓴다.
+ */
+export function chooseBlackScan(view: GameState): Position | null {
+  if (!canScan(view)) return null;
+  const belief = hiddenBelief(view, 20);
+  if (!belief.length) return null;
+  const n = view.config.boardSize;
+  const d1 = belief.filter((x) => x.danger1).sort((a, b) => b.w - a.w)[0];
+  if (d1 && d1.w >= SCAN_D1) return toPos(d1.pos, n);
+  const d2 = belief.filter((x) => x.danger2).sort((a, b) => b.w - a.w)[0];
+  if (d2 && d2.w >= SCAN_D2) return toPos(d2.pos, n);
+  return belief[0].w >= SCAN_TOP ? toPos(belief[0].pos, n) : null;
+}
+/** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
+const SCAN_D1 = 0.04;
+const SCAN_D2 = 0.06;
+const SCAN_TOP = 0.2;
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
 function simulateBlack(s: GameState): GameState {

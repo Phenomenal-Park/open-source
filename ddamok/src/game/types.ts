@@ -42,6 +42,15 @@ export interface GameConfig {
   hiddenMove: boolean;
 }
 
+/** 흑 스캔: 백이 히든을 쓴 뒤 한 판에 한 번, 흑 차례에 교차점 하나에 숨은 돌이 있는지 본다(차례는 그대로) */
+export interface ScanRecord {
+  pos: Position;
+  /** 스캔한 때(그때까지 둔 수의 개수) */
+  at: number;
+  /** 거기 숨은 돌이 있었다(드러남) */
+  hit: boolean;
+}
+
 /** 백이 숨겨 둔 돌 */
 export interface HiddenStone {
   /** moves에서 몇 번째 수인가 */
@@ -67,6 +76,8 @@ export interface GameState {
   moves: Position[];
   /** 백 히든 돌(쓰지 않았으면 null) */
   hidden: HiddenStone | null;
+  /** 흑 스캔(쓰지 않았으면 null) */
+  scan: ScanRecord | null;
 
   /** 무승부면 null(winReason "draw") */
   winner: Player | null;
@@ -76,7 +87,7 @@ export interface GameState {
   isFinished: boolean;
 }
 
-export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance" | "second-move-line" | "hidden-unavailable";
+export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance" | "second-move-line" | "hidden-unavailable" | "scan-unavailable";
 
 export type MoveResult =
   | { ok: true; state: GameState; captured: Position[]; /** 흑이 숨은 돌 자리를 눌러 돌이 드러났다(흑 차례 그대로) */ revealedHidden?: boolean }

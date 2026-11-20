@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  canUseHidden, createGame, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, tryMove,
+  canScan, canUseHidden, createGame, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
   undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
@@ -16,7 +16,7 @@ import { Fold } from "../components/Fold.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
-import { beep, captureSound, foundSound, hiddenSound, stoneClick } from "../sound.ts";
+import { beep, captureSound, foundSound, hiddenSound, scanMissSound, stoneClick } from "../sound.ts";
 
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
@@ -61,6 +61,8 @@ export function MainPage() {
   /** 이용 제한(관리자) — 온라인 대국 불가 */
   const [bannedUntil, setBannedUntil] = useState<number | null>(null);
   const [banner, setBanner] = useState(0);
+  /** 흑 스캔: 다음에 누르는 자리를 스캔한다 */
+  const [scanning, setScanning] = useState(false);
   const [notice, setNotice] = useState<{ kind: "found" | "lost"; at: number; pos?: Position; id: number } | null>(null);
 
   // ── 화면에 보일 판 ─────────────────────────────
@@ -84,6 +86,9 @@ export function MainPage() {
   const hs = state.hidden && state.hidden.index >= 0 ? state.hidden : null;
   const onlinePlaying = !!online && (!online.game || online.game.status === "playing");
   const aiThinking = !online && aiGame !== null && !state.isFinished && state.currentPlayer === aiGame.aiColor;
+  /** 흑 스캔을 지금 쓸 수 있는가(내가 흑, 백이 히든을 썼고 아직 안 드러남, 내 차례, 이 판에서 아직 안 씀) */
+  const scanNow = viewer === "black" && canScan(state) && !aiThinking && armedAt === null && (!online || (onlinePlaying && !!online.game && state.currentPlayer === online.you));
+  useEffect(() => { if (!scanNow) setScanning(false); }, [scanNow]);
 
   // 온라인: 새 수가 오면 포획 효과
   const lastLen = useRef(0);
@@ -108,6 +113,17 @@ export function MainPage() {
     }
     soundAt.current = { key: soundKey, n: state.moveCount };
   }, [state.moveCount, soundKey]);
+
+  // 흑 스캔 결과: 맞히면 "찾았다!"(숨은 돌이 드러남), 빗나가면 그 자리에 표시가 남고 짧은 소리
+  const scanKey = state.scan ? `${soundKey}-${state.scan.at}-${state.scan.pos.row}-${state.scan.pos.col}` : "";
+  const scanSeen = useRef("");
+  useEffect(() => {
+    if (!scanKey || scanSeen.current === scanKey) { scanSeen.current = scanKey; return; }
+    scanSeen.current = scanKey;
+    if (state.scan!.hit) setNotice({ kind: "found", at: state.moveCount, pos: state.scan!.pos, id: Date.now() });
+    else scanMissSound();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanKey]);
 
   // 효과음: "백 히든!" 배너가 뜰 때, 숨은 돌을 찾았을 때
   useEffect(() => { if (banner > 0) hiddenSound(); }, [banner]);
@@ -209,6 +225,7 @@ export function MainPage() {
   }, []);
 
   function play(pos: Position) {
+    if (scanning) return doScan(pos);
     if (online) {
       const g = online.game;
       if (!g || g.status !== "playing" || !onlineState || onlineState.currentPlayer !== online.you) return;
@@ -224,6 +241,20 @@ export function MainPage() {
       return;
     }
     setHistory((h) => commit(h, pos));
+  }
+
+  /** 흑 스캔: 누른 자리에 숨은 돌이 있는지 본다(차례 그대로). 결과 알림은 판의 scan이 바뀌는 것을 보고 띄운다 */
+  function doScan(pos: Position) {
+    if (!scanNow || shown.board[pos.row]?.[pos.col] !== null) return;
+    setScanning(false);
+    if (online) {
+      conn.current?.send({ type: "scan", row: pos.row, col: pos.col, moveNo: online.game!.moves.length });
+      return;
+    }
+    setHistory((h) => {
+      const r = scanAt(currentState(h), pos);
+      return r.ok ? [...h.slice(0, -1), r.state] : h;
+    });
   }
 
   /** 백이 숨길 자리로 고를 수 있는 빈칸인가 */
@@ -298,8 +329,17 @@ export function MainPage() {
     const id = ++aiRequest.current;
     const started = performance.now();
     const worker = workerRef.current;
-    const onMessage = (e: MessageEvent<{ id: number; move: Position; hidden?: boolean }>) => {
+    const onMessage = (e: MessageEvent<{ id: number; move: Position; hidden?: boolean; scan?: Position }>) => {
       if (e.data.id !== id) return;
+      const scan = e.data.scan;
+      if (scan) {
+        // 흑 AI 스캔: 적용하면 판이 바뀌어 다시 묻고, 그때 둔다
+        setTimeout(() => {
+          if (aiRequest.current !== id) return;
+          setHistory((h) => { const r = scanAt(currentState(h), scan); return r.ok ? [...h.slice(0, -1), r.state] : h; });
+        }, Math.max(0, 350 - (performance.now() - started)));
+        return;
+      }
       const hidden = !!e.data.hidden;
       if (hidden) setBanner((b) => b + 1); // AI도 "백 히든!" 뒤에 둔다
       const wait = Math.max(0, (hidden ? BANNER_MS : 350) - (performance.now() - started));
@@ -414,6 +454,9 @@ export function MainPage() {
   else if (online?.game?.status === "aborted") status = t("status.aborted");
   else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
+  else if (scanning) status = t("hidden.scanPick");
+  else if (state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "white") status = t(state.scan.hit ? "hidden.oppScanHit" : "hidden.oppScanMiss");
+  else if (state.scan && !state.scan.hit && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "black") status = t("hidden.scanMiss");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
   else if (armedAt !== null) status = t(viewer === "white" ? "hidden.armed" : "hidden.opponentArmed");
   else if (notice?.kind === "found" && notice.at === state.moveCount && state.currentPlayer === "black") status = t("hidden.foundStatus");
@@ -464,6 +507,7 @@ export function MainPage() {
           <Board
             state={shown}
             onPlay={play}
+            scanning={scanning}
             fx={fx}
             disabled={boardLocked}
             ghost={viewer === "white" && hs && !hs.revealed ? hs.pos : null}
@@ -505,6 +549,9 @@ export function MainPage() {
                   {viewer === "white" && canUseHidden(state) && armedAt === null && state.currentPlayer === "white" && (
                     <button className="btn hidden-btn" onClick={startHidden}>{t("btn.hidden")}</button>
                   )}
+                  {viewer === "black" && state.config.hiddenMove && state.scan === null && !state.isFinished && (
+                    <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
+                  )}
                   <button className="btn" onClick={resign} disabled={!online.game}>{t("btn.resign")}</button>
                 </>
               ) : <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
@@ -512,6 +559,9 @@ export function MainPage() {
               <>
                 {viewer === "white" && canUseHidden(state) && armedAt === null && (
                   <button className="btn hidden-btn" onClick={startHidden} disabled={aiThinking}>{t("btn.hidden")}</button>
+                )}
+                {viewer === "black" && state.config.hiddenMove && state.scan === null && !state.isFinished && (
+                  <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
                 )}
                 <button className="btn" onClick={undo} disabled={!canUndo}>{t("btn.undo")}</button>
                 <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>

@@ -52,6 +52,30 @@ export function forfeitHidden(state: GameState): GameState {
   return { ...state, hidden: { index: -1, pos: { row: -1, col: -1 }, revealed: true } };
 }
 
+/** 흑 스캔을 지금 쓸 수 있는가: 백이 히든을 썼고, 아직 드러나지 않았고, 흑 차례이고, 이 판에서 스캔을 안 썼을 때 */
+export function canScan(state: GameState): boolean {
+  const h = state.hidden;
+  return state.config.hiddenMove && !state.isFinished && state.currentPlayer === "black" && state.scan === null && !!h && h.index >= 0 && !h.revealed;
+}
+
+/**
+ * 흑 스캔: 교차점 하나에 숨은 돌이 있는지 본다. 차례는 그대로(흑이 이어서 둔다).
+ * 숨은 돌이 있으면 드러난다. 보이는 돌이 있는 자리는 스캔할 수 없다.
+ */
+export function scanAt(state: GameState, pos: Position): { ok: true; state: GameState; hit: boolean } | { ok: false; reason: IllegalReason } {
+  if (!canScan(state)) return { ok: false, reason: "scan-unavailable" };
+  const n = state.config.boardSize;
+  if (!Number.isInteger(pos?.row) || !Number.isInteger(pos?.col) || pos.row < 0 || pos.col < 0 || pos.row >= n || pos.col >= n) return { ok: false, reason: "out-of-bounds" };
+  const h = state.hidden!;
+  const hit = samePos(h.pos, pos);
+  if (!hit && state.board[pos.row][pos.col] !== null) return { ok: false, reason: "occupied" };
+  return {
+    ok: true,
+    hit,
+    state: { ...state, scan: { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit }, hidden: hit ? { ...h, revealed: true } : h, lastCaptured: [] },
+  };
+}
+
 /**
  * `viewer`에게 보이는 판. 아직 드러나지 않은 백 히든 돌은 백만 볼 수 있다(흑·관전자에게는 빈칸, 기보 좌표도 가린다).
  */
@@ -106,6 +130,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     lastMove: pos,
     lastCaptured: captured,
     moves: [...state.moves, pos],
+    scan: state.scan ?? null,
     hidden: opts.hidden ? { index: state.moves.length, pos, revealed: false } : state.hidden,
     winner: null,
     winReason: null,

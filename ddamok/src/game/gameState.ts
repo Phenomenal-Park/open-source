@@ -1,6 +1,6 @@
 import type { GameConfig, GameState, Player, Position } from "./types.ts";
 import { makeConfig } from "./config.ts";
-import { tryMove, type MoveOptions } from "./rules.ts";
+import { scanAt, tryMove, type MoveOptions } from "./rules.ts";
 
 export function createGame(boardSize?: number, options: Partial<Omit<GameConfig, "boardSize">> = {}): GameState {
   const config = makeConfig(boardSize, options);
@@ -19,6 +19,7 @@ export function createGameFromConfig(config: GameConfig): GameState {
     lastCaptured: [],
     moves: [],
     hidden: null,
+    scan: null,
     winner: null,
     winReason: null,
     winningLine: null,
@@ -55,14 +56,25 @@ export type ReplayResult =
   | { ok: true; state: GameState }
   | { ok: false; moveIndex: number; reason: string };
 
-/** 기보를 처음부터 다시 두어 검증한다(서버의 결과 검증용). 종료 후 수가 더 있으면 실패. hiddenIndex = 백 히든 수의 순번 */
-export function replayMoves(config: GameConfig, moves: readonly Position[], hiddenIndex: number | null = null): ReplayResult {
+/** 기보를 처음부터 다시 두어 검증한다(서버의 결과 검증용). 종료 후 수가 더 있으면 실패. hiddenIndex = 백 히든 수의 순번, scan = 흑 스캔(그때까지 둔 수의 개수와 자리) */
+export function replayMoves(config: GameConfig, moves: readonly Position[], hiddenIndex: number | null = null, scan: { at: number; pos: Position } | null = null): ReplayResult {
   let state = createGameFromConfig(config);
   for (let i = 0; i < moves.length; i++) {
+    if (scan && scan.at === i) {
+      const s = scanAt(state, scan.pos);
+      if (!s.ok) return { ok: false, moveIndex: i, reason: s.reason };
+      state = s.state;
+    }
     const m = moves[i];
     const result = tryMove(state, { row: m?.row, col: m?.col } as Position, undefined, { hidden: i === hiddenIndex });
     if (!result.ok) return { ok: false, moveIndex: i, reason: result.reason };
     state = result.state;
+  }
+  // 마지막 수 뒤에 스캔했으면(흑이 스캔하고 아직 두지 않았다)
+  if (scan && scan.at === moves.length) {
+    const s = scanAt(state, scan.pos);
+    if (!s.ok) return { ok: false, moveIndex: moves.length, reason: s.reason };
+    state = s.state;
   }
   return { ok: true, state };
 }

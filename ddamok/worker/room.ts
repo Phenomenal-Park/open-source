@@ -2,11 +2,11 @@
 import { DurableObject } from "cloudflare:workers";
 import { makeConfig, opponent, DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
 import { replayMoves } from "../src/game/gameState.ts";
-import { canUseHidden, forfeitHidden, tryMove, viewFor, type MoveOptions } from "../src/game/rules.ts";
+import { canUseHidden, forfeitHidden, scanAt, tryMove, viewFor, type MoveOptions } from "../src/game/rules.ts";
 import type { GameState, Player, Position } from "../src/game/types.ts";
 import { isProvisional, rateDraw, rateGame, type PlayerUpdate } from "../src/rating/elo.ts";
 import { chooseMove } from "../src/ai/search.ts";
-import { chooseBlackMove, chooseWhiteMove } from "../src/ai/hidden.ts";
+import { chooseBlackMove, chooseBlackScan, chooseWhiteMove } from "../src/ai/hidden.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
@@ -54,6 +54,8 @@ interface RoomData extends RoomInit {
   hiddenRevealed?: boolean;
   /** 히든을 누르고 10초 안에 두지 못해 기회가 사라졌다 */
   hiddenForfeit?: boolean;
+  /** 흑 스캔: 그때까지 둔 수의 개수와 자리(쓰지 않았으면 null) */
+  scan?: { at: number; pos: Position } | null;
   /** 백이 히든을 누른 시각 + HIDDEN_MS (아직 두지 않았으면) */
   hiddenArmedUntil?: number | null;
   /** 대국 시계(피셔): 남은 시간, 지금 줄어드는 쪽이 줄기 시작한 시각(멈췄으면 null) */
@@ -135,7 +137,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private replay(d: RoomData): GameState {
-    const r = replayMoves(roomConfig(d), d.moves, d.hiddenIndex ?? null);
+    const r = replayMoves(roomConfig(d), d.moves, d.hiddenIndex ?? null, d.scan ?? null);
     if (!r.ok) throw new Error("stored moves are invalid");
     let s = r.state;
     if (d.hiddenRevealed && s.hidden && !s.hidden.revealed) s = { ...s, hidden: { ...s.hidden, revealed: true } };
@@ -175,11 +177,28 @@ export class GameRoom extends DurableObject<Env> {
         const s = this.replay(cur);
         if (!cur.hiddenMove) return void (await this.applyMove(s.currentPlayer, chooseMove(s, level)));
         // 백 히든 판: 흑 AI는 흑에게 보이는 판만 보고, 백 AI는 숨겨 둘지도 정한다
-        if (s.currentPlayer === "black") return void (await this.applyMove("black", chooseBlackMove(viewFor(s, "black"), level)));
+        if (s.currentPlayer === "black") {
+          // 흑 AI: 정말 의심되는 자리가 있으면 먼저 스캔(차례는 그대로), 그 뒤 둔다
+          const sc = chooseBlackScan(viewFor(s, "black"));
+          if (sc && (await this.applyScan(sc))) return void (await this.applyMove("black", chooseBlackMove(viewFor(this.replay(this.data!), "black"), level)));
+          return void (await this.applyMove("black", chooseBlackMove(viewFor(s, "black"), level)));
+        }
         const { move, hidden } = chooseWhiteMove(s, level);
         await this.applyMove("white", move, { hidden });
       }),
     );
+  }
+
+  /** 흑 스캔(차례 그대로). 성공하면 true */
+  private async applyScan(pos: Position): Promise<boolean> {
+    const d = this.data!;
+    const r = scanAt(this.replay(d), pos);
+    if (!r.ok) return false;
+    d.scan = { at: d.moves.length, pos: { row: pos.row, col: pos.col } };
+    if (r.hit) d.hiddenRevealed = true;
+    await this.save();
+    this.broadcast();
+    return true;
   }
 
   /** 검증 후 착수. 실패하면 오류 코드(없으면 null). */
@@ -265,6 +284,12 @@ export class GameRoom extends DurableObject<Env> {
       await this.save();
       await this.scheduleAlarm();
       this.broadcast();
+      return;
+    }
+
+    if (msg.type === "scan") {
+      // 흑 스캔: 한 판에 한 번, 백 히든이 쓰인 뒤 흑 차례에만
+      if (color !== "black" || msg.moveNo !== d.moves.length || !(await this.applyScan({ row: msg.row, col: msg.col }))) return this.sendState(ws, color);
       return;
     }
 
@@ -424,13 +449,13 @@ export class GameRoom extends DurableObject<Env> {
           `INSERT OR IGNORE INTO games (id, mode, rated, black_id, white_id, winner_id, win_reason, moves, move_count,
              black_before, black_after, white_before, white_after,
              black_name, white_name, black_rating, white_rating, black_provisional, white_provisional, created_at, finished_at,
-             hidden_move, hidden_index)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             hidden_move, hidden_index, scan)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(d.id, d.mode, d.rated ? 1 : 0, d.black.id, d.white.id, winnerId, reason, JSON.stringify(d.moves), d.moves.length,
           before.black ?? null, after.black ?? null, before.white ?? null, after.white ?? null,
           // 대국 당시(매칭 시점) 닉네임·점수 스냅샷
           d.black.username, d.white.username, d.black.rating, d.white.rating, d.black.provisional ? 1 : 0, d.white.provisional ? 1 : 0,
-          d.createdAt, now, d.hiddenMove ? 1 : 0, d.hiddenIndex ?? null),
+          d.createdAt, now, d.hiddenMove ? 1 : 0, d.hiddenIndex ?? null, d.scan ? JSON.stringify({ at: d.scan.at, row: d.scan.pos.row, col: d.scan.pos.col }) : null),
       );
       for (const c of COLORS) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO user_games (user_id, game_id, finished_at) VALUES (?, ?, ?)").bind(d[c].id, d.id, now));

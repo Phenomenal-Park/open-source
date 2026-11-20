@@ -56,7 +56,7 @@ function Viewer({ id }: { id: string }) {
   const state = useMemo(() => {
     if (!g) return null;
     const config = g.hiddenMove ? makeConfig(g.boardSize, { hiddenMove: true, captureTarget: { ...HIDDEN_CAPTURE_TARGET } }) : makeConfig(g.boardSize);
-    const r = replayMoves(config, g.moves.slice(0, step), g.hiddenIndex ?? null);
+    const r = replayMoves(config, g.moves.slice(0, step), g.hiddenIndex ?? null, g.scan ?? null);
     return r.ok ? r.state : null;
   }, [g, step]);
   if (error) return <p className="form-error">{error}</p>;

@@ -27,6 +27,8 @@ interface BoardProps {
   hiddenMark?: Position | null;
   /** 흑이 숨은 돌을 찾은 자리("찾았다!") */
   found?: { pos: Position; id: number } | null;
+  /** 흑 스캔 고르는 중: 돌 대신 조준 표시 */
+  scanning?: boolean;
 }
 
 function starPoints(n: number): Position[] {
@@ -41,7 +43,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark, scanning }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -137,7 +139,16 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
         <text key={`ban-${p.row}-${p.col}`} className="banned" x={xy(p.col)} y={xy(p.row)} fontSize={CELL * 0.62} textAnchor="middle" dominantBaseline="central">⛔</text>
       ))}
 
-      {canHover && <Stone player={state.currentPlayer} cx={xy(hover!.col)} cy={xy(hover!.row)} r={R} opacity={0.4} />}
+      {canHover && !scanning && <Stone player={state.currentPlayer} cx={xy(hover!.col)} cy={xy(hover!.row)} r={R} opacity={0.4} />}
+      {canHover && scanning && <ScanAim cx={xy(hover!.col)} cy={xy(hover!.row)} />}
+
+      {/* 흑 스캔이 빗나간 자리(그 자리에 돌이 놓이기 전까지) */}
+      {state.scan && !state.scan.hit && state.board[state.scan.pos.row]?.[state.scan.pos.col] === null && (
+        <g className="scan-miss">
+          <circle cx={xy(state.scan.pos.col)} cy={xy(state.scan.pos.row)} r={R * 0.8} />
+          <path d={`M ${xy(state.scan.pos.col) - R * 0.38} ${xy(state.scan.pos.row) - R * 0.38} l ${R * 0.76} ${R * 0.76} m 0 ${-R * 0.76} l ${-R * 0.76} ${R * 0.76}`} />
+        </g>
+      )}
 
       {state.lastMove && (
         <circle className="last-move" cx={xy(state.lastMove.col)} cy={xy(state.lastMove.row)} r={1.5} />
@@ -159,5 +170,15 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
         />
       )}
     </svg>
+  );
+}
+
+/** 스캔 조준 표시: 고리 + 십자 */
+function ScanAim({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <g className="scan-aim">
+      <circle cx={cx} cy={cy} r={R} />
+      <path d={`M ${cx - R * 1.35} ${cy} h ${R * 0.7} M ${cx + R * 0.65} ${cy} h ${R * 0.7} M ${cx} ${cy - R * 1.35} v ${R * 0.7} M ${cx} ${cy + R * 0.65} v ${R * 0.7}`} />
+    </g>
   );
 }

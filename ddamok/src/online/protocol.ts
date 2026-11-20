@@ -118,5 +118,7 @@ export type ClientMessage =
   | { type: "move"; row: number; col: number; moveNo: number; /** 백 히든으로 숨겨 둔다 */ hidden?: boolean }
   /** 백이 히든을 누름(10초 안에 hidden:true로 둬야 한다) */
   | { type: "hidden" }
+  /** 흑 스캔: 교차점 하나에 숨은 돌이 있는지 본다(한 판에 한 번, 차례 그대로) */
+  | { type: "scan"; row: number; col: number; moveNo: number }
   | { type: "resign" }
   | { type: "ping" };

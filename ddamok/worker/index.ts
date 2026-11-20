@@ -385,7 +385,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const g = await env.DB.prepare(
       `SELECT g.*, b.username AS cur_black_name, w.username AS cur_white_name FROM games g
        LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id WHERE g.id = ?`,
-    ).bind(gr[1]).first<GameRow & { moves: string; board_size?: number; hidden_move?: number; hidden_index?: number | null }>();
+    ).bind(gr[1]).first<GameRow & { moves: string; board_size?: number; hidden_move?: number; hidden_index?: number | null; scan?: string | null }>();
     if (!g) throw new HttpError(404, "not_found", "기보를 찾을 수 없습니다(오래된 기보는 지워집니다).");
     const moves = JSON.parse(g.moves) as { row: number; col: number }[];
     const size = Math.max(DEFAULT_BOARD_SIZE, ...moves.flatMap((p) => [p.row + 1, p.col + 1]));
@@ -398,7 +398,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
       },
       ratings: g.rated ? { black: { before: g.black_before, after: g.black_after }, white: { before: g.white_before, after: g.white_after } } : null,
       moves, boardSize: size === DEFAULT_BOARD_SIZE ? DEFAULT_BOARD_SIZE : size, finishedAt: g.finished_at,
-      hiddenMove: !!g.hidden_move, hiddenIndex: g.hidden_index ?? null,
+      hiddenMove: !!g.hidden_move, hiddenIndex: g.hidden_index ?? null, scan: parseScan(g.scan),
     });
   }
 
@@ -513,3 +513,14 @@ export default {
     ctx.waitUntil(calibrate(env).then((f) => { if (f !== null) console.log(`점수 보정 ×${f.toFixed(3)}`); }));
   },
 } satisfies ExportedHandler<Env>;
+
+/** 기보에 저장한 흑 스캔 {"at","row","col"} → { at, pos } */
+function parseScan(raw: string | null | undefined): { at: number; pos: { row: number; col: number } } | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as { at: number; row: number; col: number };
+    return Number.isInteger(v.at) && Number.isInteger(v.row) && Number.isInteger(v.col) ? { at: v.at, pos: { row: v.row, col: v.col } } : null;
+  } catch {
+    return null;
+  }
+}

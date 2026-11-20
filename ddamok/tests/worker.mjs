@@ -257,6 +257,59 @@ await check("백 히든: 흑에게는 숨은 돌이 보이지 않고(좌표도 �
   assert.deepEqual(rec.moves[1], { row: 7, col: 8 });
 });
 
+await check("흑 스캔: 히든 전에는 안 되고, 히든 뒤 흑 차례에 한 번(차례 그대로) — 빗나감은 양쪽에 보이고 기보에 남는다", async () => {
+  const { black, white } = await pairUp(A.token, B.token, "mode=friend&code=4325");
+  await play(black, 7, 7, 0);
+  await white.sock.next((m) => m.type === "state" && m.game.moves.length === 1);
+  await play(white, 8, 8, 1);
+  await black.sock.next((m) => m.type === "state" && m.game.moves.length === 2);
+  black.sock.send({ type: "scan", row: 5, col: 5, moveNo: 2 }); // 히든 전: 무시
+  await sleep(400);
+  assert.ok(!black.sock.queue.some((m) => m.type === "state" && m.game.view.scan));
+  await play(black, 6, 6, 2);
+  await white.sock.next((m) => m.type === "state" && m.game.moves.length === 3);
+  white.sock.send({ type: "hidden" });
+  await white.sock.next((m) => m.type === "state" && m.game.hiddenArmedMs !== undefined);
+  white.sock.send({ type: "move", row: 9, col: 9, moveNo: 3, hidden: true });
+  await black.sock.next((m) => m.type === "state" && m.game.moves.length === 4);
+  white.sock.send({ type: "scan", row: 9, col: 9, moveNo: 4 }); // 백은 못 쓴다
+  black.sock.send({ type: "scan", row: 5, col: 5, moveNo: 4 }); // 빗나감
+  const miss = await black.sock.next((m) => m.type === "state" && m.game.view.scan);
+  assert.deepEqual(miss.game.view.scan, { pos: { row: 5, col: 5 }, at: 4, hit: false });
+  assert.equal(miss.game.view.currentPlayer, "black");
+  assert.equal(miss.game.view.hidden.revealed, false);
+  const wseen = await white.sock.next((m) => m.type === "state" && m.game.view.scan);
+  assert.equal(wseen.game.view.scan.hit, false);
+  black.sock.send({ type: "scan", row: 9, col: 9, moveNo: 4 }); // 두 번째: 무시
+  await sleep(400);
+  assert.ok(!black.sock.queue.some((m) => m.type === "state" && m.game.view.hidden?.revealed));
+  await play(black, 5, 5, 4); // 스캔한 빈자리에 둔다
+  await white.sock.next((m) => m.type === "state" && m.game.moves.length === 5);
+  black.sock.send({ type: "resign" });
+  await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+  const rec = (await api(`/api/games/${miss.game.id}`)).data;
+  assert.deepEqual(rec.scan, { at: 4, pos: { row: 5, col: 5 } });
+});
+
+await check("흑 스캔: 숨은 돌 자리를 맞히면 양쪽에 드러나고 흑 차례 그대로", async () => {
+  const { black, white } = await pairUp(A.token, B.token, "mode=friend&code=4326");
+  await play(black, 7, 7, 0);
+  await white.sock.next((m) => m.type === "state" && m.game.moves.length === 1);
+  white.sock.send({ type: "hidden" });
+  await white.sock.next((m) => m.type === "state" && m.game.hiddenArmedMs !== undefined);
+  white.sock.send({ type: "move", row: 7, col: 9, moveNo: 1, hidden: true });
+  await black.sock.next((m) => m.type === "state" && m.game.moves.length === 2);
+  black.sock.send({ type: "scan", row: 7, col: 9, moveNo: 2 });
+  const hit = await black.sock.next((m) => m.type === "state" && m.game.view.hidden?.revealed === true);
+  assert.equal(hit.game.view.board[7][9], "white");
+  assert.equal(hit.game.view.currentPlayer, "black");
+  assert.deepEqual(hit.game.view.scan, { pos: { row: 7, col: 9 }, at: 2, hit: true });
+  black.sock.send({ type: "resign" });
+  await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+});
+
 await check("백 히든: 누르고 10초(+여유) 안에 두지 않으면 그 판의 히든 기회가 사라지고 백 차례 그대로", async () => {
   const { black, white } = await pairUp(A.token, B.token, "mode=friend&code=4322");
   await play(black, 7, 7, 0);

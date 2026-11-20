@@ -79,6 +79,10 @@ button, input, select { font: inherit; }
 .board-wrap.hidden-armed .board { box-shadow: 0 0 0 3px var(--accent), 0 0 28px var(--accent), 0 8px 30px rgba(0,0,0,.45); }
 .found-pop { fill: var(--accent); font-weight: 900; paint-order: stroke; stroke: var(--bg); stroke-width: .6; animation: float-up 1.4s ease-out forwards; pointer-events: none; }
 .btn.hidden-btn { border-color: var(--accent); color: var(--accent); font-weight: 800; }
+.scan-aim { fill: none; stroke: #4aa8ff; stroke-width: .8; pointer-events: none; }
+.scan-miss { fill: none; stroke: #4aa8ff; stroke-width: .6; opacity: .85; pointer-events: none; }
+.scan-miss circle { stroke-dasharray: 1.2 .9; }
+.btn.scan-btn.active { border-color: #4aa8ff; color: #4aa8ff; }
 .hidden-mark { fill: none; stroke: var(--accent); stroke-width: .7; stroke-dasharray: 1.4 1; pointer-events: none; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
 .stone.reveal { animation: reveal 1.5s ease-out; }

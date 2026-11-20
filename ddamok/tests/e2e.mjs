@@ -289,6 +289,38 @@ await check("[온라인] 친구매치: 같은 코드 → 대국 → 오목 승�
   for (const p of [A, B]) await p.getByRole("button", { name: "새 대국" }).first().click();
 });
 
+await check("[온라인] 흑 스캔: 백 히든 전에는 꺼져 있고, 뒤에는 한 번 — 빗나간 자리는 양쪽에 표시", async () => {
+  for (const p of [A, B]) {
+    await p.getByLabel("친구매치 코드").fill("13579");
+    await p.getByRole("button", { name: "친구매치" }).click();
+  }
+  await A.locator(".score-name", { hasText: "(나)" }).waitFor({ timeout: 15000 });
+  await B.locator(".score-name", { hasText: "(나)" }).waitFor({ timeout: 15000 });
+  const black = (await myColor(A)) === "black" ? A : B;
+  const white = black === A ? B : A;
+  const scanBtn = black.getByRole("button", { name: "스캔" });
+  assert.ok(await scanBtn.isDisabled(), "히든 전에는 스캔 비활성");
+  assert.equal(await white.getByRole("button", { name: "스캔" }).count(), 0, "백에게는 스캔 버튼이 없다");
+  await tap(black, 7, 7, { touch: black === A });
+  await white.getByRole("button", { name: "히든" }).click();
+  await tap(white, 1, 1, { touch: white === A });
+  await black.waitForFunction(() => /2수째|3수째/.test(document.querySelector(".status")?.textContent ?? "") && !document.querySelector(".hidden-timer"), null, { timeout: 10000 });
+  await scanBtn.waitFor();
+  await black.waitForFunction(() => !document.querySelector(".scan-btn")?.disabled, null, { timeout: 10000 });
+  await scanBtn.click();
+  assert.match(await black.locator(".status").textContent(), /스캔할 자리/);
+  await tap(black, 3, 3, { touch: black === A });
+  for (const p of [black, white]) await p.locator(".scan-miss").waitFor({ timeout: 10000 });
+  assert.match(await black.locator(".status").textContent(), /숨은 돌 없음/);
+  assert.match(await white.locator(".status").textContent(), /빗나감/);
+  assert.equal(await black.getByRole("button", { name: "스캔" }).count(), 0, "한 판에 한 번");
+  await shot(black, `${black === A ? "phone" : "desktop"}-scan-miss`);
+  black.once("dialog", (d) => d.accept());
+  await black.getByRole("button", { name: "기권" }).click();
+  for (const p of [A, B]) await p.locator(".result-card").waitFor({ timeout: 10000 });
+  for (const p of [A, B]) await p.getByRole("button", { name: "새 대국" }).first().click();
+});
+
 await check("[온라인] 레이팅매치: 가까운 점수끼리 매칭 → 기권 → 점수 변화(확정 전 ?)", async () => {
   for (const p of [A, B]) await p.getByRole("button", { name: "레이팅매치" }).click();
   await A.locator(".score-name", { hasText: "(나)" }).waitFor({ timeout: 15000 });
@@ -313,7 +345,7 @@ await check("[프로필·설정] 급·점수(?)·전적, 설정 화면의 AI 상
   assert.match(await B.locator(".stats").textContent(), /1승 0패 0무/);
   assert.match(await B.locator(".stats").textContent(), /승률100%/);
   assert.match(await B.locator(".records h2").first().textContent(), /명승부 0\/3/);
-  assert.equal(await B.locator(".profile ~ .records .record-list li").count(), 2); // 최근 대국
+  assert.equal(await B.locator(".profile ~ .records .record-list li").count(), 3); // 최근 대국(친구매치 2판 + 레이팅매치)
   await shot(B, "desktop-profile");
   await B.goto(base + "/settings");
   await B.waitForFunction(() => !document.querySelector(".setting input")?.disabled);
@@ -344,7 +376,7 @@ await check("[기보] 닉네임 검색 → 최근 기보 → 수순 넘겨 보�
   await A.getByLabel("닉네임").fill("viewer_b");
   await A.getByRole("button", { name: "찾기" }).click();
   await A.locator(".record-list li").first().waitFor();
-  assert.equal(await A.locator(".record-list li").count(), 2);
+  assert.equal(await A.locator(".record-list li").count(), 3); // 친구매치 2판(오목·스캔) + 레이팅매치
   await A.locator(".record-list li a").last().click(); // 친구매치(오목) 기보
   await A.locator(".viewer .step").waitFor();
   assert.match(await A.locator(".viewer .step").textContent(), /9 \/ 9수/);

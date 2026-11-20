@@ -77,6 +77,8 @@ export interface GameRecord {
   /** 백 히든 판(따냄 목표 10/10)이었나, 히든 수의 순번 */
   hiddenMove?: boolean;
   hiddenIndex?: number | null;
+  /** 흑 스캔(그때까지 둔 수의 개수와 자리) */
+  scan?: { at: number; pos: Position } | null;
 }
 
 export interface RecordsPage {
