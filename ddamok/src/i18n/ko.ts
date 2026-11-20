@@ -110,7 +110,7 @@ export const ko = {
   "look.board": "바둑판",
   "look.stones": "바둑돌",
   "look.basic": "기본",
-  "look.simple": "단순",
+  "look.cartoon": "카툰",
   "look.premium": "고급",
 
   "auth.verifyHelp": "가입한 이메일로 받은 6자리 인증 코드를 입력하세요. 인증해야 온라인 대국을 둘 수 있습니다.",
@@ -206,6 +206,9 @@ export const ko = {
   "profile.winRate": "승률",
   "profile.maxRating": "최고 점수",
   "profile.recent": "최근 대국",
+  "profile.search": "닉네임으로 프로필 찾기",
+  "profile.theirRecords": "기보 보기",
+  "profile.isBot": "AI 계정입니다. 급은 사람과 둔 결과로 바뀝니다.",
   "fav.title": "명승부",
   "fav.count": "{n}/{max}",
   "fav.empty": "아직 박제한 명승부가 없습니다. 기보 화면에서 박제할 수 있습니다.",

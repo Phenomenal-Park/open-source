@@ -110,7 +110,7 @@ export const en: Messages = {
   "look.board": "Board",
   "look.stones": "Stones",
   "look.basic": "Standard",
-  "look.simple": "Simple",
+  "look.cartoon": "Cartoon",
   "look.premium": "Premium",
 
   "auth.verifyHelp": "Enter the 6-digit code we emailed you. You need to verify to play online.",
@@ -206,6 +206,9 @@ export const en: Messages = {
   "profile.winRate": "Win rate",
   "profile.maxRating": "Best rating",
   "profile.recent": "Recent games",
+  "profile.search": "Find a profile by nickname",
+  "profile.theirRecords": "View games",
+  "profile.isBot": "This is an AI account. Its rank moves with games against people.",
   "fav.title": "Best games",
   "fav.count": "{n}/{max}",
   "fav.empty": "No best games pinned yet. You can pin them from a game record.",

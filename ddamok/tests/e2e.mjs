@@ -234,6 +234,19 @@ await check("[프로필] 급·점수(?)·전적, AI 상대 허용 설정이 저�
   await shot(B, "desktop-profile");
 });
 
+await check("[프로필] 다른 사람 프로필: 닉네임으로 찾아 급·점수·전적·명승부·최근 대국을 본다(설정은 없음)", async () => {
+  await A.goto(base + "/profile");
+  await A.getByPlaceholder("닉네임으로 프로필 찾기").fill("viewer_b");
+  await A.getByRole("button", { name: "찾기" }).click();
+  await A.waitForURL(/\/profile\?user=viewer_b/);
+  await A.locator(".big-rank").waitFor();
+  assert.match(await A.locator(".profile h2").textContent(), /viewer_b/);
+  assert.match(await A.locator(".stats").textContent(), /1승 0패 0무/);
+  assert.equal(await A.locator(".setting input").count(), 0);
+  assert.ok(await A.locator(".mode-filter .chip").count() >= 4);
+  await shot(A, "phone-other-profile");
+});
+
 await check("[기보] 닉네임 검색 → 최근 기보 → 수순 넘겨 보기", async () => {
   await A.goto(base + "/records");
   await A.getByLabel("닉네임").fill("viewer_b");

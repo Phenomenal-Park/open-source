@@ -20,7 +20,7 @@ export function Leaderboard() {
         <ol>
           {players.map((u) => (
             <li key={u.id}>
-              <a className="who" href={`/records?user=${encodeURIComponent(u.username)}`}>{u.username}</a>
+              <a className="who" href={`/profile?user=${encodeURIComponent(u.username)}`}>{u.username}</a>
               <span className="score-rank">{rankName(u.rating)}</span>
               <span className="pts">{formatRating(u.rating, u.provisional)}</span>
             </li>

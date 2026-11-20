@@ -14,7 +14,7 @@ interface StoneProps {
 export function Stone({ player, cx, cy, r, className, opacity }: StoneProps) {
   const { stones } = useLook();
   const style = { transformOrigin: `${cx}px ${cy}px` };
-  if (stones === "simple") {
+  if (stones === "cartoon") {
     // 만화풍: 단색 + 굵은 테두리, 흑돌엔 작은 반짝임
     return (
       <g className={className} opacity={opacity} style={style}>

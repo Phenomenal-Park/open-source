@@ -176,7 +176,7 @@ export function RecordsPage() {
           )}
           <section className="panel records">
             <h2>
-              {displayName(data.user.username)} <span className="score-rank">{rankName(data.user.rating)}</span>{" "}
+              <a className="profile-link" href={`/profile?user=${encodeURIComponent(data.user.username)}`}>{displayName(data.user.username)}</a> <span className="score-rank">{rankName(data.user.rating)}</span>{" "}
               <span className="seat-rating">{t("points", { rating: formatRating(data.user.rating, data.user.provisional) })}</span>
             </h2>
             <p className="muted">{t("rec.recent", { n: data.total })}</p>

@@ -54,7 +54,9 @@ export function GameResult({ result: r, canUndo, onNewGame, onUndo, onClose }: G
               return (
                 <div key={p} className="rating-row">
                   <span className={`dot ${p}`} aria-hidden />
-                  <span className="who">{r.names ? displayName(r.names[p]) : colorName(p)}</span>
+                  <span className="who">
+                    {r.names ? <a href={`/profile?user=${encodeURIComponent(r.names[p])}`} target="_blank" rel="noopener">{displayName(r.names[p])}</a> : colorName(p)}
+                  </span>
                   <span className="rank">{rankName(s.after)}</span>
                   <span className="pts">{formatRating(s.after, s.provisional)}</span>
                   <span className={`delta ${d > 0 ? "up" : d < 0 ? "down" : ""}`}>

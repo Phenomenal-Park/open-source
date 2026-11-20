@@ -110,7 +110,7 @@ export const ja: Messages = {
   "look.board": "碁盤",
   "look.stones": "碁石",
   "look.basic": "標準",
-  "look.simple": "シンプル",
+  "look.cartoon": "カートゥーン",
   "look.premium": "高級",
 
   "auth.verifyHelp": "登録したメールに届いた6桁の認証コードを入力してください。認証するとオンライン対局ができます。",
@@ -206,6 +206,9 @@ export const ja: Messages = {
   "profile.winRate": "勝率",
   "profile.maxRating": "最高点",
   "profile.recent": "最近の対局",
+  "profile.search": "ニックネームでプロフィールを探す",
+  "profile.theirRecords": "棋譜を見る",
+  "profile.isBot": "AIアカウントです。級は人との対局結果で変わります。",
   "fav.title": "名局",
   "fav.count": "{n}/{max}",
   "fav.empty": "まだ名局がありません。棋譜の画面から保存できます。",
