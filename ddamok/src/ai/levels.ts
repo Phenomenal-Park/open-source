@@ -9,6 +9,8 @@ import type { FastLevel } from "./fastSearch.ts";
 //    다이아→챌린저 직접 +380(40판 92.5%) — 두 값의 평균으로 챌린저 약 1830(2단) 추정
 //    형세 가중치 자동 조정 후 재측정: 다이아→마스터 +236(40판 82.5%), 마스터→챌린저 +236(40판 82.5%)
 //    → 마스터 약 1730(1단), 챌린저 약 1960(3단)
+//    2026-11-20 사람(개발자) 시험 대국: 챌린저는 흑·백 모두 이기기 어려움 → AI끼리 측정이 위쪽을 낮게 잡았다고 보고
+//    챌린저 2400(8단), 마스터 2150(5단)으로 올린다. 실제 점수는 사람과의 대국으로 저절로 맞춰진다.
 //  주의: 잡음 없는 단계끼리의 측정은 무작위 시작 수를 깔아야 한다(calibrate-ai.ts가 그렇게 한다).
 //  1단~7단을 위한 강화 작업 중(threats.ts 연속 위협 탐색, EXPERIMENTAL 단계).
 
@@ -52,9 +54,9 @@ export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
   { id: "ai-5", name: "AI 플래티넘", label: "7급", rating: 1250, depth: 3, width: 10, nodeBudget: 30_000, noise: 25, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.5 },
   { id: "ai-6", name: "AI 다이아", label: "3급", rating: 1490, depth: 4, width: 9, nodeBudget: 80_000, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 },
   // 마스터·챌린저: 고속 엔진(fast.ts·fastSearch.ts — 놓기/되돌리기, 같은 판 기억, 강제수 연장)
-  { id: "ai-7", name: "AI 마스터", label: "1단", rating: 1730, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
+  { id: "ai-7", name: "AI 마스터", label: "5단", rating: 2150, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
     fast: { depth: 6, timeMs: 200, width: 10, noise: 15, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.9 } },
-  { id: "ai-8", name: "AI 챌린저", label: "3단", rating: 1960, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
+  { id: "ai-8", name: "AI 챌린저", label: "8단", rating: 2400, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
     fast: { depth: 14, timeMs: 400, width: 12, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 } },
 ]);
 
