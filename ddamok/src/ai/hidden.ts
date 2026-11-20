@@ -163,11 +163,29 @@ function withHidden(level: AiLevel): AiLevel {
 
 export function chooseBlackMove(view: GameState, level: AiLevel, rand: Rng = Math.random): Position {
   const L = withHidden(level);
-  if (L.fast && view.hidden && !view.hidden.revealed && view.hidden.index >= 0) return chooseBlackMoveBelief(view, L, rand, level);
+  const unknown = !!view.hidden && !view.hidden.revealed && view.hidden.index >= 0;
+  // 다이아(예전 엔진 최상위): 여러 판 읽기는 다이아 자신보다 센 고속 엔진으로 수를 골라 흑만 강해진다(같은 단계끼리 흑 78%).
+  // 평소 수는 제 실력으로 두고, 숨은 돌이 위험할 때만 찔러 본다(같은 단계끼리 흑 47.5%, 40판).
+  if (unknown && !level.fast && level.rating >= 1400) return chooseBlackMoveCautious(view, level, rand);
+  if (unknown && L.fast) return chooseBlackMoveBelief(view, L, rand, level);
   const m = chooseMove(view, level, rand);
   const won = tryMove(view, m);
   if (won.ok && won.state.isFinished) return m;
   return blackProbe(view) ?? m;
+}
+
+/** 제 실력으로 두되, 거기 숨은 돌이 있으면 백이 바로 이기거나 막을 수 없는 넉을 만드는 자리가 의심스러우면 눌러 본다 */
+function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Position {
+  const m = chooseMove(view, level, rand);
+  const won = tryMove(view, m);
+  if (won.ok && won.state.isFinished) return m;
+  if (FastBoard.fromState(view).winningMoves(2).length) return m; // 보이는 위협부터 막는다
+  const belief = hiddenBelief(view, 20);
+  const n = view.config.boardSize;
+  const d1 = belief.filter((x) => x.danger1);
+  if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
+  const d2 = belief.find((x) => x.danger2 && x.w >= 0.15);
+  return d2 ? toPos(d2.pos, n) : m;
 }
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
@@ -266,7 +284,8 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
 function stealthy(state: GameState, level: AiLevel, plain: Position): Position {
   const h = state.hidden;
   const fast = withHidden(level).fast;
-  if (!fast || !h || h.revealed || h.index < 0 || state.currentPlayer !== "white" || state.isFinished) return plain;
+  // 골드 이하는 티 안 내기를 하지 않는다(골드끼리 흑 20% → 끄면 45%, 20판)
+  if (level.rating < 1200 || !fast || !h || h.revealed || h.index < 0 || state.currentPlayer !== "white" || state.isFinished) return plain;
   const n = state.config.boardSize;
   const hp = h.pos.row * n + h.pos.col;
   const b = FastBoard.fromState(state);
