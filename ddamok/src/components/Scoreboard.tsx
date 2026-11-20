@@ -33,6 +33,7 @@ export function Scoreboard({ state, names }: ScoreboardProps) {
               <span className="score-name">{user ? user.name : colorName(p)}</span>
               {user?.rank && <span className="score-rank">{user.rank}</span>}
               {user?.rating && <span className="score-rating">{user.rating}</span>}
+              {p === "white" && state.hidden && state.hidden.index >= 0 && !state.hidden.revealed && <span className="hidden-tag">{t("hidden.badge")}</span>}
               {active && <span className="turn-tag">{t("score.turn")}</span>}
             </div>
             <div className="score-count" aria-label={t("score.aria", { color: colorName(p), count, target })}>

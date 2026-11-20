@@ -22,6 +22,8 @@ interface BoardProps {
   ghost?: Position | null;
   /** 백 히든: 드러난 숨은 돌 — 스르르 나타난다 */
   reveal?: Position | null;
+  /** 흑이 숨은 돌을 찾은 자리("찾았다!") */
+  found?: { pos: Position; id: number } | null;
 }
 
 function starPoints(n: number): Position[] {
@@ -36,7 +38,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, reveal }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, reveal, found }: BoardProps) {
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -134,6 +136,10 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal }: BoardProps
 
       {state.lastMove && (
         <circle className="last-move" cx={xy(state.lastMove.col)} cy={xy(state.lastMove.row)} r={1.5} />
+      )}
+
+      {found && (
+        <text key={`found-${found.id}`} className="found-pop" x={xy(found.pos.col)} y={xy(found.pos.row) - CELL * 0.7} fontSize={CELL * 0.6} textAnchor="middle">{t("hidden.found")}</text>
       )}
 
       {win && (

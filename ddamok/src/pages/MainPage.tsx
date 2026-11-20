@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  createGame, createHistory, currentState, DEFAULT_BOARD_SIZE, makeConfig, opponent, playMove, replayMoves, undoMove,
-  type GameHistory, type GameState, type Player, type Position,
+  canUseHidden, createGame, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, tryMove,
+  undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
 import { formatRating, type GameSnapshot, type MatchMode } from "../online/protocol.ts";
@@ -20,7 +20,12 @@ import { Rich } from "../i18n/Rich.tsx";
 const BOARD_SIZES = [13, 15, 19];
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
-const freshGame = (size: number) => createGame(size, { secondMoveMinDistance: SECOND_MIN });
+/** 백 히든은 AI 대국에서만(같은 화면 2인 대국은 숨길 수 없다) */
+const freshGame = (size: number, hiddenMove = false) => createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove });
+/** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
+const HIDDEN_MS = 10_000;
+/** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
+const BANNER_MS = 1_900;
 
 interface Online {
   gameId: string;
@@ -46,6 +51,10 @@ export function MainPage() {
   const aiRequest = useRef(0);
   const conn = useRef<GameConnection | null>(null);
   const cancelMatch = useRef<(() => void) | null>(null);
+  // 백 히든
+  const [armedUntil, setArmedUntil] = useState<number | null>(null);
+  const [banner, setBanner] = useState(0);
+  const [notice, setNotice] = useState<{ kind: "found" | "lost"; at: number; pos?: Position; id: number } | null>(null);
 
   // ── 화면에 보일 판 ─────────────────────────────
   const onlineMoves = online?.game?.moves;
@@ -56,6 +65,10 @@ export function MainPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineMoves]);
   const state = onlineState ?? currentState(history);
+  /** 이 화면을 보는 사람의 색(AI 대국) — 숨은 돌은 백에게만 보인다 */
+  const viewer: Player | null = !online && aiGame ? opponent(aiGame.aiColor) : null;
+  const shown = viewer ? viewFor(state, viewer) : state;
+  const hs = state.hidden && state.hidden.index >= 0 ? state.hidden : null;
   const onlinePlaying = !!online && (!online.game || online.game.status === "playing");
   const aiThinking = !online && aiGame !== null && !state.isFinished && state.currentPlayer === aiGame.aiColor;
 
@@ -123,10 +136,16 @@ export function MainPage() {
   }, [finished]);
 
   // ── 로컬·AI ─────────────────────────────
-  const commit = useCallback((h: GameHistory, pos: Position) => {
-    const next = playMove(h, pos);
-    if (next === h) return h; // 둘 수 없는 곳: 상태 변경 없음
-    const s = currentState(next);
+  const commit = useCallback((h: GameHistory, pos: Position, opts: MoveOptions = {}) => {
+    const r = tryMove(currentState(h), pos, undefined, opts);
+    if (!r.ok) return h; // 둘 수 없는 곳: 상태 변경 없음
+    const next = [...h, r.state];
+    const s = r.state;
+    if (r.revealedHidden) {
+      setNotice({ kind: "found", at: s.moveCount, pos, id: Date.now() });
+      setFx(null);
+      return next;
+    }
     if (s.lastCaptured.length) setFx({ id: s.moveCount, stones: s.lastCaptured, color: opponent(s.board[pos.row][pos.col]!) });
     else setFx(null);
     setResultOpen(true);
@@ -142,8 +161,47 @@ export function MainPage() {
       return;
     }
     if (aiThinking) return;
+    if (armedUntil !== null) {
+      if (!isEmptyFor(pos)) return;
+      setArmedUntil(null);
+      setHistory((h) => commit(h, pos, { hidden: true }));
+      return;
+    }
     setHistory((h) => commit(h, pos));
   }
+
+  /** 백이 숨길 자리로 고를 수 있는 빈칸인가 */
+  function isEmptyFor(pos: Position) {
+    return state.board[pos.row]?.[pos.col] === null;
+  }
+
+  function startHidden() {
+    if (!canUseHidden(state) || viewer !== "white" || aiThinking) return;
+    setArmedUntil(Date.now() + HIDDEN_MS);
+    setBanner((b) => b + 1);
+    setNotice(null);
+  }
+
+  // 히든 카운트다운: 10, 9, 8 … 시간이 지나면 기회가 사라진다(백 차례 그대로)
+  useEffect(() => {
+    if (armedUntil === null) return;
+    let last = -1;
+    const timer = setInterval(() => {
+      const left = Math.ceil((armedUntil - Date.now()) / 1000);
+      if (left !== last) {
+        last = left;
+        if (left <= 3 && left > 0) navigator.vibrate?.(40);
+        tick((x) => x + 1);
+      }
+      if (left <= 0) {
+        setArmedUntil(null);
+        setHistory((h) => [...h.slice(0, -1), forfeitHidden(currentState(h))]);
+        setNotice({ kind: "lost", at: currentState(history).moveCount, id: Date.now() });
+      }
+    }, 100);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [armedUntil]);
 
   // AI 차례: Web Worker에서 계산(최소 0.35초)
   useEffect(() => {
@@ -154,16 +212,19 @@ export function MainPage() {
     const id = ++aiRequest.current;
     const started = performance.now();
     const worker = workerRef.current;
-    const onMessage = (e: MessageEvent<{ id: number; move: Position }>) => {
+    const onMessage = (e: MessageEvent<{ id: number; move: Position; hidden?: boolean }>) => {
       if (e.data.id !== id) return;
-      const wait = Math.max(0, 350 - (performance.now() - started));
+      const hidden = !!e.data.hidden;
+      if (hidden) setBanner((b) => b + 1); // AI도 "백 히든!" 뒤에 둔다
+      const wait = Math.max(0, (hidden ? BANNER_MS : 350) - (performance.now() - started));
       setTimeout(() => {
         if (aiRequest.current !== id) return;
-        setHistory((h) => commit(h, e.data.move));
+        setHistory((h) => commit(h, e.data.move, { hidden }));
       }, wait);
     };
     worker.addEventListener("message", onMessage);
-    worker.postMessage({ id, state, levelId: level.id });
+    // 흑 AI는 흑에게 보이는 판만 받는다(숨은 돌을 모른다)
+    worker.postMessage({ id, state: viewFor(state, aiGame.aiColor), levelId: level.id });
     return () => {
       worker.removeEventListener("message", onMessage);
       aiRequest.current++;
@@ -172,14 +233,18 @@ export function MainPage() {
 
   useEffect(() => () => workerRef.current?.terminate(), []);
 
-  const reset = useCallback((size: number) => {
-    setHistory(createHistory(freshGame(size)));
+  const reset = useCallback((size: number, hiddenMove = false) => {
+    setHistory(createHistory(freshGame(size, hiddenMove)));
     setFx(null);
     setResultOpen(true);
+    setArmedUntil(null);
+    setNotice(null);
   }, []);
 
   function undo() {
     if (online) return;
+    setArmedUntil(null);
+    setNotice(null);
     setHistory((h) => {
       if (!aiGame) return undoMove(h);
       let next = undoMove(h);
@@ -201,7 +266,7 @@ export function MainPage() {
       if (onlinePlaying) return;
       leaveOnline();
     }
-    reset(boardSize);
+    reset(boardSize, !!aiGame);
   }
 
   function resign() {
@@ -260,8 +325,12 @@ export function MainPage() {
   else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
+  else if (armedUntil !== null) status = t("hidden.armed", { n: Math.max(0, Math.ceil((armedUntil - Date.now()) / 1000)) });
+  else if (notice?.kind === "found" && notice.at === state.moveCount && state.currentPlayer === "black") status = t("hidden.foundStatus");
+  else if (notice?.kind === "lost" && notice.at === state.moveCount) status = t("hidden.lost");
   else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
   else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
+  if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedUntil === null) status += ` · ${t("hidden.lurking")}`;
 
   let result: ResultView | null = null;
   if (online?.game?.result && onlineState) {
@@ -285,9 +354,24 @@ export function MainPage() {
   return (
     <main className="layout">
       <section className="play">
-        <Scoreboard state={state} names={{ black: seatLabel("black"), white: seatLabel("white") }} />
-        <div className="board-wrap">
-          <Board state={state} onPlay={play} fx={fx} disabled={boardLocked} />
+        <Scoreboard state={shown} names={{ black: seatLabel("black"), white: seatLabel("white") }} />
+        <div className={`board-wrap${armedUntil !== null ? " hidden-armed" : ""}`}>
+          <Board
+            state={shown}
+            onPlay={play}
+            fx={fx}
+            disabled={boardLocked}
+            ghost={viewer === "white" && hs && !hs.revealed ? hs.pos : null}
+            reveal={hs?.revealed && state.board[hs.pos.row]?.[hs.pos.col] === "white" ? hs.pos : null}
+            found={notice?.kind === "found" && notice.pos ? { pos: notice.pos, id: notice.id } : null}
+          />
+          {banner > 0 && (
+            <div key={banner} className="hidden-banner" aria-hidden><span>{t("hidden.banner")}</span></div>
+          )}
+          {armedUntil !== null && (() => {
+            const left = Math.max(0, Math.ceil((armedUntil - Date.now()) / 1000));
+            return <div className={`hidden-count${left <= 3 ? " urgent" : ""}`} aria-hidden><span key={left}>{left}</span></div>;
+          })()}
           {result && resultOpen && (
             <GameResult result={result} canUndo={canUndo} onNewGame={newGame} onUndo={undo} onClose={() => setResultOpen(false)} />
           )}
@@ -302,6 +386,9 @@ export function MainPage() {
                 : <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
             ) : (
               <>
+                {viewer === "white" && canUseHidden(state) && armedUntil === null && (
+                  <button className="btn hidden-btn" onClick={startHidden} disabled={aiThinking}>{t("btn.hidden")}</button>
+                )}
                 <button className="btn" onClick={undo} disabled={!canUndo}>{t("btn.undo")}</button>
                 <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
               </>
@@ -340,7 +427,7 @@ export function MainPage() {
               active={aiGame}
               onStart={(levelId, humanColor) => {
                 setAiGame({ levelId, aiColor: opponent(humanColor) });
-                reset(boardSize);
+                reset(boardSize, true);
               }}
               onStop={() => {
                 setAiGame(null);
@@ -356,7 +443,7 @@ export function MainPage() {
                     const size = Number(e.target.value);
                     if (state.moveCount > 0 && !state.isFinished && !window.confirm(t("confirm.size"))) return;
                     setBoardSize(size);
-                    reset(size);
+                    reset(size, !!aiGame);
                   }}
                 >
                   {BOARD_SIZES.map((s) => (
@@ -372,7 +459,7 @@ export function MainPage() {
         <details className="panel rules">
           <summary>{t("rules.title")}</summary>
           <ul>
-            {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
+            {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
           </ul>
         </details>
       </aside>

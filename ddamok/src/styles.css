@@ -75,12 +75,17 @@ button, input, select { font: inherit; }
 .bump { animation: bump .45s ease-out; }
 
 /* 백 히든 */
+.hidden-tag { font-size: 11px; font-weight: 800; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 1px 7px; white-space: nowrap; animation: pulse 1.6s ease-in-out infinite; }
+.board-wrap.hidden-armed .board { box-shadow: 0 0 0 3px var(--accent), 0 0 28px var(--accent), 0 8px 30px rgba(0,0,0,.45); }
+.found-pop { fill: var(--accent); font-weight: 900; paint-order: stroke; stroke: var(--bg); stroke-width: .6; animation: float-up 1.4s ease-out forwards; pointer-events: none; }
+.btn.hidden-btn { border-color: var(--accent); color: var(--accent); font-weight: 800; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
 .stone.reveal { animation: reveal 1.5s ease-out; }
 .hidden-banner, .hidden-count { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 4; }
+.hidden-banner { z-index: 5; }
 .hidden-banner span {
   max-width: 92%; text-align: center; line-height: 1.05;
-  font-size: clamp(2rem, 9vw, 4.4rem); font-weight: 900; letter-spacing: .01em; color: var(--text);
+  font-size: clamp(2.6rem, 12vw, 5rem); font-weight: 900; letter-spacing: .01em; color: var(--text);
   -webkit-text-stroke: 2px var(--bg); paint-order: stroke fill;
   text-shadow: 0 0 22px var(--accent), 0 0 6px var(--accent), 0 5px 0 rgba(0,0,0,.55);
   animation: banner 1.9s cubic-bezier(.2, 1.4, .4, 1) forwards;
