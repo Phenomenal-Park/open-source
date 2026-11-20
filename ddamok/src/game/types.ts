@@ -40,6 +40,8 @@ export interface GameConfig {
   secondMoveLineBan: "none" | "cross" | "star";
   /** 백 히든: 백은 한 판에 한 번, 돌을 숨겨서 둘 수 있다(같은 화면 2인 대국에서는 끈다). 기본 false */
   hiddenMove: boolean;
+  /** (시험) 백 히든 돌을 따내면 몇 개로 치는가. 기본 1 */
+  hiddenCaptureValue: number;
 }
 
 /** 백이 숨겨 둔 돌 */

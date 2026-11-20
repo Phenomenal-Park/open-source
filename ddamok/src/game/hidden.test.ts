@@ -102,4 +102,12 @@ describe("백 히든", () => {
     expect(tryMove(s, at(7, 8), undefined, { hidden: true })).toEqual({ ok: false, reason: "hidden-unavailable" });
     expect(tryMove(s, at(7, 8)).ok).toBe(true);
   });
+
+  it("(시험) 히든 돌 가치: 따내면 정해진 개수로 친다(드러난 뒤에도)", () => {
+    const g = createGame(15, { hiddenMove: true, hiddenCaptureValue: 3 });
+    const s = seq(g, at(7, 7), { hidden: at(7, 8) }, at(0, 0), at(7, 9), at(7, 10));
+    expect(s.capturedByBlack).toBe(4);
+    const plain = seq(g, at(7, 7), at(7, 8), at(0, 0), at(7, 9), at(7, 10));
+    expect(plain.capturedByBlack).toBe(2);
+  });
 });
