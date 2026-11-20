@@ -23,6 +23,10 @@ export async function startServer(vars = {}) {
   }
   return {
     base, port, log: () => log,
+    /** 로컬 D1에 SQL 직접 실행(테스트 준비용 — 예: 관리자 지정) */
+    sql(command) {
+      execFileSync("npx", ["wrangler", "d1", "execute", "ddamok", "--local", "--persist-to", state, "--command", command], { env, stdio: "ignore" });
+    },
     stop() {
       try { process.kill(-proc.pid); } catch { proc.kill(); }
       rmSync(state, { recursive: true, force: true });

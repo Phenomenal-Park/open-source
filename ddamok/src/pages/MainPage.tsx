@@ -58,6 +58,8 @@ export function MainPage() {
   const cancelMatch = useRef<(() => void) | null>(null);
   // 백 히든
   const [armedUntil, setArmedUntil] = useState<number | null>(null);
+  /** 이용 제한(관리자) — 온라인 대국 불가 */
+  const [bannedUntil, setBannedUntil] = useState<number | null>(null);
   const [banner, setBanner] = useState(0);
   const [notice, setNotice] = useState<{ kind: "found" | "lost"; at: number; pos?: Position; id: number } | null>(null);
 
@@ -156,6 +158,7 @@ export function MainPage() {
     api.me(s.token).then(
       (me) => {
         setSess({ token: s.token, user: me.user, verified: me.verified });
+        setBannedUntil(me.bannedUntil ?? null);
         if (me.activeGame) joinGame(me.activeGame, s.token);
       },
       (e) => { if (e instanceof ApiError && e.status === 401) setSess(null); },
@@ -409,7 +412,7 @@ export function MainPage() {
       winner: r.winner, reason: r.reason, moveCount: onlineState.moveCount,
       captured: r.winner === "black" ? onlineState.capturedByBlack : onlineState.capturedByWhite,
       names: { black: online.game.players.black.username, white: online.game.players.white.username },
-      ratings: r.ratings, upset: r.upset, you: online.you,
+      ratings: r.ratings, upset: r.upset, you: online.you, gameId: online.game.id,
     };
   } else if (!online && state.isFinished && state.winReason) {
     result = {
@@ -520,7 +523,7 @@ export function MainPage() {
                 <AuthBox session={session} onSession={setSess} />
               </Fold>
             )}
-            <OnlinePanel session={session} waiting={waiting} error={onlineError} onFind={find} onCancel={cancelFind} />
+            <OnlinePanel session={session} waiting={waiting} error={onlineError} onFind={find} onCancel={cancelFind} bannedUntil={bannedUntil} />
             <AiPanel
               active={aiGame}
               onStart={(levelId, humanColor) => {

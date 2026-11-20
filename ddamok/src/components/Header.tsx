@@ -3,10 +3,10 @@
 import { t, type MessageKey } from "../i18n/index.ts";
 import { Logo } from "./Logo.tsx";
 
-export type Page = "play" | "records" | "profile" | "rankings" | "achievements" | "settings" | "info";
+export type Page = "play" | "records" | "profile" | "rankings" | "achievements" | "settings" | "admin" | "info";
 
 const TITLES: Partial<Record<Page, MessageKey>> = {
-  records: "nav.records", profile: "nav.profile", rankings: "nav.rankings", achievements: "nav.achievements", settings: "nav.settings",
+  records: "nav.records", profile: "nav.profile", rankings: "nav.rankings", achievements: "nav.achievements", settings: "nav.settings", admin: "admin.title",
 };
 
 /** 이전 화면으로(이 사이트 안에서 왔으면 뒤로, 아니면 대국 화면으로) */

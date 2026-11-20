@@ -23,6 +23,9 @@ export interface UserRow {
   is_bot: number;
   /** 받은 업적 뱃지 id(JSON 배열) */
   badges?: string | null;
+  is_admin?: number;
+  banned_until?: number | null;
+  ban_reason?: string | null;
   bot_level: string | null;
   created_at: string;
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Session } from "../api.ts";
 import { DEFAULT_CLOCK_MIN, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, type MatchMode } from "../online/protocol.ts";
-import { t } from "../i18n/index.ts";
+import { formatDate, t } from "../i18n/index.ts";
 import { Fold } from "./Fold.tsx";
 
 interface OnlinePanelProps {
@@ -10,17 +10,21 @@ interface OnlinePanelProps {
   error: string | null;
   onFind: (mode: MatchMode, code: string | null, hidden?: boolean, clockMin?: number) => void;
   onCancel: () => void;
+  /** 이용 제한 끝나는 시각(ms) */
+  bannedUntil?: number | null;
 }
 
-export function OnlinePanel({ session, waiting, error, onFind, onCancel }: OnlinePanelProps) {
+export function OnlinePanel({ session, waiting, error, onFind, onCancel, bannedUntil }: OnlinePanelProps) {
   const [code, setCode] = useState("");
   const [hidden, setHidden] = useState(true);
   const [clockMin, setClockMin] = useState<number>(DEFAULT_CLOCK_MIN);
-  const ready = session?.verified;
+  const banned = !!bannedUntil && bannedUntil > Date.now();
+  const ready = session?.verified && !banned;
   return (
     <Fold id="online" title={t("online.title")} label={t("online.title")} forceOpen={!!waiting}>
       {!session && <p className="muted">{t("online.loginFirst")}</p>}
       {session && !session.verified && <p className="muted">{t("online.verifyFirst")}</p>}
+      {banned && <p className="form-error">{t("online.banned", { until: bannedUntil! > Date.now() + 3650 * 86_400_000 ? t("online.bannedForever") : formatDate(new Date(bannedUntil!).toISOString()) })}</p>}
       {waiting ? (
         <div className="waiting">
           <p className="waiting-text" aria-live="polite">

@@ -184,7 +184,10 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const now = Date.now();
     await env.DB.prepare("UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at < ?")
       .bind(now + SESSION_TTL_MS, await hashToken(token!), now + SESSION_TTL_MS - 24 * 60 * 60 * 1000).run();
-    return json({ user: publicUser(u), verified: !!u.email_verified, activeGame: u.active_game, settings: { allowAi: !!u.allow_ai } });
+    return json({
+      user: publicUser(u), verified: !!u.email_verified, activeGame: u.active_game, settings: { allowAi: !!u.allow_ai },
+      admin: !!u.is_admin, bannedUntil: u.banned_until && u.banned_until > now ? u.banned_until : null,
+    });
   }
 
   // 계정 삭제: 비밀번호를 다시 확인한다. 진행 중인 대국이 있으면 끝낸 뒤에.
@@ -278,6 +281,67 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
   }
 
   // 내 명승부 목록(기보 화면의 박제 버튼용)
+  // 신고: 대국을 둔 사람만, 상대를 한 판에 한 번. 사유는 꼭 적는다(500자까지).
+  if (m === "POST" && path === "/api/reports") {
+    await limited(env.AUTH_LIMITER, req);
+    const u = await requireUser(env, bearer(req));
+    const body = await readJson(req);
+    const gameId = String(body.gameId ?? ""), category = String(body.category ?? ""), reason = String(body.reason ?? "").trim();
+    if (!UUID_RE.test(gameId)) throw new HttpError(400, "bad_game", "대국을 찾을 수 없습니다.");
+    if (!REPORT_CATEGORIES.includes(category)) throw new HttpError(400, "bad_category", "신고 종류를 골라 주세요.");
+    if (!reason || reason.length > 500) throw new HttpError(400, "bad_reason", "사유를 500자 안으로 적어 주세요.");
+    const g = await env.DB.prepare("SELECT black_id, white_id FROM games WHERE id = ?").bind(gameId).first<{ black_id: string; white_id: string }>();
+    if (!g || (g.black_id !== u.id && g.white_id !== u.id)) throw new HttpError(403, "not_your_game", "내가 둔 대국만 신고할 수 있습니다.");
+    const target = g.black_id === u.id ? g.white_id : g.black_id;
+    const r = await env.DB.prepare("INSERT OR IGNORE INTO reports (id, game_id, reporter_id, target_id, category, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), gameId, u.id, target, category, reason, new Date().toISOString()).run();
+    if (!r.meta.changes) throw new HttpError(409, "already_reported", "이미 신고한 대국입니다.");
+    return json({ ok: true });
+  }
+
+  // ── 관리자(is_admin) ──
+  if (path.startsWith("/api/admin/")) {
+    const admin = await requireUser(env, bearer(req));
+    if (!admin.is_admin) throw new HttpError(403, "forbidden", "관리자만 쓸 수 있습니다.");
+    // 열린 신고 목록(대상별 누적 신고 수 포함)
+    if (m === "GET" && path === "/api/admin/reports") {
+      const rows = await env.DB.prepare(
+        `SELECT r.*, t.username AS target_name, p.username AS reporter_name, t.banned_until AS target_banned_until,
+           (SELECT COUNT(*) FROM reports x WHERE x.target_id = r.target_id) AS target_reports
+         FROM reports r JOIN users t ON t.id = r.target_id JOIN users p ON p.id = r.reporter_id
+         WHERE r.status = 'open' ORDER BY r.created_at DESC LIMIT 200`,
+      ).all();
+      return json({ reports: rows.results });
+    }
+    const rc = path.match(/^\/api\/admin\/reports\/([^/]+)\/close$/);
+    if (m === "POST" && rc) {
+      await env.DB.prepare("UPDATE reports SET status = 'done' WHERE id = ?").bind(rc[1]).run();
+      return json({ ok: true });
+    }
+    const um = path.match(/^\/api\/admin\/users\/([^/]+)\/(ban|unban|reset)$/);
+    if (m === "POST" && um) {
+      const body = await readJson(req);
+      const target = await env.DB.prepare("SELECT * FROM users WHERE id = ? OR username_key = ?").bind(um[1], um[1].normalize("NFC").toLowerCase()).first<UserRow>();
+      if (!target || target.is_bot) throw new HttpError(404, "no_user", "그런 계정이 없습니다.");
+      if (um[2] === "ban") {
+        // days 없으면 무기한
+        const days = Number(body.days);
+        const until = Number.isFinite(days) && days > 0 ? Date.now() + days * 86_400_000 : 8_640_000_000_000_000;
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET banned_until = ?, ban_reason = ? WHERE id = ?").bind(until, String(body.reason ?? "").slice(0, 200), target.id),
+          env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(target.id),
+        ]);
+      } else if (um[2] === "unban") {
+        await env.DB.prepare("UPDATE users SET banned_until = NULL, ban_reason = NULL WHERE id = ?").bind(target.id).run();
+      } else {
+        // 점수 초기화(전적은 남긴다): 처음 점수로, 확정 전 상태로
+        await env.DB.prepare("UPDATE users SET rating = 500, mmr = 1500, rd = 350, win_streak = 0, max_rating = 500 WHERE id = ?").bind(target.id).run();
+      }
+      return json({ ok: true, user: publicUser((await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(target.id).first<UserRow>())!) });
+    }
+    throw new HttpError(404, "not_found", "없는 주소입니다.");
+  }
+
   if (m === "GET" && path === "/api/favorites") {
     const u = await requireUser(env, bearer(req));
     const rows = await env.DB.prepare("SELECT game_id FROM favorites WHERE user_id = ?").bind(u.id).all<{ game_id: string }>();
@@ -356,6 +420,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     if (req.headers.get("upgrade") !== "websocket") throw new HttpError(426, "upgrade", "WebSocket이 필요합니다.");
     const u = await requireUser(env, wsToken(req));
     if (!u.email_verified) throw new HttpError(403, "unverified", "이메일 인증을 마쳐야 온라인 대국을 둘 수 있습니다.");
+    if (u.banned_until && u.banned_until > Date.now()) throw new HttpError(403, "banned", "이용이 제한된 계정입니다.");
     const mode = url.searchParams.get("mode") as MatchMode;
     if (!MATCH_MODES.includes(mode)) throw new HttpError(400, "bad_mode", "잘못된 매치 종류입니다.");
     const code = url.searchParams.get("code") ?? "";
@@ -380,6 +445,9 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 
   throw new HttpError(404, "not_found", "없는 주소입니다.");
 }
+
+/** 신고 종류: AI 사용 의심 · 대리 대국 · 다계정·조작 대국 · 고의 패배 · 비매너 · 기타 */
+const REPORT_CATEGORIES = ["ai", "proxy", "multi", "throw", "manner", "other"];
 
 /** 기보 목록에 쓰는 칸(착수 데이터 moves는 읽지 않는다) */
 const SUMMARY_COLUMNS = `g.id, g.mode, g.rated, g.black_id, g.white_id, g.winner_id, g.win_reason, g.move_count,

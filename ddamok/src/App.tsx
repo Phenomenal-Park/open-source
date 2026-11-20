@@ -6,6 +6,7 @@ import { PrivacyPage } from "./pages/PrivacyPage.tsx";
 import { RankingsPage } from "./pages/RankingsPage.tsx";
 import { SettingsPage } from "./pages/SettingsPage.tsx";
 import { AchievementsPage } from "./pages/AchievementsPage.tsx";
+import { AdminPage } from "./pages/AdminPage.tsx";
 import { AboutPage, ContactPage, Footer, RulesPage } from "./pages/InfoPages.tsx";
 import { lang, t, type MessageKey } from "./i18n/index.ts";
 
@@ -14,7 +15,7 @@ document.title = `${t("app.name")} — ${t("app.tagline")}`;
 
 // 페이지 전환은 일반 링크(새 페이지 로드)로 한다 — 프로필·기보·순위·업적 화면의 광고가 정책에 맞게 새로 뜨도록.
 type AnyPage = Exclude<Page, "info"> | "about" | "rules" | "contact" | "privacy";
-const PAGES = ["records", "profile", "rankings", "achievements", "settings", "privacy", "about", "rules", "contact"] as const;
+const PAGES = ["records", "profile", "rankings", "achievements", "settings", "admin", "privacy", "about", "rules", "contact"] as const;
 function pageOf(path: string): AnyPage {
   for (const p of PAGES) if (path.startsWith(`/${p}`)) return p;
   return "play";
@@ -33,6 +34,7 @@ export default function App() {
       {page === "rankings" && <RankingsPage />}
       {page === "achievements" && <AchievementsPage />}
       {page === "settings" && <SettingsPage />}
+      {page === "admin" && <AdminPage />}
       {page === "privacy" && <PrivacyPage />}
       {page === "about" && <AboutPage />}
       {page === "rules" && <RulesPage />}

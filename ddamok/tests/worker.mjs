@@ -539,6 +539,44 @@ await check("계정 삭제: 비밀번호 확인, 진행 중 대국이면 거절,
   assert.equal((await api("/api/signup", { username: "leaver", email: "leaver2@example.com", password: "password1", over14: true })).status, 200);
 });
 
+await check("신고·관리자: 내가 둔 대국만 사유와 함께 한 번 신고, 관리자만 신고 보기·이용 제한(매칭 거부)·해제·점수 초기화", async () => {
+  // 신고 대상 대국: 친구매치 한 판
+  const { black, white, game } = await pairUp(A.token, B.token, "mode=friend&code=9090");
+  black.sock.send({ type: "resign" });
+  await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  black.sock.close(); white.sock.close();
+  assert.equal((await api("/api/reports", { gameId: game.id, category: "ai", reason: "" }, A.token)).status, 400, "사유 필수");
+  assert.equal((await api("/api/reports", { gameId: game.id, category: "nope", reason: "x" }, A.token)).status, 400);
+  assert.equal((await api("/api/reports", { gameId: game.id, category: "ai", reason: "수마다 같은 시간" }, A.token)).status, 200);
+  assert.equal((await api("/api/reports", { gameId: game.id, category: "ai", reason: "또" }, A.token)).status, 409, "한 판에 한 번");
+  // 대국과 상관없는 사람: 계정 삭제 테스트 끝에 다시 가입한 leaver(인증 전) → 인증
+  const outsider = await api("/api/login", { login: "leaver", password: "password1" });
+  assert.equal(outsider.status, 200, JSON.stringify(outsider.data));
+  assert.equal((await api("/api/reports", { gameId: game.id, category: "ai", reason: "x" }, outsider.data.token)).status, 403, "남의 대국은 신고 불가");
+  // 관리자가 아니면 못 본다
+  assert.equal((await api("/api/admin/reports", undefined, A.token)).status, 403);
+  server.sql("UPDATE users SET is_admin = 1 WHERE username_key = 'leaver'");
+  const list = (await api("/api/admin/reports", undefined, outsider.data.token)).data.reports;
+  const rep = list.find((r) => r.game_id === game.id);
+  assert.ok(rep && rep.target_name === "white_1" && rep.reason === "수마다 같은 시간");
+  assert.equal((await api("/api/me", undefined, outsider.data.token)).data.admin, true);
+  // 이용 제한 → 매칭 거부, 해제 → 다시 가능
+  assert.equal((await api(`/api/admin/users/white_1/ban`, { days: 7, reason: "test" }, outsider.data.token)).status, 200);
+  const relog = await api("/api/login", { login: "white_1", password: "password1" });
+  B.token = relog.data.token;
+  assert.ok((await api("/api/me", undefined, B.token)).data.bannedUntil > Date.now());
+  const s = socket("/api/match?mode=casual", B.token);
+  assert.notEqual((await s.closed).code, 1000, "제한 중 매칭 거부");
+  assert.equal((await api(`/api/admin/users/white_1/unban`, {}, outsider.data.token)).status, 200);
+  assert.equal((await api("/api/me", undefined, B.token)).data.bannedUntil, null);
+  // 점수 초기화
+  const r = (await api(`/api/admin/users/white_1/reset`, {}, outsider.data.token)).data;
+  assert.equal(r.user.rating, 500);
+  assert.equal(r.user.provisional, true);
+  assert.equal((await api(`/api/admin/reports/${rep.id}/close`, {}, outsider.data.token)).status, 200);
+  assert.ok(!(await api("/api/admin/reports", undefined, outsider.data.token)).data.reports.some((x) => x.id === rep.id));
+});
+
 if (failures) console.log(server.log().split("\n").filter((l) => /error|Error|✘/.test(l)).slice(-15).join("\n"));
 server.stop();
 

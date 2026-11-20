@@ -30,6 +30,18 @@ export interface Me {
   verified: boolean;
   activeGame: string | null;
   settings: { allowAi: boolean };
+  /** 관리자인가 */
+  admin?: boolean;
+  /** 이용 제한 끝나는 시각(ms), 제한 없으면 null */
+  bannedUntil?: number | null;
+}
+
+export type ReportCategory = "ai" | "proxy" | "multi" | "throw" | "manner" | "other";
+export const REPORT_CATEGORIES: readonly ReportCategory[] = ["ai", "proxy", "multi", "throw", "manner", "other"];
+
+export interface AdminReport {
+  id: string; game_id: string; category: ReportCategory; reason: string; created_at: string;
+  target_id: string; target_name: string; reporter_name: string; target_reports: number; target_banned_until: number | null;
 }
 
 export interface RecordSummary {
@@ -110,6 +122,11 @@ export const api = {
   login: (login: string, password: string) => call<AuthResult>("/api/login", { login, password }),
   logout: (token: string) => call<{ ok: true }>("/api/logout", {}, token),
   deleteAccount: (token: string, password: string) => call<{ ok: true }>("/api/account/delete", { password }, token),
+  report: (token: string, gameId: string, category: ReportCategory, reason: string) => call<{ ok: true }>("/api/reports", { gameId, category, reason }, token),
+  adminReports: (token: string) => call<{ reports: AdminReport[] }>("/api/admin/reports", undefined, token),
+  adminCloseReport: (token: string, id: string) => call<{ ok: true }>(`/api/admin/reports/${encodeURIComponent(id)}/close`, {}, token),
+  adminUser: (token: string, user: string, action: "ban" | "unban" | "reset", body: { days?: number; reason?: string } = {}) =>
+    call<{ ok: true; user: PublicUser }>(`/api/admin/users/${encodeURIComponent(user)}/${action}`, body, token),
   verify: (token: string, code: string) => call<{ verified: boolean }>("/api/verify", { code }, token),
   resend: (token: string) => call<{ verified: boolean; devCode?: string; mailError?: string }>("/api/verify/resend", { lang }, token),
   me: (token: string) => call<Me>("/api/me", undefined, token),
