@@ -80,3 +80,18 @@ describe("흑 스캔", () => {
     expect(replayMoves(s.config, s.moves, 1, { at: 3, pos: at(7, 8) }).ok).toBe(false);
   });
 });
+
+import { hiddenBelief } from "../ai/hidden.ts";
+import { viewFor } from "./index.ts";
+
+describe("흑의 짐작과 스캔", () => {
+  it("스캔이 빗나간 자리는 숨은 돌 후보에서 빠진다", () => {
+    const s = seq(on(), at(7, 7), { hidden: at(9, 9) }, at(3, 3), at(8, 8));
+    const before = hiddenBelief(viewFor(s, "black"), 225).map((x) => x.pos);
+    expect(before).toContain(6 * 15 + 6);
+    const r = scanAt(s, at(6, 6));
+    if (!r.ok) throw new Error(r.reason);
+    const after = hiddenBelief(viewFor(r.state, "black"), 225).map((x) => x.pos);
+    expect(after).not.toContain(6 * 15 + 6);
+  });
+});
