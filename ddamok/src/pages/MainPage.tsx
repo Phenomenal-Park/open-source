@@ -63,6 +63,7 @@ export function MainPage() {
   const [banner, setBanner] = useState(0);
   /** 흑 스캔: 다음에 누르는 자리를 스캔한다 */
   const [scanning, setScanning] = useState(false);
+  const [scanFx, setScanFx] = useState<{ pos: Position; id: number } | null>(null);
   const [notice, setNotice] = useState<{ kind: "found" | "lost"; at: number; pos?: Position; id: number } | null>(null);
 
   // ── 화면에 보일 판 ─────────────────────────────
@@ -118,8 +119,10 @@ export function MainPage() {
   const scanKey = state.scan ? `${soundKey}-${state.scan.at}-${state.scan.pos.row}-${state.scan.pos.col}` : "";
   const scanSeen = useRef("");
   useEffect(() => {
+    if (!scanKey) setScanFx(null);
     if (!scanKey || scanSeen.current === scanKey) { scanSeen.current = scanKey; return; }
     scanSeen.current = scanKey;
+    setScanFx({ pos: state.scan!.pos, id: Date.now() });
     if (state.scan!.hit) setNotice({ kind: "found", at: state.moveCount, pos: state.scan!.pos, id: Date.now() });
     else scanMissSound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -463,7 +466,8 @@ export function MainPage() {
   else if (notice?.kind === "lost" && notice.at === state.moveCount) status = t("hidden.lost");
   else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
   else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
-  if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedAt === null) status += ` · ${t("hidden.lurking")}`;
+  const scanStatus = scanning || (!!state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black");
+  if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedAt === null && !scanStatus) status += ` · ${t("hidden.lurking")}`;
 
   let result: ResultView | null = null;
   if (online?.game?.result && onlineState) {
@@ -508,6 +512,7 @@ export function MainPage() {
             state={shown}
             onPlay={play}
             scanning={scanning}
+            scanFx={scanFx}
             fx={fx}
             disabled={boardLocked}
             ghost={viewer === "white" && hs && !hs.revealed ? hs.pos : null}

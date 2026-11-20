@@ -29,6 +29,8 @@ interface BoardProps {
   found?: { pos: Position; id: number } | null;
   /** 흑 스캔 고르는 중: 돌 대신 조준 표시 */
   scanning?: boolean;
+  /** 방금 스캔한 자리: 노란 반짝임 가루가 퍼진다 */
+  scanFx?: { pos: Position; id: number } | null;
 }
 
 function starPoints(n: number): Position[] {
@@ -43,7 +45,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark, scanning }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark, scanning, scanFx }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -158,6 +160,8 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
         <circle className="hidden-mark" cx={xy(hiddenMark.col)} cy={xy(hiddenMark.row)} r={R + 1.1} />
       )}
 
+      {scanFx && <ScanSparkle key={`scan-${scanFx.id}`} cx={xy(scanFx.pos.col)} cy={xy(scanFx.pos.row)} seed={scanFx.id} />}
+
       {found && (
         <text key={`found-${found.id}`} className="found-pop" x={xy(found.pos.col)} y={xy(found.pos.row) - CELL * 0.7} fontSize={CELL * 0.6} textAnchor="middle">{t("hidden.found")}</text>
       )}
@@ -179,6 +183,31 @@ function ScanAim({ cx, cy }: { cx: number; cy: number }) {
     <g className="scan-aim">
       <circle cx={cx} cy={cy} r={R} />
       <path d={`M ${cx - R * 1.35} ${cy} h ${R * 0.7} M ${cx + R * 0.65} ${cy} h ${R * 0.7} M ${cx} ${cy - R * 1.35} v ${R * 0.7} M ${cx} ${cy + R * 0.65} v ${R * 0.7}`} />
+    </g>
+  );
+}
+
+/** 스캔 연출: 노란 고리가 퍼지고 반짝임 가루가 흩날린다 */
+function ScanSparkle({ cx, cy, seed }: { cx: number; cy: number; seed: number }) {
+  let x = (seed % 2147483647) || 1;
+  const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+  const sparks = Array.from({ length: 16 }, (_, i) => {
+    const a = rnd() * Math.PI * 2, d = R * (0.4 + rnd() * 2.4), s = 0.35 + rnd() * 0.55;
+    return { i, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, s, delay: rnd() * 0.45 };
+  });
+  return (
+    <g className="scan-fx" aria-hidden>
+      <circle className="scan-glow" cx={cx} cy={cy} r={R * 2.2} />
+      <circle className="scan-sweep" cx={cx} cy={cy} r={R} />
+      <circle className="scan-sweep late" cx={cx} cy={cy} r={R} />
+      {sparks.map((p) => (
+        <path
+          key={p.i}
+          className="scan-spark"
+          style={{ animationDelay: `${p.delay}s` }}
+          d={`M ${p.x} ${p.y - p.s * 1.6} L ${p.x + p.s * 0.4} ${p.y - p.s * 0.4} L ${p.x + p.s * 1.6} ${p.y} L ${p.x + p.s * 0.4} ${p.y + p.s * 0.4} L ${p.x} ${p.y + p.s * 1.6} L ${p.x - p.s * 0.4} ${p.y + p.s * 0.4} L ${p.x - p.s * 1.6} ${p.y} L ${p.x - p.s * 0.4} ${p.y - p.s * 0.4} Z`}
+        />
+      ))}
     </g>
   );
 }
