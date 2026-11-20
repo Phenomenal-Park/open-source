@@ -57,7 +57,7 @@ export const AI_LEVELS: readonly AiLevel[] = Object.freeze([
   { id: "ai-7", name: "AI 마스터", label: "5단", rating: 2150, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
     fast: { depth: 6, timeMs: 200, width: 10, noise: 15, randomPick: 0, randomPool: 1, missWin: 0, focus: 0.9 } },
   { id: "ai-8", name: "AI 챌린저", label: "8단", rating: 2400, depth: 0, width: 0, nodeBudget: 0, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1,
-    fast: { depth: 14, timeMs: 400, width: 12, noise: 6, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 } },
+    fast: { depth: 14, timeMs: 400, width: 12, noise: 0, openingNoise: 20, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 } },
 ]);
 
 export function levelById(id: string): AiLevel | undefined {

@@ -17,6 +17,8 @@ export interface FastLevel {
   width: number;
   /** 최종 점수 잡음 */
   noise: number;
+  /** 초반(8수 전)에만 주는 잡음 — 강한 단계가 같은 수순을 되풀이하지 않게(깊이는 그대로) */
+  openingNoise?: number;
   /** 후보 중 아무거나 둘 확률 */
   randomPick: number;
   randomPool: number;
@@ -242,7 +244,10 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     const win = searcher.vcf(vcfDepth);
     if (win >= 0) return toPos(win);
   }
-  const { scores, stats: st } = searcher.searchRoot(focus ? level.depth : Math.max(1, level.depth - 2), level.timeMs, level.noise > 0, focus, rootMoves);
+  // 흔들림(noise)이 있으면 후보마다 정확한 점수가 필요해 전체 창으로 읽는다(느려진다).
+  // 강한 단계는 초반 몇 수에만 흔들림을 줘서(openingNoise) 판마다 다르게 두되 본래 깊이는 지킨다.
+  const noise = level.noise || (state.moveCount < 8 ? level.openingNoise ?? 0 : 0);
+  const { scores, stats: st } = searcher.searchRoot(focus ? level.depth : Math.max(1, level.depth - 2), level.timeMs, noise > 0, focus, rootMoves);
   if (stats) Object.assign(stats, st);
   // 상대의 연속 위협(필승 수순)을 허용하는 수는 피한다(점수 높은 후보부터 최대 5개)
   if (vcfDepth > 0 && vcfMode !== "attack") {
@@ -257,7 +262,7 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
   }
   let best = scores[0], bestV = -Infinity;
   for (const x of scores) {
-    const v = x.s + (level.noise ? gaussian(rand) * level.noise : 0);
+    const v = x.s + (noise ? gaussian(rand) * noise : 0);
     if (v > bestV) { bestV = v; best = x; }
   }
   return toPos(best.p);
