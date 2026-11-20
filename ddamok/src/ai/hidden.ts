@@ -95,62 +95,55 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
 }
 
 /**
- * 추리하는 흑.
- * 1) 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 그럴듯하면 먼저 눌러 본다 — 숨은 돌이면 드러나고 차례가 이어지며,
- *    아니어도 그 줄을 막는 수가 된다.
- * 2) 아니면 숨은 돌이 있을 법한 자리 몇 곳(가설)마다 후보 수를 읽어, 무게를 곱해 더한 기대값이 가장 좋은 수를 둔다.
+ * 추리하는 흑: 여러 판을 함께 읽는다.
+ * - "숨은 돌이 상관없는 먼 곳에 있는 판(보이는 그대로)"과 "숨은 돌이 가장 의심스러운 몇 자리에 있는 판"을
+ *   같은 후보 수로 깊게 읽고, 판마다의 점수에 그 판일 확률을 곱해 더한 값이 가장 좋은 수를 둔다.
+ * - 가설 자리에 두는 수는 "찾아서 다시 두는" 값(그 판에서 흑이 한 수 더 두는 형세)으로 본다.
+ * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 그럴듯하면 먼저 눌러 본다.
  */
 export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random, plainLevel: AiLevel = level): Position {
-  const plain = chooseMove(view, plainLevel, rand);
   const belief = hiddenBelief(view);
-  if (!belief.length || !level.fast) return blackProbe(view) ?? plain;
+  if (!belief.length || !level.fast) return blackProbe(view) ?? chooseMove(view, plainLevel, rand);
   const n = view.config.boardSize;
-  const won = tryMove(view, plain);
-  if (won.ok && won.state.isFinished) return plain;
   const vb = FastBoard.fromState(view);
   const wins = vb.winningMoves(1);
   if (wins.length) return toPos(wins[0], n);
-  if (vb.winningMoves(2).length) return plain; // 보이는 백의 위협부터 막는다
-  // 1) 위험 칸
+  if (vb.winningMoves(2).length) return chooseMove(view, plainLevel, rand); // 보이는 백의 위협부터 막는다
   const d1 = belief.filter((x) => x.danger1);
   if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
-  // 막을 수 없는 넉을 만들 자리가 가장 의심스러우면 그곳도 미리 눌러 본다(헛짚어도 그 줄을 막는 수다).
-  // 한 수 늦게 찾으면 백이 숨은 돌로 이어 둔 줄이 이미 굳어 있다.
-  if (belief[0].danger2 && belief[0].w >= 0.2) return toPos(belief[0].pos, n);
-  // 2) 가설별 기대값
-  const t = level.fast.timeMs;
-  const cand = new FastSearcher(vb, level.fast.width).searchRoot(level.fast.depth, Math.max(30, t * 0.2), true, true).scores.slice(0, 6).map((x) => x.p);
-  for (const x of belief.slice(0, 3)) if (!cand.includes(x.pos)) cand.push(x.pos);
-  for (const x of belief) if (x.danger2 && !cand.includes(x.pos) && cand.length < 12) cand.push(x.pos);
-  const hyp = belief.slice(0, 10);
-  const wsum = hyp.reduce((a, x) => a + x.w, 0);
-  const leafMs = Math.max(15, (t * 1.5) / (cand.length * hyp.length));
-  let best = plain, bestV = -Infinity;
-  for (const m of cand) {
-    let ev = 0;
-    for (const hp of hyp) {
-      // 이 가설의 판: 보이는 판 + 숨은 돌
+  const { timeMs: t, depth, width } = level.fast;
+  const hyp = belief.slice(0, 4);
+  const roots = new FastSearcher(vb, width).searchRoot(depth, t * 0.15, false, true).scores.slice(0, 10).map((x) => x.p);
+  for (const x of belief.slice(0, 3)) if (!roots.includes(x.pos)) roots.push(x.pos);
+  for (const x of belief) if (x.danger2 && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
+  const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
+  const ev = new Map<number, number>(roots.map((p) => [p, 0]));
+  const hypMass = hyp.reduce((a, x) => a + x.w, 0);
+  const worlds = [
+    { cell: -1, w: Math.max(0.2, 1 - hypMass), ms: t * 0.7 },
+    ...hyp.map((x) => ({ cell: x.pos, w: x.w, ms: (t * 1.6) / hyp.length })),
+  ];
+  const wsum = worlds.reduce((a, x) => a + x.w, 0);
+  for (const wd of worlds) {
+    // 숨은 돌을 놓은 판은 GameState부터 다시 만든다(FastBoard는 줄 정보를 따로 들고 있어 칸만 바꾸면 안 된다)
+    let ws = view;
+    if (wd.cell >= 0) {
       const board = view.board.map((r) => r.slice());
-      board[(hp.pos / n) | 0][hp.pos % n] = "white";
-      const world: GameState = { ...view, board, hidden: null };
-      let v: number;
-      if (m === hp.pos) {
-        // 찾았다: 드러나고 흑이 다시 둔다 → 흑 차례의 형세
-        v = new FastSearcher(FastBoard.fromState(world), level.fast.width).searchRoot(6, leafMs, false, true).scores[0]?.s ?? 0;
-      } else {
-        const r = tryMove(world, toPos(m, n));
-        if (!r.ok) { v = -1e7; }
-        else if (r.state.isFinished) v = r.state.winner === "black" ? 1e9 : -1e9;
-        else {
-          const fb = FastBoard.fromState(r.state);
-          v = fb.winningMoves(2).length ? -1e8 : -(new FastSearcher(fb, level.fast.width).searchRoot(6, leafMs, false, true).scores[0]?.s ?? 0);
-        }
-      }
-      ev += (hp.w / wsum) * Math.max(-1e5, Math.min(1e5, v));
+      board[(wd.cell / n) | 0][wd.cell % n] = "white";
+      ws = { ...view, board, hidden: null };
     }
-    if (ev > bestV) { bestV = ev; best = toPos(m, n); }
+    const sc = new FastSearcher(FastBoard.fromState(ws), width).searchRoot(depth, wd.ms, true, true, roots.filter((p) => p !== wd.cell)).scores;
+    const got = new Map(sc.map((x) => [x.p, x.s] as const));
+    const worst = sc.length ? Math.min(...sc.map((x) => x.s)) : 0;
+    const again = sc[0]?.s ?? 0;
+    for (const p of roots) {
+      const v = p === wd.cell ? again : got.get(p) ?? worst; // 가설 자리를 누르면 찾고 다시 둔다
+      ev.set(p, ev.get(p)! + (wd.w / wsum) * clamp(v));
+    }
   }
-  return best;
+  let best = roots[0], bestV = -Infinity;
+  for (const [p, v] of ev) if (v > bestV) { bestV = v; best = p; }
+  return toPos(best, n);
 }
 
 /** 흑 AI의 수: 보이는 판으로만 생각한다(강한 단계는 숨은 돌 위치를 추리한다) */
@@ -235,7 +228,7 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     const f = findProb(p);
     const hid = avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw;
     for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
-      const v = v0 + (rand() - 0.5) * 2 * (fast.noise || 0);
+      const v = v0 + (rand() - 0.5) * 2 * (hidden ? Math.max(HIDE_JITTER, fast.noise || 0) : fast.noise || 0);
       if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
     }
   }
@@ -255,12 +248,15 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
       .slice(0, 4);
     for (const x of far) {
       if (x.s <= 0) continue;
-      const v = clamp(value(x.p, true)) + x.s * FAR_LATENT + (rand() - 0.5) * 2 * (fast.noise || 0);
+      const v = clamp(value(x.p, true)) + x.s * FAR_LATENT + (rand() - 0.5) * 2 * Math.max(HIDE_JITTER, fast.noise || 0);
       if (v > bestV) { bestV = v; best = { move: toPos(x.p, n), hidden: true }; }
     }
   }
   return best;
 }
+
+/** 숨길 자리 고르기의 흔들림: 비슷하게 좋은 자리 중에서 판마다 다르게 숨긴다(늘 같은 자리면 사람이 금방 외운다) */
+const HIDE_JITTER = 250;
 
 /** 먼 히든 자리의 잠재 가치 1점당 형세 점수 */
 const FAR_LATENT = 40;
