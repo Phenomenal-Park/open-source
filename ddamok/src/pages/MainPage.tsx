@@ -16,6 +16,7 @@ import { Fold } from "../components/Fold.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
+import { beep } from "../beep.ts";
 
 /** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
@@ -101,6 +102,23 @@ export function MainPage() {
     const t = setInterval(() => tick((x) => x + 1), 250);
     return () => clearInterval(t);
   }, [clockRunning]);
+
+  // 내 시계가 2분·1분이 되는 순간 "띡" 한 번(처음 3분일 때는 울리지 않는다). 대국마다 한 번씩만.
+  const beeped = useRef<{ game: string; marks: Set<number> }>({ game: "", marks: new Set() });
+  {
+    const c = online?.game?.clock;
+    const me = online?.you;
+    if (online?.game && c && me && c.running === me) {
+      if (beeped.current.game !== online.game.id) beeped.current = { game: online.game.id, marks: new Set() };
+      const ms = c.remaining[me] - (Date.now() - (online.at ?? Date.now()));
+      for (const mark of [120_000, 60_000]) {
+        if (ms <= mark && ms > mark - 5_000 && c.baseMs > mark && !beeped.current.marks.has(mark)) {
+          beeped.current.marks.add(mark);
+          beep();
+        }
+      }
+    }
+  }
 
   // 접속 끊김 카운트다운 표시용 1초 타이머
   const anyDisconnected = online?.game && Object.keys(online.game.disconnected).length > 0;
