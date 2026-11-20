@@ -288,3 +288,11 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .center-hint { fill: none; stroke: var(--accent); stroke-width: 0.8; stroke-dasharray: 2 1.5; pointer-events: none; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 .banned { opacity: 0.45; pointer-events: none; user-select: none; }
+
+/* 기보: 대국 설정 분류 */
+.mode-filter { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.chip { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); cursor: pointer; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.mode-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 6px; margin-right: 4px; border-radius: 4px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+.mode-tag.rated { border-color: var(--accent); color: var(--accent); }
+.mode-tag.hidden { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

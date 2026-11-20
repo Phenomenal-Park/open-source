@@ -45,6 +45,8 @@ export interface RecordSummary {
   ratingAfter: number | null;
   moveCount: number;
   finishedAt: string;
+  /** 대국 설정: 백 히든 모드였나 */
+  hiddenMove?: boolean;
 }
 
 export interface GameRecord {
@@ -111,7 +113,8 @@ export const api = {
   settings: (token: string, allowAi: boolean) => call<{ settings: { allowAi: boolean } }>("/api/settings", { allowAi }, token),
   leaderboard: () => call<{ players: PublicUser[] }>("/api/leaderboard"),
   bots: () => call<{ bots: (PublicUser & { level: string; busy: boolean })[] }>("/api/bots"),
-  records: (username: string, offset = 0) => call<RecordsPage>(`/api/records?user=${encodeURIComponent(username)}&offset=${offset}`),
+  records: (username: string, offset = 0, mode: MatchMode | null = null) =>
+    call<RecordsPage>(`/api/records?user=${encodeURIComponent(username)}&offset=${offset}${mode ? `&mode=${mode}` : ""}`),
   myFavorites: (token: string) => call<{ gameIds: string[]; max: number }>("/api/favorites", undefined, token),
   setFavorite: (token: string, gameId: string, on: boolean) => call<{ on: boolean; count: number; max: number }>("/api/favorites", { gameId, on }, token),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),

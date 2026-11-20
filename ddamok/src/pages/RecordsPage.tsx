@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, loadSession, type GameRecord, type RecordsPage as Page, type RecordSummary } from "../api.ts";
 import { makeConfig, replayMoves } from "../game/index.ts";
-import { FAVORITES_MAX, formatRating, HIDDEN_CAPTURE_TARGET } from "../online/protocol.ts";
+import { FAVORITES_MAX, formatRating, HIDDEN_CAPTURE_TARGET, MATCH_MODES, type MatchMode } from "../online/protocol.ts";
 import { Board } from "../components/Board.tsx";
 import { Scoreboard } from "../components/Scoreboard.tsx";
 import { AdSlot, AD_SLOTS } from "../components/AdSlot.tsx";
@@ -72,6 +72,7 @@ function Viewer({ id }: { id: string }) {
         {g.winner
           ? t("rec.title", { mode: t(`rec.mode.${g.mode}`), color: colorName(g.winner), reason: t(`reason.${g.reason}`), when: formatDate(g.finishedAt) })
           : `${t(`rec.mode.${g.mode}`)} · ${t("result.draw")} · ${formatDate(g.finishedAt)}`}
+        {" · "}{t(g.hiddenMove ? "rec.hidden" : "rec.noHidden")}
       </p>
       <Scoreboard state={state} names={{ black: label("black"), white: label("white") }} />
       <div className="board-wrap">
@@ -93,30 +94,50 @@ function Viewer({ id }: { id: string }) {
 /** 최근 기보 목록(20판씩 더 보기, 최대 100판) — 프로필에서도 쓴다 */
 export function RecentRecords({ first, currentId }: { first: Page; currentId?: string | null }) {
   const [games, setGames] = useState<RecordSummary[]>(first.games);
+  const [total, setTotal] = useState(first.total);
+  const [mode, setMode] = useState<MatchMode | null>(null);
   const [busy, setBusy] = useState(false);
   const name = first.user.username;
+  async function pick(m: MatchMode | null) {
+    setMode(m);
+    setBusy(true);
+    try {
+      const r = await api.records(name, 0, m);
+      setGames(r.games);
+      setTotal(r.total);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
+      <div className="mode-filter" role="tablist" aria-label={t("rec.filter")}>
+        {([null, ...MATCH_MODES] as const).map((m) => (
+          <button key={m ?? "all"} role="tab" aria-selected={mode === m} className={`chip${mode === m ? " on" : ""}`} disabled={busy} onClick={() => pick(m)}>
+            {m ? t(`rec.mode.${m}`) : t("rec.all")}
+          </button>
+        ))}
+      </div>
       {games.length === 0 ? <p className="muted">{t("rec.none")}</p> : (
         <ol className="record-list">
           {games.map((g) => <RecordItem key={g.id} g={g} href={recordHref(name, g.id)} current={g.id === currentId} />)}
         </ol>
       )}
-      {games.length < first.total && (
+      {games.length < total && (
         <button
           className="btn wide more"
           disabled={busy}
           onClick={async () => {
             setBusy(true);
             try {
-              const next = await api.records(name, games.length);
+              const next = await api.records(name, games.length, mode);
               setGames((x) => [...x, ...next.games.filter((g) => !x.some((y) => y.id === g.id))]);
             } finally {
               setBusy(false);
             }
           }}
         >
-          {t("rec.more")} ({games.length}/{first.total})
+          {t("rec.more")} ({games.length}/{total})
         </button>
       )}
     </>

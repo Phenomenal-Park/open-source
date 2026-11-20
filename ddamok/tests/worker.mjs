@@ -298,6 +298,19 @@ await check("친구매치 노히든: 같은 코드라도 히든 설정이 다르
   assert.equal((await api(`/api/games/${game.id}`)).data.hiddenMove, false);
 });
 
+await check("기보: 대국 종류(레이팅·친선·친구)로 나눠 보기, 판마다 히든/노히든 설정 표시", async () => {
+  const all = (await api("/api/records?user=흑돌왕")).data;
+  assert.ok(all.games.length >= 2);
+  for (const g of all.games) assert.equal(typeof g.hiddenMove, "boolean");
+  const friend = (await api("/api/records?user=흑돌왕&mode=friend")).data;
+  assert.equal(friend.mode, "friend");
+  assert.ok(friend.games.every((g) => g.mode === "friend"));
+  assert.deepEqual(friend.games.slice(0, 2).map((g) => g.hiddenMove), [false, true]); // 방금 둔 노히든, 그 앞의 히든
+  const rated = (await api("/api/records?user=흑돌왕&mode=rated")).data;
+  assert.ok(rated.games.every((g) => g.mode === "rated"));
+  assert.equal(rated.total, rated.games.length);
+});
+
 await check("친구매치: 같은 코드끼리, 숫자 1~8자리만", async () => {
   for (const bad of ["12a4", "123456789", ""]) {
     const s = socket(`/api/match?mode=friend&code=${bad}`, A.token);

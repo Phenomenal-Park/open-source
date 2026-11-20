@@ -14,7 +14,11 @@ export function RecordItem({ g, href, current }: { g: RecordSummary; href: strin
         <span className="who">
           {g.opponentRating !== null ? t("rec.vs", { name: opp, rating: formatRating(g.opponentRating, g.opponentProvisional) }) : opp}
         </span>
-        <span className="meta">{t(`rec.mode.${g.mode}`)} · {outcomeLabel(g.color, g.moveCount, g.result, g.reason)}</span>
+        <span className="meta">
+          <span className={`mode-tag ${g.mode}`}>{t(`rec.mode.${g.mode}`)}</span>
+          <span className={`mode-tag ${g.hiddenMove ? "hidden" : "plain"}`}>{t(g.hiddenMove ? "rec.hidden" : "rec.noHidden")}</span>
+          {outcomeLabel(g.color, g.moveCount, g.result, g.reason)}
+        </span>
         <span className={`delta ${d && d > 0 ? "up" : d && d < 0 ? "down" : ""}`}>{d === null ? "" : d > 0 ? `+${d}` : d}</span>
         <span className="meta when">{formatDate(g.finishedAt)}</span>
       </a>

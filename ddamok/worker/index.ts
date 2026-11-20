@@ -209,13 +209,18 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     if (!u) throw new HttpError(404, "no_user", "그런 닉네임이 없습니다.");
     const offset = Math.max(0, Math.min(RECORDS_PER_USER, Number(url.searchParams.get("offset")) || 0));
     const limit = Math.max(1, Math.min(RECORDS_PAGE, Number(url.searchParams.get("limit")) || RECORDS_PAGE, RECORDS_PER_USER - offset));
+    // 대국 종류로 나눠 보기(레이팅·친선·친구) — 없으면 전체
+    const modeParam = url.searchParams.get("mode");
+    const mode = MATCH_MODES.includes(modeParam as MatchMode) ? modeParam : null;
+    const modeSql = mode ? " AND g.mode = ?" : "";
+    const modeArgs = mode ? [mode] : [];
     const [rows, total, favs] = await env.DB.batch([
       env.DB.prepare(
         `SELECT ${SUMMARY_COLUMNS} FROM user_games ug JOIN games g ON g.id = ug.game_id
          LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id
-         WHERE ug.user_id = ? ORDER BY ug.finished_at DESC LIMIT ? OFFSET ?`,
-      ).bind(u.id, limit, offset),
-      env.DB.prepare("SELECT COUNT(*) AS n FROM user_games WHERE user_id = ?").bind(u.id),
+         WHERE ug.user_id = ?${modeSql} ORDER BY ug.finished_at DESC LIMIT ? OFFSET ?`,
+      ).bind(u.id, ...modeArgs, limit, offset),
+      env.DB.prepare(`SELECT COUNT(*) AS n FROM user_games ug JOIN games g ON g.id = ug.game_id WHERE ug.user_id = ?${modeSql}`).bind(u.id, ...modeArgs),
       env.DB.prepare(
         `SELECT ${SUMMARY_COLUMNS} FROM favorites f JOIN games g ON g.id = f.game_id
          LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id
@@ -227,6 +232,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
       games: (rows.results as GameRow[]).map((g) => recordSummary(g, u.id)),
       total: Math.min(RECORDS_PER_USER, (total.results[0] as { n: number }).n),
       offset,
+      mode,
       favorites: (favs.results as GameRow[]).map((g) => recordSummary(g, u.id)),
       favoritesMax: FAVORITES_MAX,
     });
@@ -337,13 +343,14 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 const SUMMARY_COLUMNS = `g.id, g.mode, g.rated, g.black_id, g.white_id, g.winner_id, g.win_reason, g.move_count,
   g.black_before, g.black_after, g.white_before, g.white_after, g.black_rating, g.white_rating,
   g.black_provisional, g.white_provisional, g.finished_at,
-  COALESCE(g.black_name, b.username) AS black_name, COALESCE(g.white_name, w.username) AS white_name`;
+  COALESCE(g.black_name, b.username) AS black_name, COALESCE(g.white_name, w.username) AS white_name, g.hidden_move`;
 
 interface GameRow {
   id: string; mode: string; rated: number; black_id: string; white_id: string; winner_id: string | null; win_reason: string; move_count: number;
   black_before: number | null; black_after: number | null; white_before: number | null; white_after: number | null;
   black_rating: number | null; white_rating: number | null; black_provisional: number | null; white_provisional: number | null;
   finished_at: string; black_name: string | null; white_name: string | null; cur_black_name?: string | null; cur_white_name?: string | null;
+  hidden_move?: number;
 }
 
 function recordSummary(g: GameRow, userId: string) {
@@ -360,6 +367,8 @@ function recordSummary(g: GameRow, userId: string) {
     ratingBefore: g[`${color}_before`],
     ratingAfter: g[`${color}_after`],
     moveCount: g.move_count, finishedAt: g.finished_at,
+    /** 대국 설정: 백 히든 모드였나 */
+    hiddenMove: !!g.hidden_move,
   };
 }
 
