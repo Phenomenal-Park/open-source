@@ -114,14 +114,17 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   // 1) 위험 칸
   const d1 = belief.filter((x) => x.danger1);
   if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
+  // 막을 수 없는 넉을 만들 자리가 가장 의심스러우면 그곳도 미리 눌러 본다(헛짚어도 그 줄을 막는 수다).
+  // 한 수 늦게 찾으면 백이 숨은 돌로 이어 둔 줄이 이미 굳어 있다.
+  if (belief[0].danger2 && belief[0].w >= 0.2) return toPos(belief[0].pos, n);
   // 2) 가설별 기대값
   const t = level.fast.timeMs;
   const cand = new FastSearcher(vb, level.fast.width).searchRoot(level.fast.depth, Math.max(30, t * 0.2), true, true).scores.slice(0, 6).map((x) => x.p);
   for (const x of belief.slice(0, 3)) if (!cand.includes(x.pos)) cand.push(x.pos);
   for (const x of belief) if (x.danger2 && !cand.includes(x.pos) && cand.length < 12) cand.push(x.pos);
-  const hyp = belief.slice(0, 6);
+  const hyp = belief.slice(0, 10);
   const wsum = hyp.reduce((a, x) => a + x.w, 0);
-  const leafMs = Math.max(15, (t * 0.75) / (cand.length * hyp.length));
+  const leafMs = Math.max(15, (t * 1.5) / (cand.length * hyp.length));
   let best = plain, bestV = -Infinity;
   for (const m of cand) {
     let ev = 0;
