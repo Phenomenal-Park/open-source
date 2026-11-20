@@ -52,7 +52,7 @@ const sameLine = (a: number, b: number, n: number) => {
  * - 지금의 증거: 그 뒤 백이 보이게 둔 돌들과 잘 어울리는 자리일수록 높다(백은 숨은 돌을 쓰려고 그 주변에 둔다).
  * - 위험: 거기 숨은 돌이 있으면 백이 바로 이기거나(danger1) 막을 수 없는 넉을 만드는(danger2) 자리는 크게 의심한다.
  */
-export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
+export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLevel): BeliefCell[] {
   const h = view.hidden;
   if (!h || h.revealed || h.index < 0) return [];
   // 히든 직전 판 다시 만들기(그 앞의 수는 모두 보인다)
@@ -63,6 +63,8 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
     before = r.state;
   }
   const b0 = FastBoard.fromState(before);
+  // "내가 백이라면 어디 숨겼을까"(같은 엔진으로 흉내) — 있으면 사전 확률에 크게 더한다
+  const model = modelLevel ? whiteHideModel(before, modelLevel) : null;
   const n = b0.n;
   const rank = new Map(b0.candidates().map((p) => ({ p, s: b0.moveScore(p, 2) })).sort((x, y) => y.s - x.s).map((x, i) => [x.p, i] as const));
   const vb = FastBoard.fromState(view);
@@ -73,7 +75,7 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
     if (vb.cells[c] || before.board[(c / n) | 0][c % n] !== null) continue; // 숨길 때 비어 있었고 지금도 비어 보이는 칸
     const r = rank.get(c);
     // 사전 확률은 완만하게: 백은 뻔한 자리를 피해 멀리 숨기기도 한다(무작위로 숨기는 백에게 뻔한 자리만 의심하면 당한다)
-    const prior = r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05;
+    const prior = (r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05) + (model?.get(c) ?? 0) * MODEL_SCALE;
     const use = Math.max(0, vb.moveScore(c, 2));
     vb.cells[c] = 2;
     const danger1 = vb.winningMoves(2).length > 0;
@@ -102,7 +104,7 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
  * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 그럴듯하면 먼저 눌러 본다.
  */
 export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng = Math.random, plainLevel: AiLevel = level): Position {
-  const belief = hiddenBelief(view, 20);
+  const belief = hiddenBelief(view, 20, plainLevel.fast ? plainLevel : undefined);
   if (!belief.length || !level.fast) return blackProbe(view) ?? chooseMove(view, plainLevel, rand);
   const n = view.config.boardSize;
   const vb = FastBoard.fromState(view);
@@ -195,9 +197,9 @@ function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Po
  * - 아니면 한 자리에 의심이 크게 몰렸을 때(백이 그쪽으로 줄을 이어 오는 등)
  * 근거 없이 아무 데나 찍지 않는다 — 처음엔 의심이 고르게 퍼져 있어 쓰지 않고, 백이 숨은 돌을 쓰려 할 때 쓴다.
  */
-export function chooseBlackScan(view: GameState): Position | null {
+export function chooseBlackScan(view: GameState, level?: AiLevel): Position | null {
   if (!canScan(view)) return null;
-  const belief = hiddenBelief(view, 20);
+  const belief = hiddenBelief(view, 20, level && withHidden(level).fast && (level.fast || level.rating >= 1400) ? level : undefined);
   if (!belief.length) return null;
   const n = view.config.boardSize;
   const d1 = belief.filter((x) => x.danger1).sort((a, b) => b.w - a.w)[0];
@@ -206,6 +208,8 @@ export function chooseBlackScan(view: GameState): Position | null {
   if (d2 && d2.w >= SCAN_D2) return toPos(d2.pos, n);
   return belief[0].w >= SCAN_TOP ? toPos(belief[0].pos, n) : null;
 }
+/** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
+const MODEL_SCALE = 25;
 /** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
 const SCAN_D1 = 0.04;
 const SCAN_D2 = 0.06;
@@ -239,8 +243,25 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
   // 엔진이 약한 단계(아이언~실버): 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
   const L = withHidden(level);
   if (!L.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
-  level = L;
-  const fast = L.fast;
+  const n = state.config.boardSize;
+  const { options, jitter } = whiteHideOptions(state, level, plain, opts);
+  let best = { move: plain, hidden: false }, bestV = -Infinity;
+  for (const o of options) {
+    const v = o.v + (rand() - 0.5) * 2 * (o.hidden ? jitter.hidden : jitter.visible);
+    if (v > bestV) { bestV = v; best = { move: toPos(o.p, n), hidden: o.hidden }; }
+  }
+  return best;
+}
+
+interface HideOption { p: number; hidden: boolean; v: number }
+
+/**
+ * 백이 이번 수에 고를 수 있는 후보(보이게 두기·숨기기)와 흔들림 전의 값. 백 AI가 쓰고,
+ * 흑 AI도 "내가 백이라면 어디에 숨겼을까"를 짐작하는 데 쓴다(whiteHideModel).
+ */
+function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opts: WhiteHiddenOptions = {}): { options: HideOption[]; jitter: { hidden: number; visible: number } } {
+  const L = withHidden(level);
+  const fast = L.fast!;
   const n = state.config.boardSize;
   const b = FastBoard.fromState(state);
   const p0 = plain.row * n + plain.col;
@@ -265,16 +286,12 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     findProb = (p) => Math.min(0.9, 2 * ((w.get(p) ?? 0) / wsum));
   }
   const clamp = (v: number) => Math.max(-3000, Math.min(3000, v));
-  let best = { move: plain, hidden: false }, bestV = -Infinity;
+  const options: HideOption[] = [];
   for (const p of top) {
     const vis = value(p, false);
     const raw = value(p, true);
     const f = findProb(p);
-    const hid = avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw;
-    for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
-      const v = v0 + (rand() - 0.5) * 2 * (hidden ? Math.max(HIDE_JITTER, fast.noise || 0) : fast.noise || 0);
-      if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
-    }
+    options.push({ p, hidden: false, v: vis }, { p, hidden: true, v: avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw });
   }
   // 먼 자리에 숨기기: 천원 5×5 밖, 백 돌에서 4칸 안, 흑이 의심할 만한 자리(위 8곳)는 빼고 백에게 쓸모 있을 자리.
   // 당장 형세는 손해(한 수를 멀리 둔다)지만, 들키기 어렵고 나중에 그 줄로 공격을 이으면 흑이 못 본다 → 잠재 가치를 더한다.
@@ -290,13 +307,40 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
       .map((p) => ({ p, s: latent(b, p, n) }))
       .sort((x, y) => y.s - x.s)
       .slice(0, 4);
-    for (const x of far) {
-      if (x.s <= 0) continue;
-      const v = clamp(value(x.p, true)) + x.s * FAR_LATENT + (rand() - 0.5) * 2 * Math.max(HIDE_JITTER, fast.noise || 0);
-      if (v > bestV) { bestV = v; best = { move: toPos(x.p, n), hidden: true }; }
-    }
+    for (const x of far) if (x.s > 0) options.push({ p: x.p, hidden: true, v: clamp(value(x.p, true)) + x.s * FAR_LATENT });
   }
-  return best;
+  return { options, jitter: { hidden: Math.max(HIDE_JITTER, fast.noise || 0), visible: fast.noise || 0 } };
+}
+
+/**
+ * 흑의 "내가 백이라면": 백이 숨긴 순간의 판에서 백 AI가 숨길 만한 자리의 확률(백이 숨겼다는 것을 안다는 조건).
+ * 백의 흔들림까지 흉내 내 여러 번 뽑아 센다. 판마다 한 번만 계산해 둔다.
+ */
+const hideModelCache = new Map<string, Map<number, number>>();
+export function whiteHideModel(before: GameState, level: AiLevel): Map<number, number> {
+  const key = `${level.id}|${before.moves.map((m) => `${m.row},${m.col}`).join(" ")}`;
+  const hit = hideModelCache.get(key);
+  if (hit) return hit;
+  const out = new Map<number, number>();
+  if (withHidden(level).fast && canUseHidden(before)) {
+    const plain = chooseMove(before, level, () => 0.5);
+    const { options, jitter } = whiteHideOptions(before, level, plain);
+    let x = 12345;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    let hides = 0;
+    for (let k = 0; k < 400; k++) {
+      let best: HideOption | null = null, bestV = -Infinity;
+      for (const o of options) {
+        const v = o.v + (rnd() - 0.5) * 2 * (o.hidden ? jitter.hidden : jitter.visible);
+        if (v > bestV) { bestV = v; best = o; }
+      }
+      if (best?.hidden) { hides++; out.set(best.p, (out.get(best.p) ?? 0) + 1); }
+    }
+    for (const [p, c] of out) out.set(p, c / Math.max(1, hides));
+  }
+  if (hideModelCache.size > 32) hideModelCache.clear();
+  hideModelCache.set(key, out);
+  return out;
 }
 
 /**

@@ -179,7 +179,7 @@ export class GameRoom extends DurableObject<Env> {
         // 백 히든 판: 흑 AI는 흑에게 보이는 판만 보고, 백 AI는 숨겨 둘지도 정한다
         if (s.currentPlayer === "black") {
           // 흑 AI: 정말 의심되는 자리가 있으면 먼저 스캔(차례는 그대로), 그 뒤 둔다
-          const sc = chooseBlackScan(viewFor(s, "black"));
+          const sc = chooseBlackScan(viewFor(s, "black"), level);
           if (sc && (await this.applyScan(sc))) return void (await this.applyMove("black", chooseBlackMove(viewFor(this.replay(this.data!), "black"), level)));
           return void (await this.applyMove("black", chooseBlackMove(viewFor(s, "black"), level)));
         }

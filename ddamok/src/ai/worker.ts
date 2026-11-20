@@ -12,7 +12,7 @@ self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: strin
   if (!state.config.hiddenMove) { self.postMessage({ id, move: chooseMove(state, level), hidden: false }); return; }
   if (state.currentPlayer === "white") { self.postMessage({ id, ...chooseWhiteMove(state, level) }); return; }
   // 흑: 정말 의심되는 자리가 있으면 먼저 스캔을 알린다(화면이 스캔을 적용한 뒤 다시 물으면 그때 둔다)
-  const scan = chooseBlackScan(state);
+  const scan = chooseBlackScan(state, level);
   if (scan) { self.postMessage({ id, scan }); return; }
   self.postMessage({ id, move: chooseBlackMove(state, level), hidden: false });
 };
