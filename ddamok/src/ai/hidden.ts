@@ -138,22 +138,31 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
   const top = new FastSearcher(b, level.fast.width).searchRoot(level.fast.depth, Math.max(30, level.fast.timeMs * 0.3), true, true).scores.slice(0, 5).map((x) => x.p);
   if (!top.includes(p0)) top.unshift(p0);
   const leafMs = Math.max(20, level.fast.timeMs * 0.06);
-  let best = { move: plain, hidden: false }, bestV = -Infinity;
-  for (const p of top) for (const hidden of [false, true]) {
+  // 흑은 "백이 두기 가장 좋은 자리"부터 의심한다(hiddenBelief) → 그런 자리에 숨기면 들킬 확률이 높다.
+  // 들키면 그냥 보이게 둔 것과 같아지므로, 숨긴 값 = (1 − 들킬 확률) × 숨긴 값 + 들킬 확률 × 보이게 둔 값.
+  const rank = b.candidates().map((p) => ({ p, s: b.moveScore(p, 2) })).sort((x, y) => y.s - x.s);
+  const seen = new Map<number, number>();
+  let wsum = 0;
+  rank.slice(0, 8).forEach((x, i) => { const w = 0.7 ** i; seen.set(x.p, w); wsum += w; });
+  const findProb = (p: number) => Math.min(0.9, 2 * ((seen.get(p) ?? 0) / (wsum || 1)));
+  const value = (p: number, hidden: boolean): number => {
     const r = tryMove(state, toPos(p, n), undefined, { hidden });
-    if (!r.ok) continue;
-    let v: number;
-    if (r.state.isFinished) v = 1e9;
-    else {
-      const s2 = simulateBlack(r.state);
-      if (s2.isFinished) v = s2.winner === "white" ? 1e9 : -1e9;
-      else {
-        const fb = FastBoard.fromState(s2);
-        v = fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, level.fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
-      }
+    if (!r.ok) return -Infinity;
+    if (r.state.isFinished) return 1e9;
+    const s2 = simulateBlack(r.state);
+    if (s2.isFinished) return s2.winner === "white" ? 1e9 : -1e9;
+    const fb = FastBoard.fromState(s2);
+    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, level.fast!.width).searchRoot(6, leafMs, false, true).scores[0].s;
+  };
+  let best = { move: plain, hidden: false }, bestV = -Infinity;
+  for (const p of top) {
+    const vis = value(p, false);
+    const f = findProb(p);
+    const hid = (1 - f) * value(p, true) + f * vis;
+    for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
+      const v = v0 + (rand() - 0.5) * 2 * (level.fast.noise || 0);
+      if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
     }
-    v += (rand() - 0.5) * 2 * (level.fast.noise || 0);
-    if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
   }
   return best;
 }

@@ -92,9 +92,8 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   // 8. 동시에 제거
   for (const { row, col } of captured) board[row][col] = null;
 
-  // 9. 누적 포획 수 갱신 (백 히든 돌은 hiddenCaptureValue개로 친다)
-  const hiddenBonus = state.hidden && state.hidden.index >= 0 && captured.some((c) => samePos(c, state.hidden!.pos)) ? state.config.hiddenCaptureValue - 1 : 0;
-  const capturedByBlack = state.capturedByBlack + (me === "black" ? captured.length + hiddenBonus : 0);
+  // 9. 누적 포획 수 갱신
+  const capturedByBlack = state.capturedByBlack + (me === "black" ? captured.length : 0);
   const capturedByWhite = state.capturedByWhite + (me === "white" ? captured.length : 0);
 
   const next: GameState = {
