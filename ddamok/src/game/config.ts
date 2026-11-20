@@ -18,6 +18,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     captureTarget: { ...DEFAULT_CAPTURE_TARGET, ...overrides.captureTarget },
     overlineWins: overrides.overlineWins ?? false,
     firstMoveCenter: overrides.firstMoveCenter ?? true,
+    secondMoveMinDistance: overrides.secondMoveMinDistance ?? 0,
   };
 }
 

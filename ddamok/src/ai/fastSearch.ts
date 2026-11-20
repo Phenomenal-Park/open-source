@@ -2,6 +2,7 @@
 //   - 둘 차례인 쪽이 바로 이길 수 있으면 즉시 승리로 본다.
 //   - 상대가 다음 수에 이길 자리가 있으면(넉 점·포획 승리 위협) 그 자리 막기·따내서 깨기만 둔다(깊이를 줄이지 않음).
 import type { GameState, Position } from "../game/types.ts";
+import { isLegalMove } from "../game/rules.ts";
 import { FastBoard, type Color } from "./fast.ts";
 
 export const WIN = 1_000_000;
@@ -162,12 +163,12 @@ export class FastSearcher {
    * 뿌리 후보 각각의 점수. fullWindow면 잡음을 섞을 수 있게 모든 후보의 정확한 점수를 구한다.
    * 시간이 다 되면 마지막으로 끝까지 읽은 깊이의 결과를 쓴다.
    */
-  searchRoot(maxDepth: number, timeMs: number, fullWindow: boolean, focus: boolean): { scores: { p: number; s: number }[]; stats: FastStats } {
+  searchRoot(maxDepth: number, timeMs: number, fullWindow: boolean, focus: boolean, rootMoves?: number[]): { scores: { p: number; s: number }[]; stats: FastStats } {
     const t0 = performance.now();
     this.deadline = t0 + timeMs;
     this.focusOn = focus;
     const b = this.b, me = b.toMove;
-    let roots = this.forcedReplies(me) ?? this.ordered(me, -1, 0);
+    let roots = rootMoves ?? this.forcedReplies(me) ?? this.ordered(me, -1, 0);
     let result = roots.map((p) => ({ p, s: b.moveScore(p, me) / 1000 }));
     let reached = 0;
     for (let d = 1; d <= maxDepth; d++) {
@@ -223,6 +224,13 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     const pool = b.candidates().map((p) => ({ p, s: b.moveScore(p, me) })).sort((x, y) => y.s - x.s).slice(0, level.randomPool);
     return toPos(pool[(rand() * pool.length) | 0].p);
   }
+  // 규칙상 특정 자리만 둘 수 있는 수(예: 펜테식 제한의 흑 3수째)는 둘 수 있는 자리 중에서만 고른다
+  const restricted = state.config.secondMoveMinDistance > 0 && state.moveCount === 2;
+  const rootMoves = restricted
+    ? Array.from({ length: n * n }, (_, p) => p).filter((p) => !b.cells[p] && isLegalMove(state, toPos(p)))
+        .filter((p) => { const r = (p / n) | 0, c = p % n, h = (n / 2) | 0; return Math.max(Math.abs(r - h), Math.abs(c - h)) <= state.config.secondMoveMinDistance + 1; })
+    : undefined;
+  if (restricted && rand() < level.randomPick) return toPos(rootMoves![(rand() * rootMoves!.length) | 0]);
   const searcher = new FastSearcher(b, level.width);
   const focus = rand() < level.focus;
   const vcfDepth = focus ? level.vcfDepth ?? 0 : 0;
@@ -231,7 +239,7 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     const win = searcher.vcf(vcfDepth);
     if (win >= 0) return toPos(win);
   }
-  const { scores, stats: st } = searcher.searchRoot(focus ? level.depth : Math.max(1, level.depth - 2), level.timeMs, level.noise > 0, focus);
+  const { scores, stats: st } = searcher.searchRoot(focus ? level.depth : Math.max(1, level.depth - 2), level.timeMs, level.noise > 0, focus, rootMoves);
   if (stats) Object.assign(stats, st);
   // 상대의 연속 위협(필승 수순)을 허용하는 수는 피한다(점수 높은 후보부터 최대 5개)
   if (vcfDepth > 0 && vcfMode !== "attack") {

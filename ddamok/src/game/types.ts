@@ -24,6 +24,11 @@ export interface GameConfig {
   overlineWins: boolean;
   /** 흑의 첫 수는 반드시 천원(가운데). 기본 true — 테스트에서 다른 규칙만 따로 확인할 때만 끈다 */
   firstMoveCenter: boolean;
+  /**
+   * 흑의 두 번째 수(전체 3수째)는 천원에서 가로·세로 어느 쪽으로든 이 칸 수 이상 떨어져야 한다(펜테식 제한).
+   * 0 = 제한 없음(기본). 흑백 밸런스 실험용.
+   */
+  secondMoveMinDistance: number;
 }
 
 export interface GameState {
@@ -49,7 +54,7 @@ export interface GameState {
   isFinished: boolean;
 }
 
-export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center";
+export type IllegalReason = "finished" | "not-your-turn" | "out-of-bounds" | "occupied" | "first-move-center" | "second-move-distance";
 
 export type MoveResult =
   | { ok: true; state: GameState; captured: Position[] }

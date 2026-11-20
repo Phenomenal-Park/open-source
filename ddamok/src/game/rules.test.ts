@@ -451,6 +451,21 @@ describe("첫 수는 천원", () => {
   });
 });
 
+describe("(실험용) 펜테식 제한: 흑의 두 번째 수는 천원에서 3칸 이상", () => {
+  it("기본은 꺼져 있고, 켜면 흑 3수째가 천원 5×5 안이면 거부", () => {
+    const off = play(createGame(15), at(7, 7), at(7, 8));
+    expect(isLegalMove(off, at(6, 6))).toBe(true);
+    const on = play(createGame(15, { secondMoveMinDistance: 3 }), at(7, 7), at(7, 8));
+    expect(tryMove(on, at(6, 6))).toEqual({ ok: false, reason: "second-move-distance" });
+    expect(isLegalMove(on, at(9, 9))).toBe(false);
+    expect(isLegalMove(on, at(4, 7))).toBe(true);
+    expect(isLegalMove(on, at(10, 12))).toBe(true);
+    // 그 다음 수부터는 제한 없음
+    const after = play(on, at(4, 7));
+    expect(isLegalMove(after, at(6, 6))).toBe(true);
+  });
+});
+
 describe("무승부", () => {
   // 5×5 판, (4,4) 한 칸만 비어 있다. 흑이 두면 5목도 포획도 없이 판이 다 찬다.
   const full = () => fromDiagram(["XOXOX", "XOXOO", "OXOXO", "OXOXO", "XOXO."], "black", { size: 5 });

@@ -16,6 +16,11 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     const c = centerOf(state.config.boardSize);
     if (row !== c.row || col !== c.col) return "first-move-center";
   }
+  // (실험용, 기본 꺼짐) 흑의 두 번째 수는 천원에서 일정 거리 이상
+  if (state.config.secondMoveMinDistance > 0 && state.moveCount === 2 && state.currentPlayer === "black") {
+    const c = centerOf(state.config.boardSize);
+    if (Math.max(Math.abs(row - c.row), Math.abs(col - c.col)) < state.config.secondMoveMinDistance) return "second-move-distance";
+  }
   return null;
 }
 
