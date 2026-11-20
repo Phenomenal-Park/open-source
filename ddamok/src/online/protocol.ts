@@ -63,6 +63,8 @@ export interface GameSnapshot {
   mode: MatchMode;
   rated: boolean;
   boardSize: number;
+  /** (실험용) 흑 두 번째 수 제한 칸 수(0 = 없음) — 대국 시작 때 정해져 끝까지 유지 */
+  secondMoveMinDistance?: number;
   players: Record<Player, PlayerInfo>;
   moves: Position[];
   status: "playing" | "finished" | "aborted";

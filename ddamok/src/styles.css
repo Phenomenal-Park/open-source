@@ -247,3 +247,4 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .site-footer a { color: var(--muted); text-decoration: none; padding: 6px 0; }
 .center-hint { fill: none; stroke: var(--accent); stroke-width: 0.8; stroke-dasharray: 2 1.5; pointer-events: none; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+.banned { opacity: 0.45; pointer-events: none; user-select: none; }

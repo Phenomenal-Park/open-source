@@ -52,6 +52,7 @@ export const ko = {
   "status.reconnecting": "다시 연결 중…",
   "status.aiThinking": "AI 생각 중…",
   "status.firstCenter": "첫 수는 천원",
+  "status.secondFar": "흑 두 번째 수는 천원 5×5 바깥",
   "status.turn": "{color} 차례",
   "confirm.resign": "기권할까요?",
   "confirm.size": "판 크기를 바꾸면 새 대국이 시작됩니다.",

@@ -52,6 +52,7 @@ export const en: Messages = {
   "status.reconnecting": "Reconnecting…",
   "status.aiThinking": "AI is thinking…",
   "status.firstCenter": "First move: center",
+  "status.secondFar": "Black's 2nd move: outside the center 5×5",
   "status.turn": "{color} to play",
   "confirm.resign": "Resign this game?",
   "confirm.size": "Changing the board size starts a new game.",

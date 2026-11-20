@@ -52,6 +52,7 @@ export const ja: Messages = {
   "status.reconnecting": "再接続中…",
   "status.aiThinking": "AIが考え中…",
   "status.firstCenter": "初手は天元",
+  "status.secondFar": "黒の2手目は天元の5×5の外",
   "status.turn": "{color}の番",
   "confirm.resign": "投了しますか？",
   "confirm.size": "盤のサイズを変えると新しい対局になります。",

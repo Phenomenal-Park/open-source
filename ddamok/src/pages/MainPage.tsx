@@ -18,6 +18,9 @@ import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/in
 import { Rich } from "../i18n/Rich.tsx";
 
 const BOARD_SIZES = [13, 15, 19];
+/** (실험용) 흑 두 번째 수 제한 칸 수 — 빌드 시 VITE_SECOND_MOVE_MIN_DISTANCE로 켠다(기본 0 = 꺼짐) */
+const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
+const freshGame = (size: number) => createGame(size, { secondMoveMinDistance: SECOND_MIN });
 
 interface Online {
   gameId: string;
@@ -31,7 +34,7 @@ interface Online {
 export function MainPage() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [boardSize, setBoardSize] = useState(DEFAULT_BOARD_SIZE);
-  const [history, setHistory] = useState<GameHistory>(() => createHistory(createGame(DEFAULT_BOARD_SIZE)));
+  const [history, setHistory] = useState<GameHistory>(() => createHistory(freshGame(DEFAULT_BOARD_SIZE)));
   const [fx, setFx] = useState<CaptureFx | null>(null);
   const [resultOpen, setResultOpen] = useState(true);
   const [aiGame, setAiGame] = useState<{ levelId: string; aiColor: Player } | null>(null);
@@ -48,7 +51,7 @@ export function MainPage() {
   const onlineMoves = online?.game?.moves;
   const onlineState = useMemo<GameState | null>(() => {
     if (!onlineMoves) return null;
-    const r = replayMoves(makeConfig(online!.game!.boardSize), onlineMoves);
+    const r = replayMoves(makeConfig(online!.game!.boardSize, { secondMoveMinDistance: online!.game!.secondMoveMinDistance ?? 0 }), onlineMoves);
     return r.ok ? r.state : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineMoves]);
@@ -170,7 +173,7 @@ export function MainPage() {
   useEffect(() => () => workerRef.current?.terminate(), []);
 
   const reset = useCallback((size: number) => {
-    setHistory(createHistory(createGame(size)));
+    setHistory(createHistory(freshGame(size)));
     setFx(null);
     setResultOpen(true);
   }, []);
@@ -248,7 +251,9 @@ export function MainPage() {
     return null;
   };
 
-  const moveNo = state.moveCount === 0 && state.config.firstMoveCenter ? t("status.firstCenter") : t("status.moveNo", { n: state.moveCount + 1 });
+  const moveNo = state.moveCount === 0 && state.config.firstMoveCenter ? t("status.firstCenter")
+    : state.moveCount === 2 && state.config.secondMoveMinDistance === 3 && !state.isFinished ? t("status.secondFar")
+      : t("status.moveNo", { n: state.moveCount + 1 });
   let status: string;
   if (online && !online.game) status = t("status.connecting");
   else if (online?.game?.status === "aborted") status = t("status.aborted");

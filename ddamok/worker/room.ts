@@ -37,6 +37,8 @@ export interface RoomInit {
 
 interface RoomData extends RoomInit {
   boardSize: number;
+  /** (실험용) 흑 두 번째 수 제한 — 시작 때의 서버 설정을 그 판 끝까지 쓴다 */
+  secondMoveMinDistance?: number;
   moves: Position[];
   status: "playing" | "finished" | "aborted";
   result: OnlineResult | null;
@@ -93,7 +95,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private replay(d: RoomData): GameState {
-    const r = replayMoves(makeConfig(d.boardSize), d.moves);
+    const r = replayMoves(makeConfig(d.boardSize, { secondMoveMinDistance: d.secondMoveMinDistance ?? 0 }), d.moves);
     if (!r.ok) throw new Error("stored moves are invalid");
     return r.state;
   }
@@ -103,7 +105,7 @@ export class GameRoom extends DurableObject<Env> {
     if (await this.load()) return;
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
-      ...init, boardSize: this.boardSize, moves: [], status: "playing", result: null,
+      ...init, boardSize: this.boardSize, secondMoveMinDistance: Number(this.env.SECOND_MOVE_MIN_DISTANCE) || 0, moves: [], status: "playing", result: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
     for (const c of COLORS) if (!init[c].bot) this.data.deadlines[c] = deadline;
@@ -340,7 +342,7 @@ export class GameRoom extends DurableObject<Env> {
     for (const c of COLORS) if (d.deadlines[c]) disconnected[c] = Math.max(0, d.deadlines[c]! - now);
     const p = (x: RoomPlayer) => ({ username: x.username, rank: x.rank, rating: x.rating, provisional: x.provisional, bot: !!x.bot });
     return {
-      id: d.id, mode: d.mode, rated: d.rated, boardSize: d.boardSize, players: { black: p(d.black), white: p(d.white) },
+      id: d.id, mode: d.mode, rated: d.rated, boardSize: d.boardSize, secondMoveMinDistance: d.secondMoveMinDistance ?? 0, players: { black: p(d.black), white: p(d.white) },
       moves: d.moves, status: d.status, result: d.result, disconnected,
     };
   }
