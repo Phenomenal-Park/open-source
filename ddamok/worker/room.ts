@@ -2,14 +2,15 @@
 import { DurableObject } from "cloudflare:workers";
 import { makeConfig, opponent, DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
 import { replayMoves } from "../src/game/gameState.ts";
-import { tryMove } from "../src/game/rules.ts";
+import { canUseHidden, forfeitHidden, tryMove, viewFor, type MoveOptions } from "../src/game/rules.ts";
 import type { GameState, Player, Position } from "../src/game/types.ts";
 import { isProvisional, rateDraw, rateGame, type PlayerUpdate } from "../src/rating/elo.ts";
 import { chooseMove } from "../src/ai/search.ts";
+import { chooseBlackMove, chooseWhiteMove } from "../src/ai/hidden.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
-  DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL,
+  DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, HIDDEN_CAPTURE_TARGET, HIDDEN_GRACE_MS, HIDDEN_MS, PING, PONG, WS_PROTOCOL,
   type ClientMessage, type GameSnapshot, type MatchMode, type OnlineResult, type ResultReason, type ServerMessage,
 } from "../src/online/protocol.ts";
 import { toRated, type UserRow } from "./users.ts";
@@ -40,6 +41,16 @@ interface RoomData extends RoomInit {
   /** (실험용) 흑 두 번째 수 제한 — 시작 때의 서버 설정을 그 판 끝까지 쓴다 */
   secondMoveMinDistance?: number;
   moves: Position[];
+  /** 백 히든 규칙 — 시작 때의 서버 설정을 그 판 끝까지 쓴다 */
+  hiddenMove?: boolean;
+  /** 백 히든 수가 moves의 몇 번째인가 */
+  hiddenIndex?: number | null;
+  /** 흑이 그 자리를 눌러 드러났다(기보를 다시 두는 것만으로는 알 수 없어 따로 저장) */
+  hiddenRevealed?: boolean;
+  /** 히든을 누르고 10초 안에 두지 못해 기회가 사라졌다 */
+  hiddenForfeit?: boolean;
+  /** 백이 히든을 누른 시각 + HIDDEN_MS (아직 두지 않았으면) */
+  hiddenArmedUntil?: number | null;
   status: "playing" | "finished" | "aborted";
   result: OnlineResult | null;
   /** 이 시각까지 돌아오지 않으면 패배(접속 끊김) */
@@ -95,9 +106,12 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private replay(d: RoomData): GameState {
-    const r = replayMoves(makeConfig(d.boardSize, { secondMoveMinDistance: d.secondMoveMinDistance ?? 0 }), d.moves);
+    const r = replayMoves(roomConfig(d), d.moves, d.hiddenIndex ?? null);
     if (!r.ok) throw new Error("stored moves are invalid");
-    return r.state;
+    let s = r.state;
+    if (d.hiddenRevealed && s.hidden && !s.hidden.revealed) s = { ...s, hidden: { ...s.hidden, revealed: true } };
+    if (d.hiddenForfeit) s = forfeitHidden(s);
+    return s;
   }
 
   /** 매칭 직후 한 번(Matchmaker가 RPC로 호출). 두 사람 모두 45초 안에 들어와야 한다. */
@@ -106,6 +120,7 @@ export class GameRoom extends DurableObject<Env> {
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
       ...init, boardSize: this.boardSize, secondMoveMinDistance: Number(this.env.SECOND_MOVE_MIN_DISTANCE) || 0, moves: [], status: "playing", result: null,
+      hiddenMove: this.env.HIDDEN_MOVE !== "0", hiddenIndex: null, hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
     for (const c of COLORS) if (!init[c].bot) this.data.deadlines[c] = deadline;
@@ -122,21 +137,37 @@ export class GameRoom extends DurableObject<Env> {
     const level = d[state.currentPlayer].bot && levelById(d[state.currentPlayer].bot!);
     if (!level) return;
     const moveNo = d.moves.length;
+    const revealed = !!d.hiddenRevealed;
     this.ctx.waitUntil(
       new Promise((r) => setTimeout(r, 400)).then(async () => {
         const cur = await this.load();
-        if (!cur || cur.status !== "playing" || cur.moves.length !== moveNo) return;
+        if (!cur || cur.status !== "playing" || cur.moves.length !== moveNo || !!cur.hiddenRevealed !== revealed) return;
         const s = this.replay(cur);
-        await this.applyMove(s.currentPlayer, chooseMove(s, level));
+        if (!cur.hiddenMove) return void (await this.applyMove(s.currentPlayer, chooseMove(s, level)));
+        // 백 히든 판: 흑 AI는 흑에게 보이는 판만 보고, 백 AI는 숨겨 둘지도 정한다
+        if (s.currentPlayer === "black") return void (await this.applyMove("black", chooseBlackMove(viewFor(s, "black"), level)));
+        const { move, hidden } = chooseWhiteMove(s, level);
+        await this.applyMove("white", move, { hidden });
       }),
     );
   }
 
   /** 검증 후 착수. 실패하면 오류 코드(없으면 null). */
-  private async applyMove(color: Player, pos: Position): Promise<"not_your_turn" | "illegal" | null> {
+  private async applyMove(color: Player, pos: Position, opts: MoveOptions = {}): Promise<"not_your_turn" | "illegal" | "hidden_required" | null> {
     const d = this.data!;
-    const r = tryMove(this.replay(d), pos, color);
+    // 히든을 누른 뒤에는 숨겨 두는 수만 받는다
+    if (color === "white" && d.hiddenArmedUntil && !opts.hidden) return "hidden_required";
+    const r = tryMove(this.replay(d), pos, color, opts);
     if (!r.ok) return r.reason === "not-your-turn" ? "not_your_turn" : "illegal";
+    if (r.revealedHidden) {
+      // 흑이 숨은 돌 자리를 눌렀다: 돌이 드러나고 흑 차례 그대로
+      d.hiddenRevealed = true;
+      await this.save();
+      this.broadcast();
+      this.maybeBotTurn();
+      return null;
+    }
+    if (opts.hidden) { d.hiddenIndex = d.moves.length; d.hiddenArmedUntil = null; }
     d.moves.push({ row: pos.row, col: pos.col });
     if (r.state.isFinished && r.state.winReason) {
       await this.finish(r.state.winner, r.state.winReason); // winner null = 무승부(판이 다 참)
@@ -185,11 +216,23 @@ export class GameRoom extends DurableObject<Env> {
 
     if (msg.type === "resign") return this.finish(opponent(color), "resign");
 
+    if (msg.type === "hidden") {
+      // 백 히든 누름: 10초 안에 숨겨 둬야 한다(못 두면 alarm에서 기회 소멸)
+      if (color !== "white" || !d.hiddenMove || d.hiddenArmedUntil || !canUseHidden(this.replay(d))) return this.sendState(ws, color);
+      d.hiddenArmedUntil = Date.now() + HIDDEN_MS;
+      await this.save();
+      await this.scheduleAlarm();
+      this.broadcast();
+      return;
+    }
+
     if (msg.type === "move") {
       if (msg.moveNo !== d.moves.length) return this.sendState(ws, color); // 오래된 화면에서 보낸 수
-      const err = await this.applyMove(color, { row: msg.row, col: msg.col });
+      const hidden = msg.hidden === true;
+      if (hidden && (!d.hiddenArmedUntil || Date.now() > d.hiddenArmedUntil + HIDDEN_GRACE_MS)) return this.sendState(ws, color);
+      const err = await this.applyMove(color, { row: msg.row, col: msg.col }, { hidden });
       if (err) {
-        this.sendTo(ws, { type: "error", code: err, message: err === "not_your_turn" ? "상대 차례입니다." : "둘 수 없는 자리입니다." });
+        this.sendTo(ws, { type: "error", code: err, message: err === "not_your_turn" ? "상대 차례입니다." : err === "hidden_required" ? "숨길 자리에 두세요." : "둘 수 없는 자리입니다." });
         this.sendState(ws, color);
       }
     }
@@ -218,7 +261,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async scheduleAlarm() {
     const d = this.data!;
-    let next = Math.min(...COLORS.map((c) => d.deadlines[c] ?? Infinity));
+    let next = Math.min(...COLORS.map((c) => d.deadlines[c] ?? Infinity), d.hiddenArmedUntil ? d.hiddenArmedUntil + HIDDEN_GRACE_MS : Infinity);
     // 대국 중 접속해 있는 사람이 있으면 신호 확인을 위해 주기적으로 깨어난다
     if (d.status === "playing" && COLORS.some((c) => !d[c].bot && this.openSockets(c).length)) {
       next = Math.min(next, Date.now() + Math.min(10_000, this.heartbeatTimeoutMs / 2));
@@ -247,6 +290,13 @@ export class GameRoom extends DurableObject<Env> {
     const d = await this.load();
     if (!d || d.status !== "playing") return;
     const now = Date.now();
+    if (d.hiddenArmedUntil && now >= d.hiddenArmedUntil + HIDDEN_GRACE_MS) {
+      // 히든을 누르고 시간 안에 두지 못함: 그 판의 히든 기회 소멸(백 차례 그대로)
+      d.hiddenArmedUntil = null;
+      d.hiddenForfeit = true;
+      await this.save();
+      this.broadcast();
+    }
     if (this.sweepHeartbeats(now)) {
       await this.save();
       this.broadcast();
@@ -271,6 +321,7 @@ export class GameRoom extends DurableObject<Env> {
     if (d.status !== "playing") return;
     d.status = "finished";
     d.deadlines = {};
+    d.hiddenArmedUntil = null;
     d.result = { winner, reason };
     await this.ctx.storage.deleteAlarm();
     const winnerId = winner ? d[winner].id : null;
@@ -315,13 +366,14 @@ export class GameRoom extends DurableObject<Env> {
         db.prepare(
           `INSERT OR IGNORE INTO games (id, mode, rated, black_id, white_id, winner_id, win_reason, moves, move_count,
              black_before, black_after, white_before, white_after,
-             black_name, white_name, black_rating, white_rating, black_provisional, white_provisional, created_at, finished_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             black_name, white_name, black_rating, white_rating, black_provisional, white_provisional, created_at, finished_at,
+             hidden_move, hidden_index)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(d.id, d.mode, d.rated ? 1 : 0, d.black.id, d.white.id, winnerId, reason, JSON.stringify(d.moves), d.moves.length,
           before.black ?? null, after.black ?? null, before.white ?? null, after.white ?? null,
           // 대국 당시(매칭 시점) 닉네임·점수 스냅샷
           d.black.username, d.white.username, d.black.rating, d.white.rating, d.black.provisional ? 1 : 0, d.white.provisional ? 1 : 0,
-          d.createdAt, now),
+          d.createdAt, now, d.hiddenMove ? 1 : 0, d.hiddenIndex ?? null),
       );
       for (const c of COLORS) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO user_games (user_id, game_id, finished_at) VALUES (?, ?, ?)").bind(d[c].id, d.id, now));
@@ -335,15 +387,19 @@ export class GameRoom extends DurableObject<Env> {
     this.broadcast();
   }
 
-  private snapshot(): GameSnapshot {
+  /** 보는 사람(색)마다 다른 화면: 흑에게는 숨은 백 돌이 보이지 않는다 */
+  private snapshot(viewer: Player): GameSnapshot {
     const d = this.data!;
     const now = Date.now();
     const disconnected: GameSnapshot["disconnected"] = {};
     for (const c of COLORS) if (d.deadlines[c]) disconnected[c] = Math.max(0, d.deadlines[c]! - now);
     const p = (x: RoomPlayer) => ({ username: x.username, rank: x.rank, rating: x.rating, provisional: x.provisional, bot: !!x.bot });
+    const view = viewFor(this.replay(d), viewer);
     return {
       id: d.id, mode: d.mode, rated: d.rated, boardSize: d.boardSize, secondMoveMinDistance: d.secondMoveMinDistance ?? 0, players: { black: p(d.black), white: p(d.white) },
-      moves: d.moves, status: d.status, result: d.result, disconnected,
+      moves: view.moves, status: d.status, result: d.result, disconnected,
+      hiddenMove: !!d.hiddenMove, view,
+      ...(d.hiddenArmedUntil ? { hiddenArmedMs: Math.max(0, d.hiddenArmedUntil - now) } : {}),
     };
   }
 
@@ -352,16 +408,24 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private sendState(ws: WebSocket, color: Player) {
-    this.sendTo(ws, { type: "state", you: color, game: this.snapshot() });
+    this.sendTo(ws, { type: "state", you: color, game: this.snapshot(color) });
   }
 
   private broadcast() {
-    const game = this.snapshot();
+    const games: Partial<Record<Player, GameSnapshot>> = {};
     for (const ws of this.ctx.getWebSockets()) {
       const you = this.ctx.getTags(ws)[0] as Player;
-      this.sendTo(ws, { type: "state", you, game });
+      this.sendTo(ws, { type: "state", you, game: (games[you] ??= this.snapshot(you)) });
     }
   }
+}
+
+/** 이 대국의 규칙: 백 히든 판은 흑·백 모두 10개 따내면 승리 */
+export function roomConfig(d: { boardSize: number; secondMoveMinDistance?: number; hiddenMove?: boolean }) {
+  return makeConfig(d.boardSize, {
+    secondMoveMinDistance: d.secondMoveMinDistance ?? 0,
+    ...(d.hiddenMove ? { hiddenMove: true, captureTarget: { ...HIDDEN_CAPTURE_TARGET } } : {}),
+  });
 }
 
 /**

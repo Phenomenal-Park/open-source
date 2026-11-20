@@ -79,6 +79,7 @@ button, input, select { font: inherit; }
 .board-wrap.hidden-armed .board { box-shadow: 0 0 0 3px var(--accent), 0 0 28px var(--accent), 0 8px 30px rgba(0,0,0,.45); }
 .found-pop { fill: var(--accent); font-weight: 900; paint-order: stroke; stroke: var(--bg); stroke-width: .6; animation: float-up 1.4s ease-out forwards; pointer-events: none; }
 .btn.hidden-btn { border-color: var(--accent); color: var(--accent); font-weight: 800; }
+.hidden-mark { fill: none; stroke: var(--accent); stroke-width: .7; stroke-dasharray: 1.4 1; pointer-events: none; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
 .stone.reveal { animation: reveal 1.5s ease-out; }
 .end-banner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; pointer-events: none; z-index: 5; animation: end-in 2.6s ease-out forwards; }

@@ -62,16 +62,22 @@ export function MainPage() {
 
   // ── 화면에 보일 판 ─────────────────────────────
   const onlineMoves = online?.game?.moves;
+  const onlineView = online?.game?.view;
   const onlineState = useMemo<GameState | null>(() => {
+    // 서버가 보는 사람별 판(view)을 보내면 그대로 쓴다(백 히든: 흑에게는 숨은 돌이 없는 판)
+    if (onlineView) return onlineView;
     if (!onlineMoves) return null;
     const r = replayMoves(makeConfig(online!.game!.boardSize, { secondMoveMinDistance: online!.game!.secondMoveMinDistance ?? 0 }), onlineMoves);
     return r.ok ? r.state : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineMoves]);
+  }, [onlineMoves, onlineView]);
   const state = onlineState ?? currentState(history);
-  /** 이 화면을 보는 사람의 색(AI 대국) — 숨은 돌은 백에게만 보인다 */
-  const viewer: Player | null = !online && aiGame ? opponent(aiGame.aiColor) : null;
-  const shown = viewer ? viewFor(state, viewer) : state;
+  /** 이 화면을 보는 사람의 색(AI·온라인 대국) — 숨은 돌은 백에게만 보인다 */
+  const viewer: Player | null = online ? online.you ?? null : aiGame ? opponent(aiGame.aiColor) : null;
+  // 온라인 판은 이미 서버가 보는 사람에 맞춰 보낸 판이다
+  const shown = !online && viewer ? viewFor(state, viewer) : state;
+  /** 히든을 누르고 아직 두지 않았다면 그 마감 시각(온라인은 서버가 알려 준 남은 시간 기준) */
+  const armedAt = online ? (online.game?.hiddenArmedMs !== undefined ? (online.at ?? Date.now()) + online.game.hiddenArmedMs : null) : armedUntil;
   const hs = state.hidden && state.hidden.index >= 0 ? state.hidden : null;
   const onlinePlaying = !!online && (!online.game || online.game.status === "playing");
   const aiThinking = !online && aiGame !== null && !state.isFinished && state.currentPlayer === aiGame.aiColor;
@@ -81,8 +87,8 @@ export function MainPage() {
   useEffect(() => {
     if (!onlineState) { lastLen.current = 0; return; }
     if (onlineState.moveCount === lastLen.current + 1 && onlineState.lastCaptured.length) {
-      const by = onlineState.board[onlineState.lastMove!.row][onlineState.lastMove!.col]!;
-      setFx({ id: onlineState.moveCount, stones: onlineState.lastCaptured, color: opponent(by) });
+      const by = onlineState.lastMove ? onlineState.board[onlineState.lastMove.row][onlineState.lastMove.col] : null;
+      if (by) setFx({ id: onlineState.moveCount, stones: onlineState.lastCaptured, color: opponent(by) });
     } else if (onlineState.moveCount !== lastLen.current) setFx(null);
     if (onlineState.moveCount !== lastLen.current) setResultOpen(true);
     lastLen.current = onlineState.moveCount;
@@ -161,7 +167,7 @@ export function MainPage() {
       const g = online.game;
       if (!g || g.status !== "playing" || !onlineState || onlineState.currentPlayer !== online.you) return;
       if (onlineState.board[pos.row]?.[pos.col] !== null) return;
-      conn.current?.send({ type: "move", row: pos.row, col: pos.col, moveNo: g.moves.length });
+      conn.current?.send({ type: "move", row: pos.row, col: pos.col, moveNo: g.moves.length, ...(armedAt !== null && online.you === "white" ? { hidden: true } : {}) });
       return;
     }
     if (aiThinking) return;
@@ -180,23 +186,53 @@ export function MainPage() {
   }
 
   function startHidden() {
-    if (!canUseHidden(state) || viewer !== "white" || aiThinking) return;
+    if (!canUseHidden(state) || viewer !== "white" || aiThinking || armedAt !== null) return;
+    if (online) {
+      if (onlinePlaying) conn.current?.send({ type: "hidden" });
+      return; // 배너·카운트다운은 서버 상태가 오면 띄운다
+    }
     setArmedUntil(Date.now() + HIDDEN_MS);
     setBanner((b) => b + 1);
     setNotice(null);
   }
 
-  // 히든 카운트다운: 10, 9, 8 … 시간이 지나면 기회가 사라진다(백 차례 그대로)
+  // 히든 카운트다운 표시(온라인 포함): 남은 시간 막대를 부드럽게, 마지막 3초 진동
+  useEffect(() => {
+    if (armedAt === null) return;
+    let last = -1;
+    const timer = setInterval(() => {
+      const left = Math.ceil((armedAt - Date.now()) / 1000);
+      if (left !== last) { last = left; if (left <= 3 && left > 0 && viewer === "white") navigator.vibrate?.(40); }
+      tick((x) => x + 1);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [armedAt, viewer]);
+
+  // 온라인 히든: 서버 상태가 바뀔 때 배너("백 히든!")·찾았다·기회 소멸 알림
+  const prevOnline = useRef<{ armed: boolean; hiddenIndex: number | null; revealed: boolean; moveCount: number } | null>(null);
+  useEffect(() => {
+    if (!online?.game || !onlineState) { prevOnline.current = null; return; }
+    const h = onlineState.hidden;
+    const cur = { armed: online.game.hiddenArmedMs !== undefined, hiddenIndex: h ? h.index : null, revealed: !!h?.revealed, moveCount: onlineState.moveCount };
+    const prev = prevOnline.current;
+    if (prev) {
+      if (cur.armed && !prev.armed) { setBanner((b) => b + 1); setNotice(null); }
+      else if (cur.hiddenIndex !== null && cur.hiddenIndex >= 0 && prev.hiddenIndex === null && !prev.armed) setBanner((b) => b + 1); // AI 백이 바로 숨김
+      if (prev.armed && !cur.armed && cur.hiddenIndex !== null && cur.hiddenIndex < 0) setNotice({ kind: "lost", at: cur.moveCount, id: Date.now() });
+      if (h && h.index >= 0 && cur.revealed && !prev.revealed && cur.moveCount === prev.moveCount && onlineState.currentPlayer === "black")
+        setNotice({ kind: "found", at: cur.moveCount, pos: h.pos, id: Date.now() });
+    }
+    prevOnline.current = cur;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online?.game, onlineState]);
+
+  // 히든 시간 초과(AI 대국): 10, 9, 8 … 시간이 지나면 기회가 사라진다(백 차례 그대로). 온라인은 서버가 판정한다.
   useEffect(() => {
     if (armedUntil === null) return;
     let last = -1;
     const timer = setInterval(() => {
       const left = Math.ceil((armedUntil - Date.now()) / 1000);
-      if (left !== last) {
-        last = left;
-        if (left <= 3 && left > 0) navigator.vibrate?.(40);
-      }
-      tick((x) => x + 1); // 남은 시간 막대를 부드럽게
+      if (left !== last) last = left;
       if (left <= 0) {
         setArmedUntil(null);
         setHistory((h) => [...h.slice(0, -1), forfeitHidden(currentState(h))]);
@@ -329,12 +365,12 @@ export function MainPage() {
   else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
-  else if (armedUntil !== null) status = t("hidden.armed");
+  else if (armedAt !== null) status = t(viewer === "white" ? "hidden.armed" : "hidden.opponentArmed");
   else if (notice?.kind === "found" && notice.at === state.moveCount && state.currentPlayer === "black") status = t("hidden.foundStatus");
   else if (notice?.kind === "lost" && notice.at === state.moveCount) status = t("hidden.lost");
   else if (aiThinking) status = `${t("status.aiThinking")} · ${moveNo}`;
   else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
-  if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedUntil === null) status += ` · ${t("hidden.lurking")}`;
+  if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedAt === null) status += ` · ${t("hidden.lurking")}`;
 
   let result: ResultView | null = null;
   if (online?.game?.result && onlineState) {
@@ -368,7 +404,7 @@ export function MainPage() {
     <main className="layout">
       <section className="play">
         <Scoreboard state={shown} names={{ black: seatLabel("black"), white: seatLabel("white") }} />
-        <div className={`board-wrap${armedUntil !== null ? " hidden-armed" : ""}`}>
+        <div className={`board-wrap${armedAt !== null ? " hidden-armed" : ""}`}>
           <Board
             state={shown}
             onPlay={play}
@@ -391,9 +427,9 @@ export function MainPage() {
             <GameResult result={result} canUndo={canUndo} onNewGame={newGame} onUndo={undo} onClose={() => setResultOpen(false)} />
           )}
         </div>
-        {armedUntil !== null && (() => {
+        {armedAt !== null && (() => {
           // 히든 카운트다운: 판을 가리지 않게 바둑판 바로 아래에
-          const msLeft = Math.max(0, armedUntil - Date.now());
+          const msLeft = Math.max(0, armedAt - Date.now());
           const left = Math.ceil(msLeft / 1000);
           return (
             <div className={`hidden-timer${left <= 3 ? " urgent" : ""}`} aria-hidden>
@@ -408,11 +444,17 @@ export function MainPage() {
           </p>
           <div className="buttons">
             {online ? (
-              onlinePlaying ? <button className="btn" onClick={resign} disabled={!online.game}>{t("btn.resign")}</button>
-                : <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
+              onlinePlaying ? (
+                <>
+                  {viewer === "white" && canUseHidden(state) && armedAt === null && state.currentPlayer === "white" && (
+                    <button className="btn hidden-btn" onClick={startHidden}>{t("btn.hidden")}</button>
+                  )}
+                  <button className="btn" onClick={resign} disabled={!online.game}>{t("btn.resign")}</button>
+                </>
+              ) : <button className="btn primary" onClick={newGame}>{t("btn.newGame")}</button>
             ) : (
               <>
-                {viewer === "white" && canUseHidden(state) && armedUntil === null && (
+                {viewer === "white" && canUseHidden(state) && armedAt === null && (
                   <button className="btn hidden-btn" onClick={startHidden} disabled={aiThinking}>{t("btn.hidden")}</button>
                 )}
                 <button className="btn" onClick={undo} disabled={!canUndo}>{t("btn.undo")}</button>

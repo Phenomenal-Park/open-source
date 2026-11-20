@@ -1,5 +1,5 @@
 // 온라인 대국 — 브라우저와 Cloudflare Worker가 함께 쓰는 메시지 형식(타입·상수만, 런타임 의존 없음).
-import type { Player, Position } from "../game/types.ts";
+import type { GameState, Player, Position } from "../game/types.ts";
 
 /** 레이팅매치(무작위·점수 반영) / 친선매치(무작위·미반영) / 친구매치(같은 코드·미반영) */
 export type MatchMode = "rated" | "casual" | "friend";
@@ -22,6 +22,13 @@ export const HEARTBEAT_MS = 10_000;
 export const HEARTBEAT_TIMEOUT_MS = 25_000;
 export const PING = '{"type":"ping"}';
 export const PONG = '{"type":"pong"}';
+
+/** 백 히든: 버튼을 누른 뒤 둘 때까지의 시간(서버는 통신 지연을 감안해 HIDDEN_GRACE_MS를 더 기다린다) */
+export const HIDDEN_MS = 10_000;
+export const HIDDEN_GRACE_MS = 1_500;
+
+/** 온라인 대국 규칙: 백 히든이 있는 판은 흑·백 모두 10개 따내면 승리 */
+export const HIDDEN_CAPTURE_TARGET = { black: 10, white: 10 } as const;
 
 export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "draw";
 
@@ -71,6 +78,15 @@ export interface GameSnapshot {
   result: OnlineResult | null;
   /** 접속이 끊긴 쪽과 패배까지 남은 시간(ms) */
   disconnected: Partial<Record<Player, number>>;
+  /** 백 히든 규칙이 켜진 판 */
+  hiddenMove?: boolean;
+  /**
+   * 이 화면을 보는 사람에게 보이는 판(서버가 계산). 백 히든이 있는 판에서는 흑에게 숨은 돌이 빈칸으로,
+   * moves의 그 수도 (-1, -1)로 온다. 있으면 클라이언트는 기보를 다시 두지 않고 이 판을 그대로 그린다.
+   */
+  view?: GameState;
+  /** 백이 히든을 눌렀고 아직 두지 않았다: 남은 시간(ms) */
+  hiddenArmedMs?: number;
 }
 
 export type ServerMessage =
@@ -81,6 +97,8 @@ export type ServerMessage =
   | { type: "pong" };
 
 export type ClientMessage =
-  | { type: "move"; row: number; col: number; moveNo: number }
+  | { type: "move"; row: number; col: number; moveNo: number; /** 백 히든으로 숨겨 둔다 */ hidden?: boolean }
+  /** 백이 히든을 누름(10초 안에 hidden:true로 둬야 한다) */
+  | { type: "hidden" }
   | { type: "resign" }
   | { type: "ping" };

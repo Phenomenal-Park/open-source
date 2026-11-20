@@ -10,6 +10,8 @@ interface Env {
   HEARTBEAT_TIMEOUT_MS?: string;
   /** (실험용) 흑 두 번째 수 제한 칸 수(기본 0 = 꺼짐). 화면의 VITE_SECOND_MOVE_MIN_DISTANCE와 같게 */
   SECOND_MOVE_MIN_DISTANCE?: string;
+  /** 백 히든 규칙(기본 켜짐, "0"이면 끔 — 끄면 따냄 목표는 흑 12 / 백 10) */
+  HIDDEN_MOVE?: string;
   /** 온라인 대국 판 크기(기본 15). 테스트용으로만 바꾼다. */
   BOARD_SIZE?: string;
   /** 사람별 기보 보관 개수(기본 100). 테스트용으로만 바꾼다. */

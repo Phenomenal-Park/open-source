@@ -57,7 +57,7 @@ export function forfeitHidden(state: GameState): GameState {
  */
 export function viewFor(state: GameState, viewer: Player | null): GameState {
   const h = state.hidden;
-  if (!h || h.revealed || viewer === "white") return state;
+  if (!h || h.revealed || viewer === "white" || h.pos.row < 0) return state;
   const board = state.board.map((r) => r.slice());
   if (board[h.pos.row][h.pos.col] === "white") board[h.pos.row][h.pos.col] = null;
   const moves = state.moves.map((m, i) => (i === h.index ? { row: -1, col: -1 } : m));

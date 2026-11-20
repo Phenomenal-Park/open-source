@@ -46,6 +46,7 @@ export const en: Messages = {
   "end.disconnect": "Win by disconnect!",
   "end.draw": "Draw",
   "hidden.armed": "Hidden · tap where to hide it",
+  "hidden.opponentArmed": "White is hiding a stone",
   "hidden.lost": "Time's up — the hidden move is gone",
   "hidden.lurking": "A white stone is hidden",
   "hidden.badge": "Hidden 1",
@@ -99,7 +100,7 @@ export const en: Messages = {
   "rules.3": "Trap **two** of your opponent's stones between the stone you just played and another of yours to capture them (any of 8 directions, several at once).",
   "rules.4": "A stone you place into a trap yourself is not captured.",
   "rules.5": "Black wins by capturing **12** stones, White by capturing **10**.",
-  "rules.6": "In AI games, White may play one **hidden move** per game. Placed within 10 seconds, it stays invisible to Black but counts for fives and captures. Miss the time and the chance is gone.",
+  "rules.6": "In AI and online games, White may play one **hidden move** per game. Placed within 10 seconds, it stays invisible to Black but counts for fives and captures. Miss the time and the chance is gone. In games with the hidden move, both sides win by capturing **10**.",
   "rules.7": "If Black taps the hidden point, the stone appears and Black plays again. It also appears when it helps capture or when the game ends.",
 
   "auth.verifyHelp": "Enter the 6-digit code we emailed you. You need to verify to play online.",

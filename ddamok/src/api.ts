@@ -58,6 +58,9 @@ export interface GameRecord {
   moves: Position[];
   boardSize: number;
   finishedAt: string;
+  /** 백 히든 판(따냄 목표 10/10)이었나, 히든 수의 순번 */
+  hiddenMove?: boolean;
+  hiddenIndex?: number | null;
 }
 
 export interface RecordsPage {

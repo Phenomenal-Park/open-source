@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, loadSession, type GameRecord, type RecordsPage as Page, type RecordSummary } from "../api.ts";
 import { makeConfig, replayMoves } from "../game/index.ts";
-import { FAVORITES_MAX, formatRating } from "../online/protocol.ts";
+import { FAVORITES_MAX, formatRating, HIDDEN_CAPTURE_TARGET } from "../online/protocol.ts";
 import { Board } from "../components/Board.tsx";
 import { Scoreboard } from "../components/Scoreboard.tsx";
 import { AdSlot, AD_SLOTS } from "../components/AdSlot.tsx";
@@ -55,7 +55,8 @@ function Viewer({ id }: { id: string }) {
   }, [id]);
   const state = useMemo(() => {
     if (!g) return null;
-    const r = replayMoves(makeConfig(g.boardSize), g.moves.slice(0, step));
+    const config = g.hiddenMove ? makeConfig(g.boardSize, { hiddenMove: true, captureTarget: { ...HIDDEN_CAPTURE_TARGET } }) : makeConfig(g.boardSize);
+    const r = replayMoves(config, g.moves.slice(0, step), g.hiddenIndex ?? null);
     return r.ok ? r.state : null;
   }, [g, step]);
   if (error) return <p className="form-error">{error}</p>;
@@ -74,7 +75,7 @@ function Viewer({ id }: { id: string }) {
       </p>
       <Scoreboard state={state} names={{ black: label("black"), white: label("white") }} />
       <div className="board-wrap">
-        <Board state={state} onPlay={() => undefined} disabled fx={null} />
+        <Board state={state} onPlay={() => undefined} disabled fx={null} hiddenMark={state.hidden && state.hidden.index >= 0 && state.board[state.hidden.pos.row][state.hidden.pos.col] ? state.hidden.pos : null} />
       </div>
       <div className="viewer-controls">
         <button className="btn small" onClick={() => setStep(0)} disabled={step === 0} aria-label={t("rec.first")}>⏮</button>
