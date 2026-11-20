@@ -84,7 +84,7 @@ export const ja: Messages = {
   "online.verifyFirst": "メール認証を済ませるとオンライン対局ができます。",
   "online.searching": "{mode}{code}の相手を探しています…",
   "online.code": "友達対局コード",
-  "online.codePlaceholder": "コード（数字8桁まで）",
+  "online.codePlaceholder": "数字コード8桁",
   "online.note": "レーティングに反映されるのはレーティング戦だけです。レーティング戦・フリー対局は隠し手モードです。友達対局は同じコード・同じモードを選んだ人と対局します。",
   "online.hiddenToggle": "隠し手モード（オフで隠し手なし）",
   "online.noHidden": "隠し手なし",

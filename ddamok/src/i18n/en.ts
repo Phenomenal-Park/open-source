@@ -84,7 +84,7 @@ export const en: Messages = {
   "online.verifyFirst": "Verify your email to play online.",
   "online.searching": "Finding a {mode}{code} opponent…",
   "online.code": "Friend match code",
-  "online.codePlaceholder": "Code (up to 8 digits)",
+  "online.codePlaceholder": "Code, 8 digits",
   "online.note": "Only Rated games affect your rating. Rated and Casual use the hidden mode. Friend pairs you with whoever enters the same code and mode.",
   "online.hiddenToggle": "Hidden mode (off = no hidden)",
   "online.noHidden": "no hidden",

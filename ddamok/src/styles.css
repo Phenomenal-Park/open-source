@@ -133,6 +133,7 @@ button, input, select { font: inherit; }
 .btn {
   border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
   padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; min-height: 44px;
+  white-space: nowrap; /* 버튼 글자는 항상 한 줄 */
 }
 .btn:hover:not(:disabled) { border-color: var(--muted); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -185,7 +186,6 @@ button, input, select { font: inherit; }
 .ai-level { margin: 10px 0; }
 .small-note { margin: 8px 0 0; font-size: 12px; }
 .rated-tag { margin: 0; text-align: center; font-weight: 800; color: var(--accent); }
-.leaderboard { margin-top: 10px; }
 .leaderboard summary, .rules summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .leaderboard ol { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 4px; font-size: 14px; }
 .leaderboard li { display: grid; grid-template-columns: 1fr auto 48px; gap: 8px; }
@@ -225,7 +225,10 @@ a { color: var(--accent); }
 
 /* ── 온라인 ── */
 .match-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 8px; }
-.friend-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.friend-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* 매치 버튼 셋은 같은 크기, 좁은 칸에서도 한 줄(자간·글자 크기를 줄인다) */
+.match-buttons .btn, .friend-form .btn { padding-inline: 6px; letter-spacing: -0.03em; font-size: 15px; min-width: 0; }
+.seat-buttons .btn { padding-inline: 8px; letter-spacing: -0.02em; min-width: 0; }
 .friend-form input {
   font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 44px; min-width: 0; letter-spacing: 0.08em;
 }
@@ -310,54 +313,23 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .look-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
 .look-row > span { min-width: 4.5em; color: var(--muted); }
 
-/* ── 카툰: 큼직하고 직관적인 오락실 느낌(흑백 + 노랑) ── */
-html.ui-cartoon {
-  --bg: #fffbea; --panel: #ffffff; --panel-2: #fff3b0; --line: #111; --text: #111; --muted: #3d3d3d;
-  --accent: #ffd400; --accent-ink: #111; --red: #ff3b30; --green: #12b76a;
-  color-scheme: light;
-}
-.ui-cartoon body { font-weight: 600; }
-.ui-cartoon .app-header h1 { font-size: 36px; font-weight: 900; letter-spacing: -0.01em; text-shadow: 3px 3px 0 var(--accent); }
-.ui-cartoon .nav-link { color: #111; font-size: 16px; font-weight: 900; border: 3px solid transparent; }
-.ui-cartoon .nav-link.active { background: #111; color: #fff; }
-.ui-cartoon .panel, .ui-cartoon .score-card, .ui-cartoon .result-card {
-  border: 3px solid #111; box-shadow: 4px 4px 0 #111; border-radius: 16px;
-}
-.ui-cartoon .panel h2 { font-size: 20px; font-weight: 900; }
-.ui-cartoon .score-card.is-turn { background: var(--accent); border-color: #111; }
-.ui-cartoon .score-card.is-winner { background: #c9f7dd; border-color: #111; }
-.ui-cartoon .score-head { font-size: 16px; }
-.ui-cartoon .count { font-size: 46px; font-weight: 900; }
-.ui-cartoon .target { font-size: 18px; font-weight: 800; color: #111; }
-.ui-cartoon .meter { height: 10px; background: #fff; border: 2px solid #111; }
-.ui-cartoon .meter span, .ui-cartoon .score-card.white .meter span { background: #111; }
-.ui-cartoon .turn-tag { background: #111; color: #fff; font-size: 13px; padding: 2px 9px; }
-.ui-cartoon .dot.black { background: #111; }
-.ui-cartoon .dot.white { background: #fff; box-shadow: 0 0 0 2px #111; }
-.ui-cartoon .status { font-size: 21px; font-weight: 900; }
-.ui-cartoon .btn {
-  background: #fff; color: #111; border: 3px solid #111; border-radius: 14px; box-shadow: 0 5px 0 #111;
-  min-height: 56px; padding: 10px 18px; font-size: 19px; font-weight: 900; transition: transform .05s, box-shadow .05s;
-}
-.ui-cartoon .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #111; }
-.ui-cartoon .btn:hover:not(:disabled) { border-color: #111; }
-.ui-cartoon .btn.primary { background: var(--accent); }
-.ui-cartoon .btn.hidden-btn { background: #111; color: var(--accent); }
-.ui-cartoon .btn.small { min-height: 44px; font-size: 16px; padding: 6px 12px; }
-.ui-cartoon .btn.ghost { background: #fff; }
-.ui-cartoon .chip { border: 2px solid #111; color: #111; background: #fff; font-weight: 800; font-size: 15px; padding: 7px 14px; }
-.ui-cartoon .chip.on { background: var(--accent); }
-.ui-cartoon input, .ui-cartoon select { border: 3px solid #111 !important; border-radius: 12px; background: #fff; color: #111; font-weight: 700; }
-.ui-cartoon .result-backdrop { background: rgba(255,251,234,.6); }
-.ui-cartoon .result-card h2 { font-size: 32px; font-weight: 900; }
-.ui-cartoon .hidden-timer-bar { height: 14px; border: 2px solid #111; background: #fff; }
-.ui-cartoon .hidden-timer-n { font-size: 36px; color: #111; }
-.ui-cartoon .board-wrap.hidden-armed .board { box-shadow: 0 0 0 5px var(--accent), 6px 6px 0 #111; }
-.ui-cartoon .end-banner span, .ui-cartoon .hidden-banner span { -webkit-text-stroke: 3px #111; color: #fff; }
-.ui-cartoon .end-line2 { color: var(--accent); text-shadow: 5px 5px 0 #111; }
-.ui-cartoon .hidden-banner span { text-shadow: 5px 5px 0 #111; }
 
 .profile-link { color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-/* 카툰: 사이드 패널 버튼은 조금 작게(좁은 칸에서 줄바꿈 방지), +n 강조는 검정 */
-.ui-cartoon .side .btn { font-size: 16px; min-height: 48px; padding: 8px 10px; }
-.ui-cartoon .plus { color: #111; }
+
+/* 접히는 상자(처음엔 제목만, 오른쪽 ⌄를 누르면 펼침) */
+.fold-head { display: flex; align-items: center; gap: 8px; }
+.fold-toggle {
+  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px;
+  background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left;
+}
+.fold-toggle:disabled { cursor: default; }
+.fold-toggle h2 { margin: 0; }
+.chev { flex: none; color: var(--muted); transition: transform .2s; }
+.fold.open .chev { transform: rotate(180deg); }
+.fold-toggle:disabled .chev { opacity: .35; }
+.fold-body { margin-top: 10px; }
+/* 원래 접히던 상자(순위·규칙)도 같은 ⌄ 모양으로 */
+.leaderboard summary, .rules summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 32px; font-size: 16px; }
+.leaderboard summary::-webkit-details-marker, .rules summary::-webkit-details-marker { display: none; }
+details[open] > summary .chev { transform: rotate(180deg); }
+.friend-form input::placeholder { letter-spacing: 0; font-size: 14px; }

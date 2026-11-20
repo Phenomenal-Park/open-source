@@ -1,4 +1,4 @@
-// 바둑판·바둑돌 모양(기기마다 저장). 기본 / 카툰(흑백 만화풍 — 바둑판이 카툰이면 화면 전체도 큼직한 오락실 느낌) / 고급(나무결 바둑판, 슬레이트·조개 돌)
+// 바둑판·바둑돌 모양(기기마다 저장). 기본 / 카툰(흑백 만화풍) / 고급(나무결 바둑판, 슬레이트·조개 돌). 판과 돌만 바뀌고 나머지 화면은 그대로.
 import { useSyncExternalStore } from "react";
 
 export type LookStyle = "basic" | "cartoon" | "premium";
@@ -20,18 +20,11 @@ function load(): Look {
 }
 
 let current: Look = load();
-
-/** 바둑판이 카툰이면 화면 전체를 오락실 느낌(큼직한 흑백 + 노랑)으로 */
-function applyDoc() {
-  if (typeof document !== "undefined") document.documentElement.classList.toggle("ui-cartoon", current.board === "cartoon");
-}
-applyDoc();
 const listeners = new Set<() => void>();
 
 export function setLook(patch: Partial<Look>) {
   current = { ...current, ...patch };
   try { localStorage.setItem(KEY, JSON.stringify(current)); } catch { /* 저장 못 해도 이번 화면에는 적용 */ }
-  applyDoc();
   for (const f of listeners) f();
 }
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Session } from "../api.ts";
 import { FRIEND_CODE_RE, type MatchMode } from "../online/protocol.ts";
 import { t } from "../i18n/index.ts";
+import { Fold } from "./Fold.tsx";
 
 interface OnlinePanelProps {
   session: Session | null;
@@ -16,8 +17,7 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
   const [hidden, setHidden] = useState(true);
   const ready = session?.verified;
   return (
-    <section className="panel" aria-label={t("online.title")}>
-      <h2>{t("online.title")}</h2>
+    <Fold id="online" title={t("online.title")} label={t("online.title")} forceOpen={!!waiting}>
       {!session && <p className="muted">{t("online.loginFirst")}</p>}
       {session && !session.verified && <p className="muted">{t("online.verifyFirst")}</p>}
       {waiting ? (
@@ -54,6 +54,6 @@ export function OnlinePanel({ session, waiting, error, onFind, onCancel }: Onlin
         </>
       )}
       {error && <p className="form-error">{error}</p>}
-    </section>
+    </Fold>
   );
 }

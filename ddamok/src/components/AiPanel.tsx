@@ -3,6 +3,7 @@ import { AI_LEVELS } from "../ai/levels.ts";
 import { api } from "../api.ts";
 import type { Player } from "../game/index.ts";
 import { colorName, rankLabel, rankName, lang, t, type MessageKey } from "../i18n/index.ts";
+import { Fold } from "./Fold.tsx";
 
 interface AiPanelProps {
   active: { levelId: string; aiColor: Player } | null;
@@ -29,11 +30,10 @@ export function AiPanel({ active, onStart, onStop }: AiPanelProps) {
   const nameOf = (id: string) => t(`ai.name.${id}` as MessageKey);
   const level = AI_LEVELS.find((l) => l.id === (active?.levelId ?? levelId))!;
   return (
-    <section className="panel" aria-label={t("ai.title")}>
-      <div className="panel-head">
-        <h2>{t("ai.title")}</h2>
-        {active && <button className="btn small ghost" onClick={onStop}>{t("btn.stop")}</button>}
-      </div>
+    <Fold
+      id="ai" title={t("ai.title")} label={t("ai.title")} forceOpen={!!active}
+      extra={active && <button className="btn small ghost" onClick={onStop}>{t("btn.stop")}</button>}
+    >
       {active ? (
         <p className="muted">{t("ai.playing", { name: nameOf(level.id), rank: rankOf(level.id), color: colorName(active.aiColor === "white" ? "black" : "white") })}</p>
       ) : (
@@ -53,6 +53,6 @@ export function AiPanel({ active, onStart, onStop }: AiPanelProps) {
           <p className="muted small-note">{t("ai.note")}</p>
         </>
       )}
-    </section>
+    </Fold>
   );
 }

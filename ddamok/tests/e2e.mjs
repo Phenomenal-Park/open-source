@@ -19,6 +19,12 @@ const base = server.base;
 const browser = await chromium.launch();
 let failures = 0;
 
+
+/** 사이드 상자(로그인·온라인·AI·판 크기·모양)는 처음엔 접혀 있다 — 기능 테스트에서는 펼친 상태로 시작 */
+const openFolds = (context) => context.addInitScript(() => {
+  for (const k of ["login", "online", "ai", "size", "look"]) localStorage.setItem(`ddamok.fold.${k}`, "1");
+});
+
 async function check(name, fn) {
   try { await fn(); console.log(`✓ ${name}`); } catch (e) { failures++; console.log(`✗ ${name}\n  ${e.message.split("\n").slice(0, 4).join("\n  ")}`); }
 }
@@ -42,6 +48,7 @@ const DESKTOP = { viewport: { width: 1280, height: 800 }, locale: "ko-KR" };
 
 for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DESKTOP]]) {
   const context = await browser.newContext(ctx);
+  await openFolds(context);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -94,6 +101,24 @@ for (const [label, ctx] of [["phone 390×844", PHONE], ["desktop 1280×800", DES
   await context.close();
 }
 
+await check("[접는 상자] 로그인·온라인·AI·판 크기·모양 상자는 처음엔 제목만, ⌄를 누르면 펼쳐지고 기억된다", async () => {
+  const context = await browser.newContext(PHONE);
+  const page = await context.newPage();
+  await page.goto(base);
+  assert.equal(await page.locator(".fold").count(), 5);
+  assert.equal(await page.locator(".fold-body").count(), 0);
+  const online = page.getByRole("button", { name: "온라인 대국" });
+  assert.equal(await online.getAttribute("aria-expanded"), "false");
+  await online.click();
+  assert.equal(await online.getAttribute("aria-expanded"), "true");
+  await page.getByRole("button", { name: "레이팅매치" }).waitFor();
+  await page.reload();
+  await page.getByRole("button", { name: "레이팅매치" }).waitFor();
+  assert.equal(await page.locator(".fold-body").count(), 1);
+  await shot(page, "phone-folds");
+  await context.close();
+});
+
 await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에서 바꾸면 유지", async () => {
   for (const [locale, play, name, rule] of [["en-US", "Play", "ddamok", "exactly five"], ["ja-JP", "対局", "タモク", "ちょうど5つ"]]) {
     const context = await browser.newContext({ ...PHONE, locale });
@@ -126,6 +151,7 @@ await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에
 
 await check("[phone] AI 대국: 내가 두면 AI가 응수, 무르기는 내 차례로", async () => {
   const context = await browser.newContext(PHONE);
+  await openFolds(context);
   const page = await context.newPage();
   await page.goto(base);
   await page.getByLabel("기력").selectOption("ai-6");
@@ -159,6 +185,7 @@ async function signUp(page, name, email) {
 
 const ctxA = await browser.newContext(PHONE);
 const ctxB = await browser.newContext(DESKTOP);
+await openFolds(ctxA); await openFolds(ctxB);
 const A = await ctxA.newPage(), B = await ctxB.newPage();
 const errs = [];
 for (const p of [A, B]) p.on("pageerror", (e) => errs.push(e.message));

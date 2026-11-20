@@ -14,6 +14,7 @@ import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
 import { Leaderboard } from "../components/Leaderboard.tsx";
 import { LookPicker } from "../components/LookPicker.tsx";
+import { Chevron, Fold } from "../components/Fold.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
@@ -478,20 +479,20 @@ export function MainPage() {
           </section>
         ) : (
           <>
-            <section className="panel" aria-label={t("nav.profile")}>
-              {session?.verified ? (
+            {session?.verified ? (
+              <section className="panel" aria-label={t("nav.profile")}>
                 <div className="me">
                   <a href="/profile" className="me-name">{session.user.username}</a>
                   <span className="score-rank">{rankName(session.user.rating)}</span>
                   <span className="seat-rating">{t("points", { rating: formatRating(session.user.rating, session.user.provisional) })}</span>
                 </div>
-              ) : (
-                <>
-                  <h2>{t(session ? "account.verifyTitle" : "account.login")}</h2>
-                  <AuthBox session={session} onSession={setSess} />
-                </>
-              )}
-            </section>
+              </section>
+            ) : (
+              // 인증 코드를 기다리는 중이면 펼쳐 둔다
+              <Fold id="login" title={t(session ? "account.verifyTitle" : "account.login")} label={t("nav.profile")} forceOpen={!!session}>
+                <AuthBox session={session} onSession={setSess} />
+              </Fold>
+            )}
             <OnlinePanel session={session} waiting={waiting} error={onlineError} onFind={find} onCancel={cancelFind} />
             <AiPanel
               active={aiGame}
@@ -504,10 +505,10 @@ export function MainPage() {
                 reset(boardSize);
               }}
             />
-            <section className="panel">
+            <Fold id="size" title={t("size.label")}>
               <label className="size-picker">
-                {t("size.label")}
                 <select
+                  aria-label={t("size.label")}
                   value={boardSize}
                   onChange={(e) => {
                     const size = Number(e.target.value);
@@ -522,13 +523,13 @@ export function MainPage() {
                 </select>
               </label>
               <p className="muted small-note">{t("size.note")}</p>
-            </section>
+            </Fold>
             <Leaderboard />
           </>
         )}
         <LookPicker />
         <details className="panel rules">
-          <summary>{t("rules.title")}</summary>
+          <summary>{t("rules.title")}<Chevron /></summary>
           <ul>
             {(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}
           </ul>

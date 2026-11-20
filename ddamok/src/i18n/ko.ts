@@ -84,7 +84,7 @@ export const ko = {
   "online.verifyFirst": "이메일 인증을 마치면 온라인 대국을 둘 수 있습니다.",
   "online.searching": "{mode}{code} 상대를 찾는 중…",
   "online.code": "친구매치 코드",
-  "online.codePlaceholder": "코드 (숫자 8자리까지)",
+  "online.codePlaceholder": "숫자 코드 8자리",
   "online.note": "레이팅매치만 점수에 반영됩니다. 레이팅·친선매치는 히든 모드입니다. 친구매치는 같은 코드와 같은 모드를 고른 사람과 둡니다.",
   "online.hiddenToggle": "히든 모드 (끄면 노히든)",
   "online.noHidden": "노히든",
