@@ -13,6 +13,7 @@ import { AiPanel } from "../components/AiPanel.tsx";
 import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
 import { Leaderboard } from "../components/Leaderboard.tsx";
+import { LookPicker } from "../components/LookPicker.tsx";
 import { levelById } from "../ai/levels.ts";
 import { colorName, displayName, rankName, t, type MessageKey } from "../i18n/index.ts";
 import { Rich } from "../i18n/Rich.tsx";
@@ -525,6 +526,7 @@ export function MainPage() {
             <Leaderboard />
           </>
         )}
+        <LookPicker />
         <details className="panel rules">
           <summary>{t("rules.title")}</summary>
           <ul>

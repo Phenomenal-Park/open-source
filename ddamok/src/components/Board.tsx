@@ -2,6 +2,7 @@ import { useRef, useState, type PointerEvent } from "react";
 import { isLegalMove, secondMoveRestricted, type GameState, type Player, type Position } from "../game/index.ts";
 import { Stone, StoneDefs } from "./Stone.tsx";
 import { t } from "../i18n/index.ts";
+import { useLook } from "../theme.ts";
 
 const CELL = 10;
 const PAD = 7;
@@ -41,6 +42,7 @@ function starPoints(n: number): Position[] {
 const xy = (i: number) => PAD + i * CELL;
 
 export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark }: BoardProps) {
+  const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -68,7 +70,7 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
   return (
     <svg
       ref={svgRef}
-      className={`board${disabled || state.isFinished ? " is-locked" : ""}`}
+      className={`board look-board-${look.board}${disabled || state.isFinished ? " is-locked" : ""}`}
       viewBox={`0 0 ${size} ${size}`}
       role="grid"
       aria-label={t("board.aria", { n })}
@@ -82,6 +84,7 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
     >
       <StoneDefs />
       <rect className="board-wood" x={0} y={0} width={size} height={size} rx={2} />
+      {look.board === "premium" && <rect x={0} y={0} width={size} height={size} rx={2} filter="url(#wood-grain)" opacity={0.8} />}
       <g className="board-lines">
         {Array.from({ length: n }, (_, i) => (
           <g key={i}>

@@ -296,3 +296,15 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .mode-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 6px; margin-right: 4px; border-radius: 4px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
 .mode-tag.rated { border-color: var(--accent); color: var(--accent); }
 .mode-tag.hidden { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* 바둑판 모양: 단순(만화풍) · 고급(나무결) */
+.look-board-simple .board-wood { fill: #f4d68e; }
+.look-board-simple .board-lines line { stroke: #2a1c0c; stroke-width: .55; }
+.look-board-simple .star { fill: #2a1c0c; r: 1.5; }
+.look-board-premium .board-wood { fill: url(#wood-premium); }
+.look-board-premium .board-lines line { stroke: #3a240d; stroke-width: .26; stroke-opacity: .9; }
+.look-board-premium .star { fill: #3a240d; }
+.board.look-board-premium { box-shadow: 0 2px 0 #9a6f33, 0 4px 0 #7d5524, 0 14px 34px rgba(0,0,0,.55); }
+.look-picker { display: grid; gap: 8px; }
+.look-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.look-row > span { min-width: 4.5em; color: var(--muted); }

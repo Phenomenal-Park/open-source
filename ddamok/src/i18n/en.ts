@@ -106,6 +106,12 @@ export const en: Messages = {
   "rules.5": "Black wins by capturing **12** stones, White by capturing **10**.",
   "rules.6": "In AI and online games, White may play one **hidden move** per game. Placed within 10 seconds, it stays invisible to Black but counts for fives and captures. Miss the time and the chance is gone. In games with the hidden move, both sides win by capturing **10**.",
   "rules.7": "If Black taps the hidden point, the stone appears and Black plays again. It also appears when it helps capture or when the game ends.",
+  "look.title": "Board & stones",
+  "look.board": "Board",
+  "look.stones": "Stones",
+  "look.basic": "Standard",
+  "look.simple": "Simple",
+  "look.premium": "Premium",
 
   "auth.verifyHelp": "Enter the 6-digit code we emailed you. You need to verify to play online.",
   "auth.code": "Verification code",
