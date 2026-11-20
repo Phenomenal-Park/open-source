@@ -72,7 +72,8 @@ export function hiddenBelief(view: GameState, maxCells = 10): BeliefCell[] {
   for (let c = 0; c < n * n; c++) {
     if (vb.cells[c] || before.board[(c / n) | 0][c % n] !== null) continue; // 숨길 때 비어 있었고 지금도 비어 보이는 칸
     const r = rank.get(c);
-    const prior = r === undefined ? 0.004 : r < 12 ? 0.7 ** r : 0.01;
+    // 사전 확률은 완만하게: 백은 뻔한 자리를 피해 멀리 숨기기도 한다(무작위로 숨기는 백에게 뻔한 자리만 의심하면 당한다)
+    const prior = r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05;
     const use = Math.max(0, vb.moveScore(c, 2));
     vb.cells[c] = 2;
     const danger1 = vb.winningMoves(2).length > 0;
