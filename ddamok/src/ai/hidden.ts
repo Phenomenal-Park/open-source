@@ -216,7 +216,8 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
   };
   let findProb = (_p: number) => 0;
-  if (opts.avoidObvious) {
+  const avoid = opts.avoidObvious ?? true; // 흑이 의심할 만한 뻔한 자리는 피한다(기본)
+  if (avoid) {
     const rank = b.candidates().map((p) => ({ p, s: b.moveScore(p, 2) })).sort((x, y) => y.s - x.s).slice(0, 8);
     const w = new Map(rank.map((x, i) => [x.p, 0.7 ** i] as const));
     const wsum = [...w.values()].reduce((a, x) => a + x, 0) || 1;
@@ -228,11 +229,63 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     const vis = value(p, false);
     const raw = value(p, true);
     const f = findProb(p);
-    const hid = opts.avoidObvious ? (1 - f) * clamp(raw) + f * clamp(vis) : raw;
+    const hid = avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw;
     for (const [hidden, v0] of [[false, vis], [true, hid]] as const) {
       const v = v0 + (rand() - 0.5) * 2 * (fast.noise || 0);
       if (v > bestV) { bestV = v; best = { move: toPos(p, n), hidden }; }
     }
   }
+  // 먼 자리에 숨기기: 천원 5×5 밖, 백 돌에서 4칸 안, 흑이 의심할 만한 자리(위 8곳)는 빼고 백에게 쓸모 있을 자리.
+  // 당장 형세는 손해(한 수를 멀리 둔다)지만, 들키기 어렵고 나중에 그 줄로 공격을 이으면 흑이 못 본다 → 잠재 가치를 더한다.
+  if (avoid && state.moveCount >= 3) {
+    const h = (n / 2) | 0;
+    const whites: number[] = [];
+    for (let p = 0; p < n * n; p++) if (b.cells[p] === 2) whites.push(p);
+    const pool = [...new Set([...b.candidates(), ...whites.flatMap((w) => ringAround(w, n))])];
+    const far = pool
+      .filter((p) => !b.cells[p] && findProb(p) === 0)
+      .filter((p) => Math.max(Math.abs(((p / n) | 0) - h), Math.abs((p % n) - h)) >= 3)
+      .filter((p) => whites.some((w) => Math.max(Math.abs(((w / n) | 0) - ((p / n) | 0)), Math.abs((w % n) - (p % n))) <= 4))
+      .map((p) => ({ p, s: latent(b, p, n) }))
+      .sort((x, y) => y.s - x.s)
+      .slice(0, 4);
+    for (const x of far) {
+      if (x.s <= 0) continue;
+      const v = clamp(value(x.p, true)) + x.s * FAR_LATENT + (rand() - 0.5) * 2 * (fast.noise || 0);
+      if (v > bestV) { bestV = v; best = { move: toPos(x.p, n), hidden: true }; }
+    }
+  }
   return best;
+}
+
+/** 먼 히든 자리의 잠재 가치 1점당 형세 점수 */
+const FAR_LATENT = 40;
+
+/** p에서 가로·세로·대각으로 4칸 안의 칸들 */
+function ringAround(p: number, n: number): number[] {
+  const r = (p / n) | 0, c = p % n, out: number[] = [];
+  for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) for (let k = -4; k <= 4; k++) {
+    if (!k) continue;
+    const rr = r + dr * k, cc = c + dc * k;
+    if (rr >= 0 && rr < n && cc >= 0 && cc < n) out.push(rr * n + cc);
+  }
+  return out;
+}
+
+/** 잠재 가치: p를 지나는 5칸 창 중 흑 돌이 없고 백 돌이 1~2개 있는 창(나중에 숨은 돌과 이어질 줄)의 백 돌 합 */
+function latent(b: FastBoard, p: number, n: number): number {
+  const r = (p / n) | 0, c = p % n;
+  let v = 0;
+  for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) for (let st = -4; st <= 0; st++) {
+    let w = 0, ok = true;
+    for (let i = 0; i < 5; i++) {
+      const rr = r + dr * (st + i), cc = c + dc * (st + i);
+      if (rr < 0 || rr >= n || cc < 0 || cc >= n) { ok = false; break; }
+      const x = b.cells[rr * n + cc];
+      if (x === 1) { ok = false; break; }
+      if (x === 2) w++;
+    }
+    if (ok && w >= 1 && w <= 2) v += w;
+  }
+  return v;
 }
