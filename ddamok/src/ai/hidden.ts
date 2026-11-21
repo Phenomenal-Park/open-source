@@ -463,12 +463,14 @@ export function mineDecision(state: GameState, level: AiLevel, rand: Rng = Math.
   if (!o) return null;
   const pool = minePool(o);
   if (!pool.length) return null;
-  // 섞기: 비슷하게 좋은 자리 중 무작위(흑이 "내가 백이라면" 하고 짐작해도 한 곳으로 좁히기 어렵게)
-  return toPos(pool[Math.floor(rand() * pool.length)].p, state.config.boardSize);
+  // 섞기 전략: 대부분은 덜 뻔한 자리(흑이 가장 두고 싶은 1~3위 말고 흑 줄 위의 다른 자리), 가끔만 뻔한 자리
+  const obvious = pool.filter((x) => o.obvious.has(x.p)), subtle = pool.filter((x) => !o.obvious.has(x.p));
+  const pick = !subtle.length || (obvious.length && rand() < MINE_OBVIOUS_MIX) ? obvious : subtle;
+  return toPos(pick[Math.floor(rand() * pick.length)].p, state.config.boardSize);
 }
 
 /** 지뢰 후보와 값(백 차례의 판에서). 보통 착수 값 normal과 함께 */
-function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: { p: number; v: number }[] } | null {
+function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: { p: number; v: number }[]; obvious: Set<number> } | null {
   const fl = withHidden(level).fast;
   if (!fl) return null;
   const n = state.config.boardSize;
@@ -489,17 +491,22 @@ function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: 
   };
   // 흑에게 스캔이 있으면(지뢰를 묻은 뒤 한 번) 흑은 "가장 두고 싶은 자리"부터 의심해 스캔한다.
   // 찾히면 그 자리는 매직스톤이 되고 흑은 그대로 둔다 → 백은 묻는 데 쓴 한 수만 잃는다. 그 확률만큼 값을 깎는다.
+  // 뻔한 자리: 흑이 지금 가장 두고 싶은 수 1~3위와 흑이 이기는 자리
+  const obvious = new Set<number>(vb.winningMoves(1));
+  const top = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.15), false, true).scores.slice(0, 3);
+  for (const x of top) obvious.add(x.p);
+  // 덜 뻔한 자리도 후보로: 흑 공격 방향의 다른 자리(한두 수 뒤에 흑이 필요해질 줄 위)
+  const more = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN / 2 && !obvious.has(x.p)).sort((a, c) => c.g - a.g).slice(0, 10);
+  for (const x of more) cands.add(x.p);
+  for (const p of obvious) cands.add(p);
+  // 흑에게 스캔이 있으면 뻔한 자리일수록 먼저 스캔당한다
   const scanRisk = new Map<number, number>();
   if (state.config.mineScan && state.scan === null) {
-    const top = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.15), false, true).scores.slice(0, 3);
     top.forEach((x, i) => scanRisk.set(x.p, MINE_SCAN_RISK[i]));
     for (const w of vb.winningMoves(1)) scanRisk.set(w, Math.max(scanRisk.get(w) ?? 0, MINE_SCAN_RISK[0]));
-    // 흑 공격 방향의 다른 자리도 후보에 넣는다(덜 뻔한 급소)
-    const more = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN / 2).sort((a, c) => c.g - a.g).slice(0, 10);
-    for (const x of more) cands.add(x.p);
   }
   const opts: { p: number; v: number }[] = [];
-  for (const p of [...cands].slice(0, scanRisk.size ? 12 : 8)) {
+  for (const p of [...cands].slice(0, 14)) {
     const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
     const m = blackPick(placed);
     if (m < 0) continue;
@@ -522,12 +529,13 @@ function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: 
     }
     opts.push({ p, v });
   }
-  return { normal, opts };
+  return { normal, opts, obvious };
 }
 
 /** 백이 실제로 고를 지뢰 자리들: 보통 착수보다 낫고, 가장 좋은 자리와 MINE_WINDOW 안쪽 */
-function minePool(o: { normal: number; opts: { p: number; v: number }[] }): { p: number; v: number }[] {
-  const good = o.opts.filter((x) => x.v > o.normal + MINE_MARGIN);
+function minePool(o: { normal: number; opts: { p: number; v: number }[]; obvious: Set<number> }): { p: number; v: number }[] {
+  // 뻔한 자리는 보통 착수보다 나을 때, 덜 뻔한 자리는 보통 착수보다 조금(MINE_SUBTLE_SLACK) 못해도 — 숨긴 값(흑이 모른 채 그 줄을 키움)은 읽기에 안 잡힌다
+  const good = o.opts.filter((x) => x.v > o.normal + MINE_MARGIN - (o.obvious.has(x.p) ? 0 : MINE_SUBTLE_SLACK));
   if (!good.length) return [];
   const top = Math.max(...good.map((x) => x.v));
   return good.filter((x) => x.v >= top - MINE_WINDOW);
@@ -556,7 +564,10 @@ export function mineBelief(view: GameState, level: AiLevel): Map<number, number>
     if (ok && before.currentPlayer === "white") {
       const o = mineOptions(before, level);
       const pool = o ? minePool(o) : [];
-      for (const x of pool) base.set(x.p, (base.get(x.p) ?? 0) + 0.85 / pool.length);
+      const ob = pool.filter((x) => o!.obvious.has(x.p)), sb = pool.filter((x) => !o!.obvious.has(x.p));
+      const wOb = !sb.length ? 1 : !ob.length ? 0 : MINE_OBVIOUS_MIX;
+      for (const x of ob) base.set(x.p, (base.get(x.p) ?? 0) + (0.85 * wOb) / ob.length);
+      for (const x of sb) base.set(x.p, (base.get(x.p) ?? 0) + (0.85 * (1 - wOb)) / sb.length);
       const rest = (o?.opts ?? []).filter((x) => !pool.some((y) => y.p === x.p));
       const spread = pool.length ? 0.15 : 1;
       for (const x of rest) base.set(x.p, (base.get(x.p) ?? 0) + spread / Math.max(1, rest.length));
@@ -641,7 +652,10 @@ const MINE_MARGIN = 0;
 const MINE_SCAN_RISK = [0.85, 0.4, 0.25];
 const MINE_SCAN_RISK_OTHER = 0.08;
 /** 지뢰 자리 섞기: 가장 좋은 자리와 이만큼 안쪽이면 비슷하게 좋다고 본다(형세 점수) */
-const MINE_WINDOW = 150;
+const MINE_WINDOW = 400;
+/** 섞기: 일부러 뻔한 자리에 묻는 비율 / 덜 뻔한 자리는 보통 착수보다 이만큼 못해도 묻는다(형세 점수) */
+const MINE_OBVIOUS_MIX = 0.2;
+const MINE_SUBTLE_SLACK = 150;
 /** 지뢰 후보로 볼 흑 줄의 최소 성장(흑 2개 창이 3개가 되는 정도 이상) */
 const MINE_MIN_GAIN = 100;
 
