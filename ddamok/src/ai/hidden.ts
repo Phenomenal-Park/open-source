@@ -507,16 +507,38 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
     const v = o.v + (rand() - 0.5) * 2 * (o.hidden ? jitter.hidden : jitter.visible);
     if (v > bestV) { bestV = v; best = { move: toPos(o.p, n), hidden: o.hidden }; }
   }
+  // 숨기기로 했으면 자리는 섞기 전략으로
+  if (best.hidden) {
+    const o = pickHideSpot(options.filter((x) => x.hidden), rand);
+    if (o) best = { move: toPos(o.p, n), hidden: true };
+  }
   return best;
 }
 
-interface HideOption { p: number; hidden: boolean; v: number }
+interface HideOption { p: number; hidden: boolean; v: number; /** 흑이 의심할 확률(뻔한 자리일수록 높다) */ f?: number }
+
+/**
+ * 숨길 자리 고르기 — 섞기 전략. 대부분은 예측하기 힘든 자리(흑이 의심할 만한 뻔한 자리 말고) 중 비슷하게 쓸모 있는 곳에서
+ * 무작위로, 가끔(OBVIOUS_MIX)은 일부러 뻔한 자리에 숨겨 흑을 헷갈리게 한다. 숨기면 바로 이기는 자리가 있으면 늘 그 자리.
+ * (예전엔 값이 가장 높은 한 곳에 몰려, 첫 수에 숨기면 30번 모두 천원 2칸 자리였다)
+ */
+function pickHideSpot(hidden: HideOption[], rand: Rng): HideOption | null {
+  if (!hidden.length) return null;
+  const decisive = hidden.filter((o) => o.v >= 1e8);
+  if (decisive.length) return decisive[Math.floor(rand() * decisive.length)];
+  const obvious = hidden.filter((o) => (o.f ?? 0) >= OBVIOUS_F);
+  const subtle = hidden.filter((o) => (o.f ?? 0) < OBVIOUS_F);
+  const pool = !subtle.length || (obvious.length && rand() < OBVIOUS_MIX) ? obvious : subtle;
+  const top = Math.max(...pool.map((o) => o.v));
+  const near = pool.filter((o) => o.v >= top - HIDE_WINDOW);
+  return near[Math.floor(rand() * near.length)];
+}
 
 /**
  * 백이 이번 수에 고를 수 있는 후보(보이게 두기·숨기기)와 흔들림 전의 값. 백 AI가 쓰고,
  * 흑 AI도 "내가 백이라면 어디에 숨겼을까"를 짐작하는 데 쓴다(whiteHideModel).
  */
-function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opts: WhiteHiddenOptions = {}): { options: HideOption[]; jitter: { hidden: number; visible: number } } {
+export function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opts: WhiteHiddenOptions = {}): { options: HideOption[]; jitter: { hidden: number; visible: number } } {
   const L = withHidden(level);
   const fast = L.fast!;
   const n = state.config.boardSize;
@@ -557,7 +579,7 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
     const vis = value(p, false);
     const raw = value(p, true);
     const f = findProb(p);
-    options.push({ p, hidden: false, v: vis }, { p, hidden: true, v: avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw });
+    options.push({ p, hidden: false, v: vis }, { p, hidden: true, v: avoid ? (1 - f) * clamp(raw) + f * clamp(vis) : raw, f });
   }
   // 먼 자리에 숨기기: 천원 5×5 밖, 백 돌에서 4칸 안, 흑이 의심할 만한 자리(위 8곳)는 빼고 백에게 쓸모 있을 자리.
   // 당장 형세는 손해(한 수를 멀리 둔다)지만, 들키기 어렵고 나중에 그 줄로 공격을 이으면 흑이 못 본다 → 잠재 가치를 더한다.
@@ -573,7 +595,7 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
       .map((p) => ({ p, s: latent(b, p, n) }))
       .sort((x, y) => y.s - x.s)
       .slice(0, 4);
-    for (const x of far) if (x.s > 0) options.push({ p: x.p, hidden: true, v: clamp(value(x.p, true)) + x.s * FAR_LATENT });
+    for (const x of far) if (x.s > 0) options.push({ p: x.p, hidden: true, v: clamp(value(x.p, true)) + x.s * FAR_LATENT, f: 0 });
   }
   // 첫 수(백 돌이 아직 없음)에도 엉뚱한 곳에 숨길 수 있게: 천원에서 3~4칸 떨어진 자리 몇 곳을 후보로(판마다 다르게 뽑는다)
   if (avoid && b.cells.every((x) => x !== 2)) {
@@ -583,9 +605,9 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
       const d = Math.max(Math.abs(((p / n) | 0) - h), Math.abs((p % n) - h));
       if (!b.cells[p] && d >= 3 && d <= 4) ring.push(p);
     }
-    for (let k = 0; k < 4 && ring.length; k++) {
+    for (let k = 0; k < 6 && ring.length; k++) {
       const p = ring.splice(Math.floor(Math.random() * ring.length), 1)[0];
-      options.push({ p, hidden: true, v: clamp(value(p, true)) + FIRST_FAR_BONUS });
+      options.push({ p, hidden: true, v: clamp(value(p, true)) + FIRST_FAR_BONUS, f: findProb(p) });
     }
   }
   return { options, jitter: { hidden: Math.max(HIDE_JITTER, fast.noise || 0), visible: fast.noise || 0 } };
@@ -613,7 +635,10 @@ export function whiteHideModel(before: GameState, level: AiLevel): Map<number, n
         const v = o.v + (rnd() - 0.5) * 2 * (o.hidden ? jitter.hidden : jitter.visible);
         if (v > bestV) { bestV = v; best = o; }
       }
-      if (best?.hidden) { hides++; out.set(best.p, (out.get(best.p) ?? 0) + 1); }
+      if (best?.hidden) {
+        const o = pickHideSpot(options.filter((x) => x.hidden), rnd) ?? best; // 백과 같은 섞기 전략으로 흉내 낸다
+        hides++; out.set(o.p, (out.get(o.p) ?? 0) + 1);
+      }
     }
     for (const [p, c] of out) out.set(p, c / Math.max(1, hides));
   }
@@ -678,6 +703,10 @@ const STEALTH_DECISIVE = 5000;
 
 /** 숨길 자리 고르기의 흔들림: 비슷하게 좋은 자리 중에서 판마다 다르게 숨긴다(늘 같은 자리면 사람이 금방 외운다) */
 const HIDE_JITTER = 500;
+/** 섞기 전략: 이 의심(확률) 이상이면 뻔한 자리, 뻔한 자리에 일부러 숨기는 비율, 비슷하게 쓸모 있다고 보는 폭(형세 점수) */
+const OBVIOUS_F = 0.2;
+const OBVIOUS_MIX = 0.2;
+const HIDE_WINDOW = 300;
 /** 초반에 이번 차례 숨길 마음이 있을 확률 */
 const HIDE_WILL = 0.5;
 
@@ -744,12 +773,7 @@ export function swapColors(s: GameState): GameState {
 export function chooseHideSpot(state: GameState, level: AiLevel, rand: Rng = Math.random): Position | null {
   if (!canUseHidden(state) || !withHidden(level).fast) return null;
   const plain = chooseMove(state, level, rand);
-  const { options, jitter } = whiteHideOptions(state, level, plain);
-  let best: HideOption | null = null, bestV = -Infinity;
-  for (const o of options) {
-    if (!o.hidden) continue;
-    const v = o.v + (rand() - 0.5) * 2 * jitter.hidden;
-    if (v > bestV) { bestV = v; best = o; }
-  }
+  const { options } = whiteHideOptions(state, level, plain);
+  const best = pickHideSpot(options.filter((o) => o.hidden), rand);
   return best ? toPos(best.p, state.config.boardSize) : null;
 }

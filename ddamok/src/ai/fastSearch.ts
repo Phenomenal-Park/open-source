@@ -120,8 +120,8 @@ export class FastSearcher {
         for (const t of threats) {
           if (!b.visibleThreat(t)) continue;
           b.addWall(t); b.setWallAvail(false);
-          const v = this.node(depth, alpha, beta, ply);
-          b.setWallAvail(true); b.removeWall(t);
+          let v: number;
+          try { v = this.node(depth, alpha, beta, ply); } finally { b.setWallAvail(true); b.removeWall(t); }
           if (v > best) best = v;
           if (v > alpha) alpha = v;
           if (alpha >= beta) break;
@@ -137,9 +137,10 @@ export class FastSearcher {
       for (const g of b.greenCaptureCells(3)) {
         b.addWall(g); b.setWallAvail(false);
         let v: number;
-        if (b.wallCosts) { b.passTurn(); v = -this.node(depth - 1, -beta, -alpha, ply + 1); b.passTurn(); }
-        else v = this.node(depth - 1, alpha, beta, ply);
-        b.setWallAvail(true); b.removeWall(g);
+        try {
+          if (b.wallCosts) { b.passTurn(); try { v = -this.node(depth - 1, -beta, -alpha, ply + 1); } finally { b.passTurn(); } }
+          else v = this.node(depth - 1, alpha, beta, ply);
+        } finally { b.setWallAvail(true); b.removeWall(g); }
         if (v > best) best = v;
         if (v > alpha) alpha = v;
         if (alpha >= beta) break;
@@ -151,8 +152,10 @@ export class FastSearcher {
     }
     for (const m of moves) {
       const res = b.play(m);
-      const v = res === 1 ? WIN - ply : res === 2 ? 0 : -this.node(forced ? depth : depth - 1, -beta, -alpha, ply + 1);
-      b.undo();
+      // 시간이 다 되어 읽기가 끊겨도(Timeout) 둬 본 돌은 반드시 치운다 — 예전엔 끊긴 자리의 돌이 판에 남아,
+      // 같은 판을 이어 쓰는 단계(흔들기·버티기·숨길 자리 후보 등)가 엉뚱한 판을 보고 판단했다
+      let v: number;
+      try { v = res === 1 ? WIN - ply : res === 2 ? 0 : -this.node(forced ? depth : depth - 1, -beta, -alpha, ply + 1); } finally { b.undo(); }
       if (v > best) { best = v; bestMove = m; }
       if (v > alpha) alpha = v;
       if (alpha >= beta) { this.killer[ply] = m; break; }

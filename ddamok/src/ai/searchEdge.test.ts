@@ -47,3 +47,19 @@ describe("비슷한 수 흔들기(vary)", () => {
     }
   }, 30_000);
 });
+
+describe("시간이 다 된 읽기", () => {
+  it("읽기가 끊겨도 판은 읽기 전 그대로다(둬 본 돌이 남지 않는다)", () => {
+    const s = tryMove(createGame(15), { row: 7, col: 7 });
+    if (!s.ok) throw new Error(s.reason);
+    for (const ms of [1, 5, 30]) {
+      const b = FastBoard.fromState(s.state);
+      const before = Array.from(b.cells).join("");
+      const h = b.hash;
+      new FastSearcher(b, 12).searchRoot(14, ms, true, true);
+      expect(Array.from(b.cells).join("")).toBe(before);
+      expect(b.hash).toBe(h);
+      expect(b.toMove).toBe(2);
+    }
+  });
+});
