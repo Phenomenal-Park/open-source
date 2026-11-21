@@ -32,6 +32,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     noTimedReveal: overrides.noTimedReveal ?? false,
     whiteHiddenFrom: overrides.whiteHiddenFrom ?? 0,
     whiteMine: overrides.whiteMine ?? false,
+    mineScan: overrides.mineScan ?? false,
   };
 }
 

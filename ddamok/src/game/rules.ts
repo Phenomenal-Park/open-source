@@ -147,7 +147,9 @@ export function hiddenTurnsLeft(state: GameState): number | null {
 
 /** 흑 스캔을 지금 쓸 수 있는가: 백이 히든을 썼고, 아직 드러나지 않았고, 흑 차례이고, 이 판에서 스캔을 안 썼을 때 */
 export function canScan(state: GameState): boolean {
-  if (!state.config.hiddenMove || state.isFinished) return false;
+  if (state.isFinished) return false;
+  if (state.config.whiteMine && state.currentPlayer === "black") return !!state.config.mineScan && state.scan === null && !!state.mine && !state.mine.triggered; // (실험, 기본 꺼짐) 지뢰를 묻은 뒤 한 번
+  if (!state.config.hiddenMove) return false;
   if (state.currentPlayer === "black") {
     const h = state.hidden;
     if (state.config.blackBlock) return state.scan === null; // ⓧ는 언제든 한 번
@@ -167,6 +169,14 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
   if (!Number.isInteger(pos?.row) || !Number.isInteger(pos?.col) || pos.row < 0 || pos.col < 0 || pos.row >= n || pos.col >= n) return { ok: false, reason: "out-of-bounds" };
   const byBlack = state.currentPlayer === "black";
   const h = byBlack ? state.hidden : state.hiddenB;
+  // (베타) 지뢰룰: 지뢰 자리를 맞히면 지뢰가 해체되어 사라진다(매직스톤도 생기지 않는다)
+  const mn = byBlack && state.config.whiteMine ? state.mine : null;
+  if (mn && !mn.triggered) {
+    const mhit = samePos(mn.pos, pos);
+    if (!mhit && (state.board[pos.row][pos.col] !== null || blockedCells(state).some((b) => samePos(b, pos)))) return { ok: false, reason: "occupied" };
+    const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit: mhit };
+    return { ok: true, hit: mhit, state: { ...state, scan: rec, mine: mhit ? { ...mn, triggered: true, defused: true } : mn, lastCaptured: [] } };
+  }
   const hit = !!h && h.index >= 0 && !h.revealed && samePos(h.pos, pos);
   if (!hit && (state.board[pos.row][pos.col] !== null || blockedCells(state).some((b) => samePos(b, pos)))) return { ok: false, reason: "occupied" };
   const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };

@@ -549,6 +549,38 @@ export function mineBelief(view: GameState, level: AiLevel): Map<number, number>
 }
 
 /**
+ * (베타) 흑의 지뢰 스캔(한 판에 한 번, 차례를 쓰지 않음): 지금 꼭 두고 싶은 자리가 수상하면 두기 전에 확인한다.
+ * 이기는 자리에 지뢰가 있을 법하면 그 자리, 아니면 읽기상 가장 좋은 수 셋 중 의심이 큰 자리.
+ */
+export function mineScanDecision(view: GameState, level: AiLevel): Position | null {
+  if (!view.config.whiteMine || view.currentPlayer !== "black" || !canScan(view)) return null;
+  const fl = withHidden(level).fast;
+  if (!fl) return null;
+  const n = view.config.boardSize;
+  const belief = mineBelief(view, level);
+  const vb = FastBoard.fromState(view);
+  const wins = vb.winningMoves(1);
+  if (wins.length) {
+    const safest = Math.min(...wins.map((p) => belief.get(p) ?? 0));
+    if (safest < MINE_SCAN_WIN) return null; // 안전해 보이는 이기는 수가 있으면 그냥 둔다
+    const w = wins.sort((a, b) => (belief.get(a) ?? 0) - (belief.get(b) ?? 0))[0];
+    return toPos(w, n);
+  }
+  const sc = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 10), Math.max(30, fl.timeMs * 0.25), false, true).scores.slice(0, 3);
+  let best = -1, bestP = 0;
+  for (const [i, x] of sc.entries()) {
+    const p = belief.get(x.p) ?? 0;
+    const need = i === 0 ? MINE_SCAN_TOP : MINE_SCAN_OTHER;
+    if (p >= need && p > bestP) { bestP = p; best = x.p; }
+  }
+  return best >= 0 ? toPos(best, n) : null;
+}
+/** 지뢰 스캔 기준(지뢰일 확률): 이기는 자리 / 가장 두고 싶은 수 / 그다음 수 */
+const MINE_SCAN_WIN = 0.05;
+const MINE_SCAN_TOP = 0.2;
+const MINE_SCAN_OTHER = 0.35;
+
+/**
  * 흑이 지뢰를 경계하며 두기: 후보 수마다 "지뢰일 확률 × 밟았을 때 값 + 나머지 × 그냥 둔 값"으로 고른다.
  * 밟으면 그 자리는 매직스톤이 되고 백 차례다. 이기는 수가 여럿이면 덜 수상한 쪽부터.
  */

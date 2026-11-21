@@ -24,8 +24,8 @@ const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) ||
 /** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
 const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
   rule === "mine"
-    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, captureTarget: { black: 10, white: 10 } }) // (시험) 지뢰룰: 히든 없이 10/10
-    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 10, white: 10 } } : {}) });
+    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 히든·스캔 없이 8/8
+    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 } } : {}) }); // AI 대국 히든룰: 8/8
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
@@ -505,6 +505,7 @@ export function MainPage() {
   else if (scanning) status = t("hidden.scanPick");
   else if (mining) status = t("mine.pick");
   else if (boom && boom.at === state.moveCount) status = t("mine.stepped");
+  else if (state.config.whiteMine && state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black") status = t(state.scan.hit ? (viewer === "white" ? "mine.oppDefused" : "mine.defused") : (viewer === "white" ? "hidden.oppScanMiss" : "mine.scanMiss"));
   else if (state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "white") status = t(state.scan.hit ? "hidden.oppScanHit" : "hidden.oppScanMiss");
   else if (state.scan && !state.scan.hit && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "black") status = t("hidden.scanMiss");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
@@ -608,7 +609,7 @@ export function MainPage() {
                   {viewer === "white" && canUseHidden(state) && armedAt === null && state.currentPlayer === "white" && (
                     <button className="btn hidden-btn" onClick={startHidden}>{t("btn.hidden")}</button>
                   )}
-                  {viewer === "black" && state.config.hiddenMove && state.scan === null && !state.isFinished && (
+                  {viewer === "black" && (state.config.hiddenMove || (state.config.whiteMine && state.config.mineScan)) && state.scan === null && !state.isFinished && (
                     <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
                   )}
                   <button className="btn" onClick={resign} disabled={!online.game}>{t("btn.resign")}</button>
@@ -622,7 +623,7 @@ export function MainPage() {
                 {viewer === "white" && state.config.whiteMine && !state.mine && !state.isFinished && (
                   <button className={`btn mine-btn${mining ? " active" : ""}`} onClick={() => setMining((x) => !x)} disabled={aiThinking || !canPlaceMine(state)}>{t(mining ? "btn.cancel" : "btn.mine")}</button>
                 )}
-                {viewer === "black" && state.config.hiddenMove && state.scan === null && !state.isFinished && (
+                {viewer === "black" && (state.config.hiddenMove || (state.config.whiteMine && state.config.mineScan)) && state.scan === null && !state.isFinished && (
                   <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
                 )}
                 <button className="btn" onClick={undo} disabled={!canUndo}>{t("btn.undo")}</button>

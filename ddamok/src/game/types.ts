@@ -74,6 +74,8 @@ export interface GameConfig {
    * 백은 자기 지뢰 자리에 둘 수 없다.
    */
   whiteMine?: boolean;
+  /** (실험, 기본 꺼짐) 지뢰룰에서 흑 스캔 1번(맞히면 지뢰가 사라짐). 지뢰 대국은 스캔 없이 가기로 했다 */
+  mineScan?: boolean;
   /** (실험) 백이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수). 5 = 백의 세 번째 수. 기본 0(언제든) */
   whiteHiddenFrom?: number;
 }
@@ -121,7 +123,7 @@ export interface GameState {
   /** (실험) 랜덤으로 나타난 매직스톤들(at = 그때까지 둔 수, hit = 숨은 돌 자리라 숨은 돌을 드러내고 사라짐) */
   magic?: ScanRecord[];
   /** (실험) 백 지뢰(at = 묻은 때까지 둔 수, 흑이 밟으면 triggered — 그 자리는 magic에 들어간다) */
-  mine?: { pos: Position; at: number; triggered: boolean } | null;
+  mine?: { pos: Position; at: number; triggered: boolean; /** 흑 스캔에 들켜 해체됨(밟힌 것이 아님) */ defused?: boolean } | null;
   /** (AI용) 흑백을 맞바꿔 본 판인가 */
   swapped?: boolean;
 

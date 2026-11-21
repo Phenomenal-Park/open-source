@@ -3,7 +3,7 @@
 import type { GameState } from "../game/types.ts";
 import { chooseMove } from "./search.ts";
 import { levelById } from "./levels.ts";
-import { chooseBlackMove, chooseBlackScan, chooseWhiteMove, mineDecision } from "./hidden.ts";
+import { chooseBlackMove, chooseBlackScan, chooseWhiteMove, mineDecision, mineScanDecision } from "./hidden.ts";
 import { learnFromGame } from "./experience.ts";
 
 self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: string } | { learn: GameState }>) => {
@@ -16,6 +16,13 @@ self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: strin
   if (state.config.whiteMine && state.currentPlayer === "white") {
     const mine = mineDecision(state, level);
     if (mine) { self.postMessage({ id, mine }); return; }
+  }
+  // (베타) 지뢰룰의 흑: 수상하면 스캔부터, 그다음 지뢰를 경계하며 둔다
+  if (state.config.whiteMine && state.currentPlayer === "black") {
+    const scan = mineScanDecision(state, level);
+    if (scan) { self.postMessage({ id, scan }); return; }
+    self.postMessage({ id, move: chooseBlackMove(state, level), hidden: false });
+    return;
   }
   if (!state.config.hiddenMove) { self.postMessage({ id, move: chooseMove(state, level), hidden: false }); return; }
   if (state.currentPlayer === "white") { self.postMessage({ id, ...chooseWhiteMove(state, level) }); return; }
