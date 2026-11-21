@@ -147,10 +147,14 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
       ev.set(p, ev.get(p)! + (wd.w / wsum) * clamp(v));
     }
   }
-  let best = roots[0], bestV = -Infinity;
-  for (const [p, v] of ev) if (v > bestV) { bestV = v; best = p; }
-  return toPos(best, n);
+  // 비슷하게 좋은 수(가장 좋은 값과 VARY_EV 안쪽) 중 무작위 — 같은 판을 되풀이하지 않게
+  let bestV = -Infinity;
+  for (const v of ev.values()) if (v > bestV) bestV = v;
+  const near = [...ev].filter(([, v]) => v >= bestV - VARY_EV).map(([p]) => p);
+  return toPos(near[Math.floor(rand() * near.length)], n);
 }
+/** 여러 판 읽기에서 "비슷하게 좋다"로 보는 폭 */
+const VARY_EV = 25;
 
 /** 흑 AI의 수: 보이는 판으로만 생각한다(강한 단계는 숨은 돌 위치를 추리한다) */
 /**
@@ -242,7 +246,7 @@ export interface WhiteHiddenOptions {
 /** 백 AI의 수와 숨길지 여부 */
 export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Math.random, opts: WhiteHiddenOptions = {}): { move: Position; hidden: boolean } {
   const plain = chooseMove(state, level, rand);
-  if (!canUseHidden(state)) return { move: stealthy(state, level, plain), hidden: false };
+  if (!canUseHidden(state)) return { move: stealthy(state, level, plain, rand), hidden: false };
   // 엔진이 약한 단계(아이언~실버): 가끔 무작위로 숨긴다(10수째까지 판마다 대략 한 번)
   const L = withHidden(level);
   if (!L.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
@@ -351,7 +355,7 @@ export function whiteHideModel(before: GameState, level: AiLevel): Map<number, n
  * (가장 좋은 수만 두면 숨은 돌로 줄을 이어 가는 수가 계속 나와 "여기 숨었다"고 알려 주는 꼴이 된다.)
  * 이기는 수, 막을 수 없는 공격처럼 결정적인 수는 그대로 둔다.
  */
-function stealthy(state: GameState, level: AiLevel, plain: Position): Position {
+function stealthy(state: GameState, level: AiLevel, plain: Position, rand: Rng = Math.random): Position {
   const h = state.hidden;
   const fast = withHidden(level).fast;
   // 골드 이하는 티 안 내기를 하지 않는다(골드끼리 흑 20% → 끄면 45%, 20판)
@@ -374,7 +378,7 @@ function stealthy(state: GameState, level: AiLevel, plain: Position): Position {
     const bel = hiddenBelief(viewFor(r.state, "black"), 20);
     const c = bel.find((y) => y.pos === hp);
     const sus = c ? c.w * (bel.indexOf(c) < 4 ? 2 : 1) : 0; // 흑이 깊게 읽는 상위 4자리에 들면 더 크게 본다
-    const v = x.s - STEALTH_WEIGHT * sus;
+    const v = x.s - STEALTH_WEIGHT * sus + rand() * VARY_EV; // 비슷하면 판마다 다르게
     if (v > bestV) { bestV = v; best = x.p; }
   }
   return toPos(best, n);

@@ -19,6 +19,11 @@ export interface FastLevel {
   noise: number;
   /** 초반(8수 전)에만 주는 잡음 — 강한 단계가 같은 수순을 되풀이하지 않게(깊이는 그대로) */
   openingNoise?: number;
+  /**
+   * 판 내내 같은 수순을 되풀이하지 않게: 가장 좋은 수와 이만큼 안쪽으로 비슷한 후보(상위 3개) 중에서 무작위로 고른다.
+   * 후보끼리는 짧게 다시 읽어 견준다(본래 깊이 읽기는 그대로, 결정적인 수가 있으면 쓰지 않는다).
+   */
+  vary?: number;
   /** 후보 중 아무거나 둘 확률 */
   randomPick: number;
   randomPool: number;
@@ -265,5 +270,33 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     const v = x.s + (noise ? gaussian(rand) * noise : 0);
     if (v > bestV) { bestV = v; best = x; }
   }
+  if (!noise && level.vary && scores.length > 1 && Math.abs(best.s) < WIN / 2) {
+    const alt = varyAmong(b, scores.slice(0, 3).map((x) => x.p), best.p, level, rand);
+    if (alt >= 0) return toPos(alt);
+  }
   return toPos(best.p);
+}
+
+/**
+ * 비슷하게 좋은 후보 중 무작위: 후보마다 상대 차례로 짧게 읽어(같은 깊이·같은 창) 견주고,
+ * 가장 좋은 수보다 level.vary 이상 나쁘지 않은 것 중 하나를 고른다. 모두 나쁘면 -1.
+ */
+function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLevel, rand: () => number): number {
+  const vals: { p: number; v: number }[] = [];
+  const ms = Math.max(10, level.timeMs * 0.08);
+  for (const p of cands) {
+    const res = b.play(p);
+    try {
+      if (res === 1) return p; // 이기는 수
+      if (res === 2) continue;
+      const opp = new FastSearcher(b, level.width).searchRoot(Math.min(level.depth, 6), ms, true, true).scores[0];
+      vals.push({ p, v: opp ? -opp.s : 0 });
+    } finally {
+      b.undo();
+    }
+  }
+  const ref = vals.find((x) => x.p === bestP);
+  if (!ref || vals.length < 2) return -1;
+  const ok = vals.filter((x) => x.v >= ref.v - level.vary!);
+  return ok[Math.floor(rand() * ok.length)].p;
 }
