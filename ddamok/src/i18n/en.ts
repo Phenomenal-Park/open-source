@@ -1,7 +1,7 @@
 import type { Messages } from "./ko.ts";
 
 export const en: Messages = {
-  "app.name": "hidden ddamok",
+  "app.name": "god of ddamok",
   "app.tagline": "Five in a row + pair captures",
   "nav.play": "Play",
   "nav.records": "Records",
@@ -305,10 +305,10 @@ export const en: Messages = {
   "contact.title": "Contact",
   "contact.body": "For bug reports, suggestions or account questions, email us.",
   "contact.unset": "Contact: (to be added before launch)",
-  "about.title": "About hidden ddamok",
+  "about.title": "About god of ddamok",
   "about.p1": "ddamok began as a pastime among Korean Go trainees: five in a row plus **pair captures**. But the stronger the players, the bigger Black's first-move edge became.",
-  "about.p2": "To get both balance and fun, we built and tested rule after rule until hidden ddamok was born: once per game, White may play a **hidden move** that Black can't see. In tests between our strongest AIs, Black and White each won close to 50%, and beginners are evenly matched too. Hiding, suspecting and finding add a new layer of play — the stronger the players, the fiercer the fight.",
-  "about.p3": "Play on one screen, against the AI, or online (Rated, Casual and Friend matches). Friend matches can also use classic ddamok without the hidden move.",
+  "about.p2": "To get both balance and fun, we built and tested rule after rule until new kinds of ddamok were born: **hidden ddamok**, where White may hide one stone per game, and **mine ddamok**, where White buries a mine where Black wants to grow. Black gets one **scan** to uncover them. In 120 games between our strongest AIs, hidden ddamok came out at 49% for Black. Hiding, suspecting and finding add a new layer of play — the stronger the players, the fiercer the fight.",
+  "about.p3": "Play on one screen, against the AI, or online (Rated, Casual and Friend matches). Friend matches can also use classic ddamok without hidden moves or mines.",
   "rulesPage.title": "How to play",
   "rulesPage.online": "Online games",
   "rulesPage.o1": "Each player has 2 minutes plus 1 second per move (Friend games: 1, 2, 3, 5 or 10 minutes). Running out of time loses. No undo; you can resign.",

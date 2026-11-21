@@ -24,8 +24,8 @@ describe("다국어", () => {
     }
   });
 
-  it("게임 이름: 히든따목 / hidden ddamok / ヒドゥンタモク — 로마자 표기는 반드시 소문자 ddamok", () => {
-    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["히든따목", "hidden ddamok", "ヒドゥンタモク"]);
+  it("게임 이름: 따목의 신 / god of ddamok / タモクの神 — 로마자 표기는 반드시 소문자 ddamok", () => {
+    expect([CATALOGS.ko, CATALOGS.en, CATALOGS.ja].map((c) => c["app.name"])).toEqual(["따목의 신", "god of ddamok", "タモクの神"]);
     for (const cat of Object.values(CATALOGS)) for (const v of Object.values(cat)) expect(v).not.toMatch(/Ddamok|DDAMOK|[Tt]tamok/);
   });
 

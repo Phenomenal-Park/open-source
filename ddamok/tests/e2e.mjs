@@ -147,7 +147,7 @@ await check("[화면 구성] 로그인·온라인·AI 상자는 처음엔 제목
 });
 
 await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에서 바꾸면 유지", async () => {
-  for (const [locale, play, name, rule] of [["en-US", "Play", "hidden ddamok", "exactly five"], ["ja-JP", "対局", "ヒドゥンタモク", "ちょうど5つ"]]) {
+  for (const [locale, play, name, rule] of [["en-US", "Play", "god of ddamok", "exactly five"], ["ja-JP", "対局", "タモクの神", "ちょうど5つ"]]) {
     const context = await browser.newContext({ ...PHONE, locale });
     const page = await context.newPage();
     const errors = [];
@@ -171,7 +171,7 @@ await check("[언어] 브라우저 언어로 영어·일본어 화면, 메뉴에
   await page.getByLabel("Language").selectOption("ja");
   await page.waitForFunction(() => document.documentElement.lang === "ja"); // 언어를 바꾸면 화면을 다시 연다
   await page.goto(base);
-  await page.locator(".brand h1", { hasText: "ヒドゥンタモク" }).waitFor();
+  await page.locator(".brand h1", { hasText: "タモクの神" }).waitFor();
   await page.goto(base + "/records");
   assert.equal(await page.locator(".page-title").textContent(), "棋譜");
   await context.close();
@@ -402,7 +402,7 @@ await check("[명승부] 기보 화면에서 박제 → 프로필에 '명승부 
 });
 
 await check("[안내 페이지] 소개·규칙·문의·개인정보 처리방침", async () => {
-  for (const [path, text] of [["/about", "히든따목 소개"], ["/rules", "히든따목 규칙"], ["/contact", "문의"], ["/privacy", "개인정보 처리방침"]]) {
+  for (const [path, text] of [["/about", "따목의 신 소개"], ["/rules", "따목의 신 규칙"], ["/contact", "문의"], ["/privacy", "개인정보 처리방침"]]) {
     await B.goto(base + path);
     assert.match(await B.locator("article h2").textContent(), new RegExp(text));
   }
