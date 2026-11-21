@@ -132,6 +132,21 @@ export class FastSearcher {
         }
       }
     }
+    // (실험) 초록돌: 흑은 백 두 점의 한쪽 끝에 초록돌을 놓고 이어서 따낼 수도 있다 — 백은 이걸 알고 두 점을 내놓지 않는다
+    if (!forced && me === 1 && b.wallAvail && b.wallAnchor && depth >= 2) {
+      for (const g of b.greenCaptureCells(3)) {
+        b.addWall(g); b.setWallAvail(false);
+        const v = this.node(depth - 1, alpha, beta, ply);
+        b.setWallAvail(true); b.removeWall(g);
+        if (v > best) best = v;
+        if (v > alpha) alpha = v;
+        if (alpha >= beta) break;
+      }
+      if (alpha >= beta) {
+        this.tt.set(key, { depth, score: best, flag: 1, move: bestMove });
+        return best;
+      }
+    }
     for (const m of moves) {
       const res = b.play(m);
       const v = res === 1 ? WIN - ply : res === 2 ? 0 : -this.node(forced ? depth : depth - 1, -beta, -alpha, ply + 1);

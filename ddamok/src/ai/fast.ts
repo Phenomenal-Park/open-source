@@ -127,6 +127,7 @@ export class FastBoard {
     const wall = blockedCell(s);
     if (wall) b.addWall(wall.row * n + wall.col);
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
+    b.wallAnchor = !!s.config.greenStone;
     // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)
     const h = s.hidden;
     if (h && !h.revealed && h.pos.row >= 0 && s.board[h.pos.row][h.pos.col] === "white") b.hiddenCell = h.pos.row * n + h.pos.col;
@@ -166,6 +167,26 @@ export class FastBoard {
     this.cells[pos] = EMPTY;
     this.empties++;
     this.hash ^= 0x5bd1e995 ^ pos;
+  }
+
+  /** (실험) ⓧ 칸이 초록돌(양쪽 모두의 따내기 받침)인가 */
+  wallAnchor = false;
+
+  /** 초록돌을 놓으면 흑이 바로 이어서 백 두 점을 따낼 수 있게 되는 빈칸(최대 k곳): 백 두 점의 한쪽 끝, 다른 끝은 빈칸이나 흑 */
+  greenCaptureCells(k: number): number[] {
+    const n = this.n, out: number[] = [];
+    for (const g of this.candidates()) {
+      if (this.cells[g]) continue;
+      const r = (g / n) | 0, c = g % n;
+      for (const [dr, dc] of DIRS8) {
+        const r3 = r + 3 * dr, c3 = c + 3 * dc;
+        if (r3 < 0 || r3 >= n || c3 < 0 || c3 >= n) continue;
+        const e = this.cells[r3 * n + c3];
+        if (this.cells[(r + dr) * n + c + dc] === WHITE && this.cells[(r + 2 * dr) * n + c + 2 * dc] === WHITE && (e === EMPTY || e === BLACK)) { out.push(g); break; }
+      }
+      if (out.length >= k) break;
+    }
+    return out;
   }
 
   /** 백 숨은 돌 칸(백이 보는 판에서만, 없으면 -1) */
@@ -235,7 +256,8 @@ export class FastBoard {
       const r3 = r + 3 * dr, c3 = c + 3 * dc;
       if (r3 < 0 || r3 >= n || c3 < 0 || c3 >= n) continue;
       const p1 = (r + dr) * n + c + dc, p2 = (r + 2 * dr) * n + c + 2 * dc;
-      if (this.cells[p1] === enemy && this.cells[p2] === enemy && this.cells[r3 * n + c3] === color && p1 !== this.immune && p2 !== this.immune) out.push(p1, p2);
+      const e3 = this.cells[r3 * n + c3];
+      if (this.cells[p1] === enemy && this.cells[p2] === enemy && (e3 === color || (e3 === WALL && this.wallAnchor)) && p1 !== this.immune && p2 !== this.immune) out.push(p1, p2);
     }
     return out;
   }

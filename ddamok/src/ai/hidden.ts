@@ -350,7 +350,7 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
  * 1) 숨은 돌 의심: 스캔과 같은 기준으로 찍는다 — 있으면 드러나고, 없으면 그 급소가 막힌다.
  * 2) 보이는 판에서 진다고 읽히면(백의 넉·쌍삼 등) 백의 급소 하나를 막아 살아나는 자리를 찾는다. 살아날 수 없으면 아낀다.
  */
-export function blockDecision(view: GameState, level: AiLevel): { pos: Position; reason: "hidden" | "save" } | null {
+export function blockDecision(view: GameState, level: AiLevel): { pos: Position; reason: "hidden" | "save" | "green" } | null {
   if (!view.config.blackBlock || view.currentPlayer !== "black" || !canScan(view)) return null;
   const fl = withHidden(level).fast;
   if (!fl) return null;
@@ -383,26 +383,37 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
       if (bestCell >= 0 && bestCover - plain >= SHIELD_GAIN) return { pos: toPos(bestCell, n), reason: "hidden" };
     }
   }
+  const greenCells = view.config.greenStone ? vb.greenCaptureCells(6) : [];
   vb.setWallAvail(false); // ⓧ 없이 버틸 수 있는지 본다
   const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores;
-  if (!base.length || base[0].s > -(WIN / 2)) return null;
-  const cands = new Set(vb.winningMoves(2));
-  const scored: [number, number][] = [];
-  for (const p of vb.candidates()) scored.push([p, vb.moveScore(p, 2)]);
-  scored.sort((a, b) => b[1] - a[1]);
-  for (const [p] of scored.slice(0, 8)) cands.add(p);
+  if (!base.length) return null;
+  const lost = base[0].s <= -(WIN / 2);
+  if (!lost && !greenCells.length) return null;
+  const cands = new Set<number>(greenCells);
+  if (lost) {
+    for (const p of vb.winningMoves(2)) cands.add(p);
+    const scored: [number, number][] = [];
+    for (const p of vb.candidates()) scored.push([p, vb.moveScore(p, 2)]);
+    scored.sort((a, b) => b[1] - a[1]);
+    for (const [p] of scored.slice(0, 8)) cands.add(p);
+  }
   let best = -1, bestS = base[0].s;
   for (const p of cands) {
     const st: GameState = { ...view, scan: { pos: toPos(p, n), at: view.moves.length, hit: false } };
     const sc = new FastSearcher(FastBoard.fromState(st), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.25), false, true).scores;
     if (sc.length && sc[0].s > bestS) { bestS = sc[0].s; best = p; }
   }
-  return best >= 0 && bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
+  if (best < 0) return null;
+  if (lost) return bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
+  // 초록돌로 따내기: 한 번뿐이니 형세가 크게 좋아질 때만(또는 이기게 될 때)
+  return bestS >= WIN / 2 || bestS - base[0].s >= GREEN_GAIN ? { pos: toPos(best, n), reason: "green" } : null;
 }
 
 /** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
 const SHIELD_D1 = 0.08;
 const SHIELD_GAIN = 0.1;
+/** 초록돌을 따내기에 쓰는 기준(형세 점수) */
+const GREEN_GAIN = 500;
 
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;

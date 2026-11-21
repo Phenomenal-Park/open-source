@@ -80,3 +80,32 @@ describe("ⓧ를 아는 수읽기 (실험)", () => {
     expect(withX).toBeLessThan(WIN / 2);
   });
 });
+
+describe("초록돌 (실험, 중립)", () => {
+  const green = () => createGame(15, { hiddenMove: true, blackBlock: true, greenStone: true, captureTarget: { black: 10, white: 10 } });
+
+  it("흑이 초록돌을 받침으로 백 두 점을 따낸다(놓는 것만으로는 안 따낸다)", () => {
+    // 백 5,5 5,6 — 흑이 5,7에 초록돌, 이어서 5,4에 두면 따낸다
+    const s = seq(green(), at(7, 7), at(5, 5), at(0, 0), at(5, 6));
+    const r = scanAt(s, at(5, 7));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.board[5][5]).toBe("white"); // 놓는 것만으로는 그대로
+    const t = tryMove(r.state, at(5, 4));
+    if (!t.ok) throw new Error(t.reason);
+    expect(t.captured).toHaveLength(2);
+    expect(t.state.capturedByBlack).toBe(2);
+    const b = FastBoard.fromState(r.state);
+    expect(b.capturesAt(5 * 15 + 4, 1)).toHaveLength(2);
+  });
+
+  it("백도 초록돌을 받침으로 흑 두 점을 따낸다", () => {
+    const s4 = seq(green(), at(7, 7), at(0, 0));
+    const r4 = scanAt(s4, at(9, 9));
+    if (!r4.ok) throw new Error(r4.reason);
+    const s5 = seq(r4.state, at(8, 8), at(0, 2), at(0, 4));
+    const t2 = tryMove(s5, at(6, 6)); // 백 6,6 - 흑 7,7 8,8 - 초록 9,9
+    if (!t2.ok) throw new Error(t2.reason);
+    expect(t2.captured).toHaveLength(2);
+    expect(t2.state.capturedByWhite).toBe(2);
+  });
+});
