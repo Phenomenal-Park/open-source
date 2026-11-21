@@ -236,7 +236,7 @@ describe("끝날 때 공개 (실험)", () => {
 });
 
 describe("지뢰 스캔 (실험, 기본 꺼짐)", () => {
-  it("지뢰를 묻은 뒤 흑이 한 번 스캔할 수 있고, 맞히면 지뢰가 사라진다(차례 그대로)", async () => {
+  it("지뢰를 묻은 뒤 흑이 한 번 스캔할 수 있고, 맞히면 매직스톤이 되며 흑은 이어서 둔다", async () => {
     const { placeMine } = await import("./rules.ts");
     expect(canScan({ ...seq(createGame(15, { whiteMine: true }), at(7, 7)), currentPlayer: "black", mine: { pos: at(5, 5), at: 1, triggered: false } })).toBe(false); // 기본은 스캔 없음
     let s = seq(createGame(15, { whiteMine: true, mineScan: true, captureTarget: { black: 8, white: 8 } }), at(7, 7));
@@ -255,8 +255,9 @@ describe("지뢰 스캔 (실험, 기본 꺼짐)", () => {
     expect(hit.state.mine?.triggered).toBe(true);
     expect(hit.state.mine?.defused).toBe(true);
     expect(hit.state.currentPlayer).toBe("black");
-    const t = tryMove(hit.state, at(5, 5)); // 해체된 자리는 그냥 빈칸
-    expect(t.ok && t.state.board[5][5]).toBe("black");
+    expect(tryMove(hit.state, at(5, 5))).toEqual({ ok: false, reason: "occupied" }); // 찾은 지뢰도 매직스톤이 된다
+    const t = tryMove(hit.state, at(5, 4)); // 흑은 이어서 둔다
+    expect(t.ok && t.state.currentPlayer).toBe("white");
   });
 });
 

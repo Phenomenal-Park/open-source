@@ -76,7 +76,7 @@ export interface GameConfig {
   whiteMine?: boolean;
   /** (실험) 지뢰를 밟아도 흑 차례가 그대로다(매직스톤만 생기고 흑은 다른 곳에 다시 둔다) */
   mineKeepsTurn?: boolean;
-  /** (실험, 기본 꺼짐) 지뢰룰에서 흑 스캔 1번(맞히면 지뢰가 사라짐). 지뢰 대국은 스캔 없이 가기로 했다 */
+  /** (실험) 지뢰룰에서 흑 스캔 1번: 맞히면 그 자리가 매직스톤이 되고 흑은 차례를 잃지 않는다 */
   mineScan?: boolean;
   /** (실험) 백이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수). 5 = 백의 세 번째 수. 기본 0(언제든) */
   whiteHiddenFrom?: number;

@@ -175,7 +175,9 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
     const mhit = samePos(mn.pos, pos);
     if (!mhit && (state.board[pos.row][pos.col] !== null || blockedCells(state).some((b) => samePos(b, pos)))) return { ok: false, reason: "occupied" };
     const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit: mhit };
-    return { ok: true, hit: mhit, state: { ...state, scan: rec, mine: mhit ? { ...mn, triggered: true, defused: true } : mn, lastCaptured: [] } };
+    // 찾으면 밟았을 때처럼 매직스톤이 되지만, 흑은 차례를 잃지 않는다
+    const magic = mhit ? [...(state.magic ?? []), { pos: rec.pos, at: state.moves.length, hit: false }] : state.magic;
+    return { ok: true, hit: mhit, state: { ...state, scan: rec, mine: mhit ? { ...mn, triggered: true, defused: true } : mn, magic, lastCaptured: [] } };
   }
   const hit = !!h && h.index >= 0 && !h.revealed && samePos(h.pos, pos);
   if (!hit && (state.board[pos.row][pos.col] !== null || blockedCells(state).some((b) => samePos(b, pos)))) return { ok: false, reason: "occupied" };

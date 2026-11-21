@@ -24,7 +24,7 @@ const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) ||
 /** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
 const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
   rule === "mine"
-    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, mineKeepsTurn: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 히든·스캔 없이 8/8, 밟아도 흑 차례 유지
+    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, mineScan: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 8/8, 밟으면 흑 차례 잃음, 흑 스캔 1번(찾으면 지뢰가 사라지고 흑 차례 그대로)
     : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 }, noTimedReveal: true } : {}) }); // AI 대국 히든룰: 8/8, 숨긴 돌은 저절로 공개되지 않는다
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
