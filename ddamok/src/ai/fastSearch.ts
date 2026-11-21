@@ -113,7 +113,7 @@ export class FastSearcher {
     const a0 = alpha;
     let best = -Infinity, bestMove = moves[0];
     // (실험) 흑 ⓧ: 백이 막을 곳이 둘 이상인 결정타를 만들었으면, 흑은 그중 하나를 ⓧ로 막고(차례 그대로) 이어서 둘 수 있다
-    if (forced && me === 1 && b.wallAvail) {
+    if (forced && me === 1 && b.wallAvail && !b.wallCosts) {
       const threats = b.winningMoves(2);
       if (threats.length >= 2) {
         // 흑은 숨은 돌로 생긴 위협은 보지 못하므로 거기엔 실드를 칠 수 없다(백이 보는 판에서만 해당)
@@ -136,7 +136,9 @@ export class FastSearcher {
     if (!forced && me === 1 && b.wallAvail && b.wallAnchor && depth >= 2) {
       for (const g of b.greenCaptureCells(3)) {
         b.addWall(g); b.setWallAvail(false);
-        const v = this.node(depth - 1, alpha, beta, ply);
+        let v: number;
+        if (b.wallCosts) { b.passTurn(); v = -this.node(depth - 1, -beta, -alpha, ply + 1); b.passTurn(); }
+        else v = this.node(depth - 1, alpha, beta, ply);
         b.setWallAvail(true); b.removeWall(g);
         if (v > best) best = v;
         if (v > alpha) alpha = v;
@@ -186,7 +188,7 @@ export class FastSearcher {
       const threats = b.winningMoves(me);
       if (!threats.length) { b.undo(); continue; }
       // (실험) 흑에게 ⓧ가 남아 있으면 백의 쌍넉도 막힌다고 보고, 확실한 승리로 치지 않는다
-      if (op === 1 && b.wallAvail && threats.length >= 2) { b.undo(); continue; }
+      if (op === 1 && b.wallAvail && !b.wallCosts && threats.length >= 2) { b.undo(); continue; }
       const replies = new Set(threats);
       for (const q of b.candidates()) if (b.capturesAt(q, op).length) replies.add(q);
       let allWin = true;

@@ -128,6 +128,7 @@ export class FastBoard {
     if (wall) b.addWall(wall.row * n + wall.col);
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
     b.wallAnchor = !!s.config.greenStone;
+    b.wallCosts = !!s.config.scanCostsMove;
     // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)
     const h = s.hidden;
     if (h && !h.revealed && h.pos.row >= 0 && s.board[h.pos.row][h.pos.col] === "white") b.hiddenCell = h.pos.row * n + h.pos.col;
@@ -171,6 +172,10 @@ export class FastBoard {
 
   /** (실험) ⓧ 칸이 초록돌(양쪽 모두의 따내기 받침)인가 */
   wallAnchor = false;
+  /** (실험) ⓧ/매직스톤을 쓰면 차례가 넘어가는가 */
+  wallCosts = false;
+  /** 차례만 넘긴다(수읽기에서 "턴을 쓰는 매직스톤"을 가정할 때, 기록은 남기지 않는다) */
+  passTurn() { this.toMove = other(this.toMove); this.hash ^= 1; }
 
   /** 초록돌을 놓으면 흑이 바로 이어서 백 두 점을 따낼 수 있게 되는 빈칸(최대 k곳): 백 두 점의 한쪽 끝, 다른 끝은 빈칸이나 흑 */
   greenCaptureCells(k: number): number[] {

@@ -109,3 +109,28 @@ describe("초록돌 (실험, 중립)", () => {
     expect(t2.state.capturedByWhite).toBe(2);
   });
 });
+
+describe("매직스톤: 쓰면 턴이 넘어간다 (실험)", () => {
+  const magic = () => createGame(15, { hiddenMove: true, blackBlock: true, greenStone: true, scanCostsMove: true, captureTarget: { black: 10, white: 10 } });
+
+  it("놓으면 백 차례가 되고, 기보 재생도 같다", () => {
+    const s = seq(magic(), at(7, 7), at(5, 5));
+    const r = scanAt(s, at(5, 7));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.currentPlayer).toBe("white");
+    expect(blockedCell(r.state)).toEqual(at(5, 7));
+    const s2 = seq(r.state, at(5, 6), at(5, 4)); // 백 5,5 5,6 — 흑 5,4 + 매직스톤 5,7 받침
+    expect(s2.capturedByBlack).toBe(2);
+    const rep = replayMoves(s2.config, s2.moves, null, { at: 2, pos: at(5, 7) });
+    expect(rep.ok && rep.state.capturedByBlack).toBe(2);
+  });
+
+  it("숨은 돌 자리에 놓아도 턴이 넘어간다", () => {
+    const s = seq(magic(), at(7, 7), { hidden: at(3, 3) });
+    const r = scanAt(s, at(3, 3));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.hit).toBe(true);
+    expect(r.state.hidden?.revealed).toBe(true);
+    expect(r.state.currentPlayer).toBe("white");
+  });
+});

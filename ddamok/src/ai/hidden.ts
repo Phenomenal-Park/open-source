@@ -3,7 +3,7 @@
 //   (흑이 그 자리를 누르면 드러나고 흑이 다시 두는 것까지 흉내 낸다.) 약한 단계는 가끔 무작위로 숨긴다.
 // - 흑: 숨은 돌이 있다는 것만 안다. "백 돌이 거기 있으면 백이 바로 이기는" 빈칸이 있으면 그 자리를 눌러 본다
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
-import { canScan, canUseHidden, createGameFromConfig, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
+import { canScan, canUseHidden, createGameFromConfig, scanAt, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, WIN, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
@@ -61,6 +61,10 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
   // 히든 직전 판 다시 만들기(그 앞의 수는 모두 보인다)
   let before = createGameFromConfig(view.config);
   for (let i = 0; i < h.index; i++) {
+    if (view.scan && view.scan.at === i) { // (매직스톤) 히든 전에 쓴 매직스톤도 다시 놓는다(턴이 넘어갔을 수 있다)
+      const sr = scanAt(before, view.scan.pos);
+      if (sr.ok) before = sr.state;
+    }
     const r = tryMove(before, view.moves[i]);
     if (!r.ok) return [];
     before = r.state;
@@ -357,6 +361,7 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
   const n = view.config.boardSize;
   const vb = FastBoard.fromState(view);
   if (vb.winningMoves(1).length) return null;
+  if (view.config.scanCostsMove) return magicAsMove(view, vb, fl);
   const h = view.hidden;
   if (h && h.index >= 0 && !h.revealed && view.moves.length >= h.index + 3) {
     // 숨은 돌 의심: 거기 숨은 돌이 있으면 백이 바로 이기는 판들(위험 판)을 "실드 + 이번 착수"로 가장 많이 막는 실드 자리.
@@ -408,6 +413,37 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
   // 초록돌로 따내기: 한 번뿐이니 형세가 크게 좋아질 때만(또는 이기게 될 때)
   return bestS >= WIN / 2 || bestS - base[0].s >= GREEN_GAIN ? { pos: toPos(best, n), reason: "green" } : null;
 }
+
+/**
+ * (매직스톤, 턴을 쓰는 규칙) 매직스톤도 한 수다: 흑돌 대신 중립 돌을 두는 셈이라 막기만 할 때는 대개 흑돌이 낫다.
+ * 쓸모 있는 때 — 백 두 점의 한쪽 끝을 받쳐 다음에 따낼 자리를 만들 때, 흑돌을 두면 따이는 급소를 막을 때 등.
+ * 후보마다 "매직스톤을 두고 백 차례"를 읽어, 흑의 가장 좋은 착수보다 MAGIC_MARGIN 이상 나을 때만 쓴다.
+ * 숨은 돌 찾기에는 쓰지 않는다: 그 자리에 흑돌을 두면 찾고도 차례가 남는다.
+ */
+function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Position; reason: "save" | "green" } | null {
+  const n = view.config.boardSize;
+  const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.35), false, true).scores;
+  if (!base.length) return null;
+  const lost = base[0].s <= -(WIN / 2);
+  const cands = new Set<number>(vb.greenCaptureCells(6));
+  for (const p of vb.winningMoves(2)) cands.add(p);
+  const scored: [number, number][] = vb.candidates().map((p) => [p, vb.moveScore(p, 2)]);
+  scored.sort((a, b) => b[1] - a[1]);
+  for (const [p] of scored.slice(0, 6)) cands.add(p);
+  let best = -1, bestS = -Infinity;
+  for (const p of cands) {
+    const st: GameState = { ...view, scan: { pos: toPos(p, n), at: view.moves.length, hit: false }, currentPlayer: "white" };
+    const sc = new FastSearcher(FastBoard.fromState(st), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores;
+    if (!sc.length) continue;
+    const v = -sc[0].s;
+    if (v > bestS) { bestS = v; best = p; }
+  }
+  if (best < 0) return null;
+  if (lost) return bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
+  return bestS - base[0].s >= MAGIC_MARGIN ? { pos: toPos(best, n), reason: "green" } : null;
+}
+/** 매직스톤(턴을 씀)을 흑돌 대신 둘 기준(형세 점수) */
+const MAGIC_MARGIN = 150;
 
 /** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
 const SHIELD_D1 = 0.08;
