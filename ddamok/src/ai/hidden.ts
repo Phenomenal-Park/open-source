@@ -148,23 +148,6 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
     if (block >= 0) return toPos(block, n);
   }
   const { timeMs: t, depth, width } = level.fast;
-  // 숨은 돌이 어디 있든 통하는 연속 넉 필승 수순이 있으면 대비보다 그 공격이 먼저다
-  // (숨은 돌로 백이 바로 이기는 위험은 위에서 이미 막았다)
-  {
-    const win = new FastSearcher(vb, width).vcf(VCF_DEPTH, VCF_BUDGET);
-    if (win >= 0) {
-      let okMass = 0, total = 0;
-      for (const x of belief.slice(0, 8)) {
-        total += x.w;
-        if (x.pos === win) { okMass += x.w; continue; } // 그 자리에 숨었으면 눌러서 찾고 다시 둔다
-        const board = view.board.map((r) => r.slice());
-        board[(x.pos / n) | 0][x.pos % n] = "white";
-        const fb = FastBoard.fromState({ ...view, board, hidden: null });
-        if (fb.winningMoves(2).length === 0 && new FastSearcher(fb, width).vcf(VCF_DEPTH, VCF_BUDGET) >= 0) okMass += x.w;
-      }
-      if (total === 0 || okMass / total >= 0.8) return toPos(win, n);
-    }
-  }
   const hyp = belief.slice(0, 4);
   // 거기 숨은 돌이 있으면 백이 막을 수 없는 넉을 만드는 자리는 순위가 낮아도 꼭 따로 읽는다(최소 6%로 친다).
   // 백은 천원에서 3~4칸 떨어진 곳에 숨기고 그쪽으로 줄을 이어 오는데, 흑 눈에는 별것 아닌 돌들로 보인다.
@@ -269,9 +252,6 @@ function blockHiddenWinsCover(view: GameState, d1: BeliefCell[]): { pos: number;
 const VARY_EV = 25;
 /** 초반(12수 전)의 폭 */
 const VARY_EV_OPENING = 80;
-/** 흑의 연속 넉 필승 찾기: 깊이·노드 한도 */
-const VCF_DEPTH = 12;
-const VCF_BUDGET = 20_000;
 /** 착수로 지우기: 흑 자신에게도 이만큼 안쪽으로 좋은 수일 때만(형세 점수) */
 const PROBE_MARGIN = 150;
 
