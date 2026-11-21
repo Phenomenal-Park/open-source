@@ -519,14 +519,21 @@ function stealthy(state: GameState, level: AiLevel, plain: Position, rand: Rng =
   const margin = sinceHide <= 6 ? STEALTH_MARGIN_EARLY : STEALTH_MARGIN;
   const pool = sc.filter((x) => x.s >= top - margin).slice(0, 8);
   if (!pool.some((x) => x.p === p0)) pool.unshift({ p: p0, s: sc.find((x) => x.p === p0)?.s ?? top });
+  // 이 수로 숨은 돌이 스스로 드러나는가(붙은 3 규칙) — 드러내는 수는 숨은 돌의 값만큼 깎는다
+  const reveals = (p: number) => { const r = tryMove(state, toPos(p, n)); return r.ok && !r.state.isFinished && !!r.state.hidden?.revealed; };
+  if (pool.every((x) => reveals(x.p))) {
+    // 비슷한 수가 모두 드러내는 수면, 조금 덜 좋아도 드러내지 않는 수를 후보에 넣는다
+    for (const x of sc) if (x.s >= top - margin - REVEAL_COST && !pool.some((y) => y.p === x.p) && !reveals(x.p) && pool.length < 12) pool.push(x);
+  }
   let best = p0, bestV = -Infinity;
   for (const x of pool) {
     const r = tryMove(state, toPos(x.p, n));
     if (!r.ok) continue;
+    const selfReveal = !r.state.isFinished && !!r.state.hidden?.revealed;
     const bel = hiddenBelief(viewFor(r.state, "black"), 20);
     const c = bel.find((y) => y.pos === hp);
     const sus = c ? c.w * (bel.indexOf(c) < 4 ? 2 : 1) : 0; // 흑이 깊게 읽는 상위 4자리에 들면 더 크게 본다
-    const v = x.s - STEALTH_WEIGHT * sus + rand() * VARY_EV; // 비슷하면 판마다 다르게
+    const v = x.s - STEALTH_WEIGHT * sus - (selfReveal ? REVEAL_COST : 0) + rand() * VARY_EV; // 비슷하면 판마다 다르게
     if (v > bestV) { bestV = v; best = x.p; }
   }
   return toPos(best, n);
@@ -537,6 +544,8 @@ const STEALTH_MARGIN = 150;
 const STEALTH_MARGIN_EARLY = 350;
 /** 티 안 내기: 숨은 돌 자리 의심(확률) 1당 깎는 점수 */
 const STEALTH_WEIGHT = 1500;
+/** 숨은 돌을 스스로 드러내는(붙은 3) 수의 대가: 드러내도 그만큼 이득일 때만 둔다 */
+const REVEAL_COST = 500;
 /** 이 점수 이상인 수(사실상 이기는 공격)는 티를 내더라도 둔다 */
 const STEALTH_DECISIVE = 5000;
 
