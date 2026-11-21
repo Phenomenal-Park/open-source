@@ -222,3 +222,15 @@ describe("백 지뢰 (실험)", () => {
     expect(FastBoard.fromState(viewFor(s, "white")).cells[7 * 15 + 9]).toBe(WALL);
   });
 });
+
+describe("끝날 때 공개 (실험)", () => {
+  it("대국이 끝나면 밟히지 않은 지뢰도 흑에게 보인다", async () => {
+    const { placeMine } = await import("./rules.ts");
+    let s = seq(createGame(15, { whiteMine: true, captureTarget: { black: 10, white: 10 } }), at(7, 7));
+    const r = placeMine(s, at(0, 14));
+    if (!r.ok) throw new Error(r.reason);
+    s = seq(r.state, at(7, 8), at(1, 1), at(7, 9), at(1, 3), at(7, 10), at(1, 5), at(7, 11));
+    expect(s.isFinished).toBe(true);
+    expect(viewFor(s, "black").mine?.pos).toEqual(at(0, 14));
+  });
+});

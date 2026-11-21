@@ -568,7 +568,8 @@ export function MainPage() {
             reveal={hs?.revealed && state.board[hs.pos.row]?.[hs.pos.col] === "white" ? hs.pos : null}
             found={notice?.kind === "found" && notice.pos ? { pos: notice.pos, id: notice.id } : null}
             magic={state.config.whiteMine || state.magic?.length ? blockedCells(state) : undefined}
-            mine={viewer === "white" && state.mine && !state.mine.triggered ? state.mine.pos : null}
+            mine={state.mine && !state.mine.triggered && (viewer === "white" || state.isFinished) ? state.mine.pos : null}
+            mineEnd={state.isFinished}
             mining={mining}
             boom={boom}
           />

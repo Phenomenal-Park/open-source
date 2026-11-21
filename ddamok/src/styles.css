@@ -97,6 +97,7 @@ button, input, select { font: inherit; }
 .btn.mine-btn.active { border-color: #d2452f; color: #d2452f; }
 .hidden-banner.mine-banner span { text-shadow: 0 0 22px #17a673, 0 0 6px #17a673, 0 5px 0 rgba(0,0,0,.55); }
 .boom-pop { fill: #17a673; }
+.mine-label { fill: #d2452f; font-weight: 900; paint-order: stroke; stroke: var(--bg); stroke-width: .5; pointer-events: none; }
 .stone.magic-pop { animation: reveal .7s ease-out; }
 .ghost-count { fill: #3a2e1c; font-weight: 800; pointer-events: none; }
 .hidden-mark { fill: none; stroke: var(--accent); stroke-width: .7; stroke-dasharray: 1.4 1; pointer-events: none; }

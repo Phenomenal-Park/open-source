@@ -35,8 +35,10 @@ interface BoardProps {
   scanFx?: { pos: Position; id: number } | null;
   /** (시험) 매직스톤 자리들(에메랄드빛 중립 돌) */
   magic?: Position[];
-  /** (시험) 내(백)가 묻은 지뢰 — 나에게만 보인다 */
+  /** (시험) 내(백)가 묻은 지뢰 — 나에게만 보이고, 대국이 끝나면 양쪽에 보인다 */
   mine?: Position | null;
+  /** 대국이 끝나 밟히지 않은 지뢰를 공개하는 중("지뢰" 글씨) */
+  mineEnd?: boolean;
   /** (시험) 지뢰를 고르는 중: 돌 대신 지뢰 표시 */
   mining?: boolean;
   /** (시험) 흑이 지뢰를 밟은 자리("지뢰!") */
@@ -55,7 +57,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx, magic, mine, mining, boom }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx, magic, mine, mineEnd, mining, boom }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -136,6 +138,9 @@ export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, 
         <MagicStone key={`magic-${p.row}-${p.col}`} cx={xy(p.col)} cy={xy(p.row)} r={R} className={boom && boom.pos.row === p.row && boom.pos.col === p.col ? "stone magic-pop" : "stone"} />
       ))}
       {mine && <MineMark cx={xy(mine.col)} cy={xy(mine.row)} />}
+      {mine && mineEnd && (
+        <text className="mine-label" x={xy(mine.col)} y={xy(mine.row) - CELL * 0.62} fontSize={CELL * 0.45} textAnchor="middle">{t("btn.mine")}</text>
+      )}
 
       {fx && (
         <g key={fx.id} className="capture-fx">
