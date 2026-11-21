@@ -34,8 +34,8 @@ export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "timeo
 
 /** 대국 시계(피셔 방식): 처음 시간 + 한 수 둘 때마다 1초 추가. 레이팅·친선은 3분, 친구매치는 1·3·5·10분 중 선택 */
 export const CLOCK_INCREMENT_MS = 1_000;
-export const DEFAULT_CLOCK_MIN = 3;
-export const FRIEND_CLOCK_MINUTES = [1, 3, 5, 10] as const;
+export const DEFAULT_CLOCK_MIN = 2;
+export const FRIEND_CLOCK_MINUTES = [1, 2, 3, 5, 10] as const;
 export type ClockMinutes = (typeof FRIEND_CLOCK_MINUTES)[number];
 
 export interface ClockView {

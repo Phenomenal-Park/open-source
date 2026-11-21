@@ -293,7 +293,7 @@ export const en: Messages = {
   "about.p3": "Play on one screen, against the AI, or online (Rated, Casual and Friend matches). Friend matches can also use classic ddamok without the hidden move.",
   "rulesPage.title": "How to play",
   "rulesPage.online": "Online games",
-  "rulesPage.o1": "Each player has 3 minutes plus 1 second per move (Friend games: 1, 3, 5 or 10 minutes). Running out of time loses. No undo; you can resign.",
+  "rulesPage.o1": "Each player has 2 minutes plus 1 second per move (Friend games: 1, 2, 3, 5 or 10 minutes). Running out of time loses. No undo; you can resign.",
   "rulesPage.o2": "If you disconnect and don't return within 45 seconds, you lose.",
   "rulesPage.o3": "If the board fills up, the game is a draw.",
   "rulesPage.o4": "Only Rated games change your rating. A ? means the rating isn't settled yet (about 10 games).",
