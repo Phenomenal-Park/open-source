@@ -207,7 +207,7 @@ function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Po
  * 흑 스캔(한 판에 한 번, 차례를 쓰지 않음): 정말 의심되는 자리에만 쓴다.
  * - 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)가 조금이라도 그럴듯할 때
  * - 막을 수 없는 넉이 되는 자리가 꽤 그럴듯할 때
- * - 아니면 한 자리에 의심이 크게 몰렸을 때(백이 그쪽으로 줄을 이어 오는 등)
+ * - 아니면 한 자리에 의심이 확실히 몰렸을 때(처음엔 35%, 수가 진행될수록 20%까지)
  * 근거 없이 찍지 않는다 — 백이 숨긴 바로 다음(흑 2수째 등)에는 쓰지 않고, 백이 그 뒤에 둔 수로 흔적이 생긴 다음에 쓴다.
  */
 export function chooseBlackScan(view: GameState, level?: AiLevel): Position | null {
@@ -221,7 +221,9 @@ export function chooseBlackScan(view: GameState, level?: AiLevel): Position | nu
   if (d1 && d1.w >= SCAN_D1) return toPos(d1.pos, n);
   const d2 = belief.filter((x) => x.danger2).sort((a, b) => b.w - a.w)[0];
   if (d2 && d2.w >= SCAN_D2) return toPos(d2.pos, n);
-  return belief[0].w >= SCAN_TOP ? toPos(belief[0].pos, n) : null;
+  // 확신이 설 때만: 처음엔 의심이 한 자리에 35% 이상 몰려야 쓰고, 수가 진행될수록 기준을 20%까지 낮춘다
+  const need = Math.max(SCAN_TOP, 0.35 - 0.0125 * Math.max(0, view.moveCount - 4));
+  return belief[0].w >= need ? toPos(belief[0].pos, n) : null;
 }
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;
@@ -229,7 +231,7 @@ const MODEL_SCALE = 25;
 const HIST_SCALE = 40;
 /** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
 const SCAN_D1 = 0.04;
-const SCAN_D2 = 0.06;
+const SCAN_D2 = 0.1;
 const SCAN_TOP = 0.2;
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
