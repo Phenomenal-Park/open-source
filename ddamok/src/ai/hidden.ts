@@ -135,6 +135,7 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
     ...hyp.map((x) => ({ cell: x.pos, w: x.w, ms: (t * 1.6) / hyp.length })),
   ];
   const wsum = worlds.reduce((a, x) => a + x.w, 0);
+  const perWorld = new Map<number, Map<number, number>>(); // 판(숨은 돌 자리, -1 = 보이는 판) → 수 → 값
   for (const wd of worlds) {
     // 숨은 돌을 놓은 판은 GameState부터 다시 만든다(FastBoard는 줄 정보를 따로 들고 있어 칸만 바꾸면 안 된다)
     let ws = view;
@@ -147,9 +148,25 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
     const got = new Map(sc.map((x) => [x.p, x.s] as const));
     const worst = sc.length ? Math.min(...sc.map((x) => x.s)) : 0;
     const again = sc[0]?.s ?? 0;
+    perWorld.set(wd.cell, got);
     for (const p of roots) {
       const v = p === wd.cell ? again : got.get(p) ?? worst; // 가설 자리를 누르면 찾고 다시 둔다
       ev.set(p, ev.get(p)! + (wd.w / wsum) * clamp(v));
+    }
+  }
+  // 착수로 지우기: 의심 자리에 두는 수가 그 자체로도 흑에게 좋은 수(보이는 판에서 가장 좋은 수와 PROBE_MARGIN 안쪽)면,
+  // 빗나가도 "거기엔 없다"를 알게 되는 값(그 자리일 확률 × 거기 있으면 흑의 가장 좋은 수가 잃는 값)을 더한다.
+  const vis = perWorld.get(-1);
+  if (vis && vis.size) {
+    let bestP = -1, bestS = -Infinity;
+    for (const [p, v] of vis) if (v > bestS) { bestS = v; bestP = p; }
+    for (const x of hyp) {
+      const own = vis.get(x.pos);
+      const inWorld = perWorld.get(x.pos)?.get(bestP);
+      if (own === undefined || inWorld === undefined || !ev.has(x.pos)) continue;
+      if (clamp(own) < clamp(bestS) - PROBE_MARGIN) continue; // 흑에게 득이 없는 자리는 착수로 확인하지 않는다(스캔이 맡는다)
+      const loss = Math.max(0, clamp(bestS) - clamp(inWorld));
+      ev.set(x.pos, ev.get(x.pos)! + (x.w / wsum) * loss);
     }
   }
   // 경험: 이 자리에서 진 적이 있는 수는 깎는다
@@ -163,6 +180,8 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
 }
 /** 여러 판 읽기에서 "비슷하게 좋다"로 보는 폭 */
 const VARY_EV = 25;
+/** 착수로 지우기: 흑 자신에게도 이만큼 안쪽으로 좋은 수일 때만(형세 점수) */
+const PROBE_MARGIN = 150;
 
 /** 흑 AI의 수: 보이는 판으로만 생각한다(강한 단계는 숨은 돌 위치를 추리한다) */
 /**
@@ -262,7 +281,7 @@ const SCAN_D1 = 0.04;
 const SCAN_D2 = 0.1;
 const SCAN_TOP = 0.2;
 /** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
-const SCAN_RISK = Number((globalThis as { process?: { env: Record<string, string> } }).process?.env.SCAN_RISK ?? 150);
+const SCAN_RISK = 300;
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
 function simulateBlack(s: GameState): GameState {
