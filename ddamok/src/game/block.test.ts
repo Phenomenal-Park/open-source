@@ -259,3 +259,20 @@ describe("지뢰 스캔 (실험, 기본 꺼짐)", () => {
     expect(t.ok && t.state.board[5][5]).toBe("black");
   });
 });
+
+describe("지뢰: 밟아도 차례 유지 (실험)", () => {
+  it("밟으면 매직스톤이 되고 흑이 다시 둔다(기보에는 남지 않는다)", async () => {
+    const { placeMine, blockedCells } = await import("./rules.ts");
+    let s = seq(createGame(15, { whiteMine: true, mineKeepsTurn: true, captureTarget: { black: 8, white: 8 } }), at(7, 7));
+    const r = placeMine(s, at(7, 9));
+    if (!r.ok) throw new Error(r.reason);
+    s = r.state;
+    const t = tryMove(s, at(7, 9));
+    if (!t.ok) throw new Error(t.reason);
+    expect(t.state.currentPlayer).toBe("black");
+    expect(t.state.moves.length).toBe(1);
+    expect(blockedCells(t.state)).toEqual([at(7, 9)]);
+    const t2 = tryMove(t.state, at(7, 8));
+    expect(t2.ok && t2.state.currentPlayer).toBe("white");
+  });
+});

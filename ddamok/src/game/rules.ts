@@ -238,7 +238,10 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   const mn = state.mine;
   if (mn && !mn.triggered && player === "black" && samePos(mn.pos, position)) {
     const p0 = { row: position.row, col: position.col };
-    return { ok: true, captured: [], state: { ...state, mine: { ...mn, triggered: true }, magic: [...(state.magic ?? []), { pos: p0, at: state.moves.length + 1, hit: false }],
+    const magic = [...(state.magic ?? []), { pos: p0, at: state.moves.length + (state.config.mineKeepsTurn ? 0 : 1), hit: false }];
+    // 차례 유지 규칙: 기보에 남기지 않고(수가 아님) 매직스톤만 생긴 채 흑이 다시 둔다
+    if (state.config.mineKeepsTurn) return { ok: true, captured: [], revealedHidden: false, state: { ...state, mine: { ...mn, triggered: true }, magic, lastCaptured: [] } };
+    return { ok: true, captured: [], state: { ...state, mine: { ...mn, triggered: true }, magic,
       moves: [...state.moves, p0], moveCount: state.moveCount + 1, lastMove: p0, lastCaptured: [], currentPlayer: "white" } };
   }
 

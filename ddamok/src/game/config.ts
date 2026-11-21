@@ -33,6 +33,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     whiteHiddenFrom: overrides.whiteHiddenFrom ?? 0,
     whiteMine: overrides.whiteMine ?? false,
     mineScan: overrides.mineScan ?? false,
+    mineKeepsTurn: overrides.mineKeepsTurn ?? false,
   };
 }
 

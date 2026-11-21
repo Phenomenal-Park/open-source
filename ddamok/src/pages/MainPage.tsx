@@ -24,7 +24,7 @@ const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) ||
 /** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
 const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
   rule === "mine"
-    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 히든·스캔 없이 8/8
+    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, mineKeepsTurn: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 히든·스캔 없이 8/8, 밟아도 흑 차례 유지
     : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 }, noTimedReveal: true } : {}) }); // AI 대국 히든룰: 8/8, 숨긴 돌은 저절로 공개되지 않는다
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
@@ -504,7 +504,7 @@ export function MainPage() {
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (scanning) status = t("hidden.scanPick");
   else if (mining) status = t("mine.pick");
-  else if (boom && boom.at === state.moveCount) status = t("mine.stepped");
+  else if (boom && boom.at === state.moveCount) status = t(state.config.mineKeepsTurn ? "mine.steppedKeep" : "mine.stepped");
   else if (state.config.whiteMine && state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black") status = t(state.scan.hit ? (viewer === "white" ? "mine.oppDefused" : "mine.defused") : (viewer === "white" ? "hidden.oppScanMiss" : "mine.scanMiss"));
   else if (state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "white") status = t(state.scan.hit ? "hidden.oppScanHit" : "hidden.oppScanMiss");
   else if (state.scan && !state.scan.hit && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "black") status = t("hidden.scanMiss");

@@ -492,7 +492,13 @@ function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: 
     const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
     const m = blackPick(placed);
     if (m < 0) continue;
-    const r = tryMove(placed, toPos(m, n));
+    let r = tryMove(placed, toPos(m, n));
+    // 밟아도 흑 차례가 이어지는 규칙: 흑이 다른 곳에 다시 둔다
+    if (r.ok && !r.state.isFinished && r.state.currentPlayer === "black") {
+      const m2 = blackPick(r.state);
+      if (m2 < 0) continue;
+      r = tryMove(r.state, toPos(m2, n));
+    }
     if (!r.ok || (r.state.isFinished && r.state.winner === "black")) continue;
     const v = r.state.isFinished ? 1e9 : new FastSearcher(FastBoard.fromState(r.state), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores[0]?.s ?? 0;
     opts.push({ p, v });
@@ -600,9 +606,10 @@ function chooseBlackMoveMine(view: GameState, level: AiLevel, rand: Rng): Positi
     const p = belief.get(x.p) ?? 0;
     let ev = clamp(x.s);
     if (p > 0.02) {
-      const stepped: GameState = { ...view, mine: null, magic: [...(view.magic ?? []), { pos: toPos(x.p, n), at: view.moves.length + 1, hit: false }], currentPlayer: "white" };
+      const keep = !!view.config.mineKeepsTurn;
+      const stepped: GameState = { ...view, mine: null, magic: [...(view.magic ?? []), { pos: toPos(x.p, n), at: view.moves.length + (keep ? 0 : 1), hit: false }], currentPlayer: keep ? "black" : "white" };
       const w = new FastSearcher(FastBoard.fromState(stepped), fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(20, fl.timeMs * 0.1), false, true).scores[0]?.s ?? 0;
-      ev = (1 - p) * clamp(x.s) + p * clamp(-w);
+      ev = (1 - p) * clamp(x.s) + p * clamp(keep ? w : -w); // 차례 유지면 밟은 뒤에도 흑 차례
     }
     if (ev > bestEv) { bestEv = ev; best = x.p; }
   }
