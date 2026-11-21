@@ -3,6 +3,14 @@ import { centerOf, DIRECTIONS, inBounds, opponent, overlineWinsFor } from "./con
 import { getCapturedStones } from "./captures.ts";
 import { checkCaptureVictory, findFiveInRow } from "./victory.ts";
 
+const samePos = (a: Position | null | undefined, b: Position | null | undefined) => !!a && !!b && a.row === b.row && a.col === b.col;
+
+/** (실험) 흑 ⓧ 규칙에서 막힌 자리(없으면 null) */
+export function blockedCell(state: GameState): Position | null {
+  const s = state.scan;
+  return state.config.blackBlock && s && !s.hit ? s.pos : null;
+}
+
 export function whyIllegal(state: GameState, position: Position, player: Player = state.currentPlayer): IllegalReason | null {
   if (state.isFinished) return "finished";                                   // 1. 종료 여부
   if (player !== state.currentPlayer) return "not-your-turn";                // 2. 차례
@@ -11,6 +19,7 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     return "out-of-bounds";                                                  // 3. 판 내부
   }
   if (state.board[row][col] !== null) return "occupied";                    // 4. 빈 교차점
+  if (samePos(blockedCell(state), position)) return "occupied";             //    (실험) ⓧ 자리
   // 흑의 첫 수(빈 판의 첫 착수)는 천원만
   if (state.config.firstMoveCenter && state.moveCount === 0 && !state.board.some((r) => r.some((c) => c !== null))) {
     const c = centerOf(state.config.boardSize);
@@ -39,7 +48,6 @@ export interface MoveOptions {
   hidden?: boolean;
 }
 
-const samePos = (a: Position | null | undefined, b: Position | null | undefined) => !!a && !!b && a.row === b.row && a.col === b.col;
 
 /** 흑이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수): 흑의 세 번째 수 */
 export const BLACK_HIDDEN_FROM = 4;
@@ -64,7 +72,7 @@ export const HIDDEN_TURNS = 5;
 /** 숨은 돌이 드러나기까지 남은 백의 수(숨기지 않았거나 이미 드러났으면 null) */
 export function hiddenTurnsLeft(state: GameState): number | null {
   const h = state.hidden;
-  if (!h || h.revealed || h.index < 0 || state.config.mutualHidden) return null;
+  if (!h || h.revealed || h.index < 0 || state.config.mutualHidden || state.config.blackBlock) return null;
   const whiteMovesSince = Math.floor((state.moves.length - 1 - h.index) / 2);
   return Math.max(0, HIDDEN_TURNS - whiteMovesSince);
 }
@@ -74,6 +82,7 @@ export function canScan(state: GameState): boolean {
   if (!state.config.hiddenMove || state.isFinished) return false;
   if (state.currentPlayer === "black") {
     const h = state.hidden;
+    if (state.config.blackBlock) return state.scan === null; // ⓧ는 언제든 한 번
     return state.scan === null && !!h && h.index >= 0 && !h.revealed;
   }
   const hb = state.hiddenB;
@@ -89,11 +98,11 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
   const n = state.config.boardSize;
   if (!Number.isInteger(pos?.row) || !Number.isInteger(pos?.col) || pos.row < 0 || pos.col < 0 || pos.row >= n || pos.col >= n) return { ok: false, reason: "out-of-bounds" };
   const byBlack = state.currentPlayer === "black";
-  const h = (byBlack ? state.hidden : state.hiddenB)!;
-  const hit = samePos(h.pos, pos);
+  const h = byBlack ? state.hidden : state.hiddenB;
+  const hit = !!h && h.index >= 0 && !h.revealed && samePos(h.pos, pos);
   if (!hit && state.board[pos.row][pos.col] !== null) return { ok: false, reason: "occupied" };
   const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };
-  const h2 = hit ? { ...h, revealed: true } : h;
+  const h2 = hit ? { ...h!, revealed: true } : h ?? null;
   let next: GameState = byBlack ? { ...state, scan: rec, hidden: h2, lastCaptured: [] } : { ...state, scanW: rec, hiddenB: h2, lastCaptured: [] };
   if (hit && state.config.scanRemoves) {
     // (실험) 맞히면 숨은 돌을 걷어 낸다
@@ -217,7 +226,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     next.winReason = captureWin ? "capture" : "five";
     next.winningLine = line;
     next.isFinished = true;
-  } else if (!board.some((row) => row.includes(null))) {
+  } else if (!board.some((row, r) => row.some((c, cc) => c === null && !samePos(blockedCell(state), { row: r, col: cc })))) {
     // 판이 다 찼고(포획으로 생긴 빈칸도 없음) 승자가 없으면 무승부
     next.winReason = "draw";
     next.isFinished = true;

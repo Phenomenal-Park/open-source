@@ -4,8 +4,11 @@
 // 형세 점수는 "5칸 창" 단위로 바뀐 부분만 갱신한다: 판 위 모든 5칸 창의 흑·백 돌 수를 들고 있다가,
 // 돌 하나가 놓이거나(따여서) 빠지면 그 칸을 지나는 최대 20개 창만 다시 센다.
 import type { GameState, Player } from "../game/types.ts";
+import { blockedCell } from "../game/rules.ts";
 
 export const EMPTY = 0, BLACK = 1, WHITE = 2;
+/** (실험) ⓧ 자리: 아무도 둘 수 없고 줄을 끊는다 */
+export const WALL = 3;
 export type Color = 1 | 2;
 const other = (c: Color): Color => (c === 1 ? 2 : 1);
 
@@ -121,6 +124,8 @@ export class FastBoard {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
     }
+    const wall = blockedCell(s);
+    if (wall) b.addWall(wall.row * n + wall.col);
     b.caps = [0, s.capturedByBlack, s.capturedByWhite];
     b.toMove = s.currentPlayer === "black" ? BLACK : WHITE;
     return b;
@@ -132,6 +137,19 @@ export class FastBoard {
    */
   place(pos: number, color: Color) { this.put(pos, color); }
   unplace(pos: number) { this.remove(pos); }
+
+  /** (실험) 빈칸 pos를 ⓧ로 막는다: 그 칸을 지나는 창은 양쪽 모두에게 죽은 창이 된다(흑·백이 섞인 창처럼) */
+  addWall(pos: number) {
+    for (const w of this.cellWindows[pos]) {
+      const b = this.wb[w], wh = this.ww[w];
+      if (!wh && b && b < 5) { this.cnt[5 + b]--; if (b === 4) this.fours[1]--; }
+      if (!b && wh && wh < 5) { this.cnt[10 + wh]--; if (wh === 4) this.fours[2]--; }
+      this.wb[w]++; this.ww[w]++;
+    }
+    this.cells[pos] = WALL;
+    this.empties--;
+    this.hash ^= 0x5bd1e995 ^ pos;
+  }
 
   /** 돌 하나 놓기/빼기의 기본 처리(창 점수·근처·해시) */
   private put(pos: number, color: Color) {

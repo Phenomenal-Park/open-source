@@ -5,7 +5,7 @@
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
 import { canScan, canUseHidden, createGameFromConfig, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
-import { fastChooseMove, FastSearcher, type FastLevel } from "./fastSearch.ts";
+import { fastChooseMove, FastSearcher, WIN, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
 import { chooseMove } from "./search.ts";
 import { experienceBonus, hideHistory, positionKey } from "./experience.ts";
@@ -345,6 +345,39 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
   // 스캔은 거기 숨은 돌이 있으면 흑이 크게 잃는 자리를 지우는 데만 쓴다(그런 스캔 9번 중 8번 적중, 흑 6승).
   return null;
 }
+/**
+ * (실험) 흑 ⓧ(착수 금지, 한 판에 한 번, 차례를 쓰지 않음) 판단.
+ * 1) 숨은 돌 의심: 스캔과 같은 기준으로 찍는다 — 있으면 드러나고, 없으면 그 급소가 막힌다.
+ * 2) 보이는 판에서 진다고 읽히면(백의 넉·쌍삼 등) 백의 급소 하나를 막아 살아나는 자리를 찾는다. 살아날 수 없으면 아낀다.
+ */
+export function blockDecision(view: GameState, level: AiLevel): { pos: Position; reason: "hidden" | "save" } | null {
+  if (!view.config.blackBlock || view.currentPlayer !== "black" || !canScan(view)) return null;
+  const fl = withHidden(level).fast;
+  if (!fl) return null;
+  const n = view.config.boardSize;
+  const vb = FastBoard.fromState(view);
+  if (vb.winningMoves(1).length) return null;
+  const h = view.hidden;
+  if (h && h.index >= 0 && !h.revealed) {
+    const d = scanDecision(view, level);
+    if (d) return { pos: d.pos, reason: "hidden" };
+  }
+  const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores;
+  if (!base.length || base[0].s > -(WIN / 2)) return null;
+  const cands = new Set(vb.winningMoves(2));
+  const scored: [number, number][] = [];
+  for (const p of vb.candidates()) scored.push([p, vb.moveScore(p, 2)]);
+  scored.sort((a, b) => b[1] - a[1]);
+  for (const [p] of scored.slice(0, 8)) cands.add(p);
+  let best = -1, bestS = base[0].s;
+  for (const p of cands) {
+    const st: GameState = { ...view, scan: { pos: toPos(p, n), at: view.moves.length, hit: false } };
+    const sc = new FastSearcher(FastBoard.fromState(st), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.25), false, true).scores;
+    if (sc.length && sc[0].s > bestS) { bestS = sc[0].s; best = p; }
+  }
+  return best >= 0 && bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
+}
+
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;
 /** 이 상대가 실제로 숨긴 기록의 무게(기록이 많을수록 이 값에 가까워진다): 흉내보다 크게 */
@@ -587,7 +620,7 @@ function latent(b: FastBoard, p: number, n: number): number {
       const rr = r + dr * (st + i), cc = c + dc * (st + i);
       if (rr < 0 || rr >= n || cc < 0 || cc >= n) { ok = false; break; }
       const x = b.cells[rr * n + cc];
-      if (x === 1) { ok = false; break; }
+      if (x === 1 || x === 3) { ok = false; break; }
       if (x === 2) w++;
     }
     if (ok && w >= 1 && w <= 2) v += w;
