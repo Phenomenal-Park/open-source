@@ -23,9 +23,9 @@ export function blackProbe(view: GameState): Position | null {
   let best = -1, bestK = 0;
   for (let c = 0; c < b.cells.length; c++) {
     if (b.cells[c]) continue;
-    b.cells[c] = 2;
+    b.place(c, 2);
     const k = b.winningMoves(2).length;
-    b.cells[c] = 0;
+    b.unplace(c);
     if (k > bestK) { bestK = k; best = c; }
   }
   return best >= 0 ? toPos(best, b.n) : null;
@@ -39,6 +39,8 @@ export interface BeliefCell {
   danger1: boolean;
   /** 여기 숨은 돌이 있으면 백이 한 수로 막을 수 없는 넉(열린 4·쌍4)을 만든다 */
   danger2: boolean;
+  /** 여기 숨은 돌이 있으면 그 돌을 받침으로 백이 흑 두 점을 새로 따낼 수 있다 */
+  dangerCap?: boolean;
 }
 
 const near = (a: number, b: number, n: number, d: number) => Math.abs(((a / n) | 0) - ((b / n) | 0)) <= d && Math.abs((a % n) - (b % n)) <= d;
@@ -75,6 +77,10 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
   const vb = FastBoard.fromState(view);
   const whites: number[] = [];
   for (let p = 0; p < n * n; p++) if (vb.cells[p] === 2) whites.push(p);
+  // 지금 백이 따낼 수 있는 자리(숨은 돌이 새로 만드는 따내기만 위험으로 친다)
+  const capNow = new Set<number>();
+  for (let p = 0; p < n * n; p++) if (!vb.cells[p] && vb.capturesAt(p, 2).length) capNow.add(p);
+  const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1], [0, -1], [-1, 0], [-1, -1], [-1, 1]];
   const out: BeliefCell[] = [];
   for (let c = 0; c < n * n; c++) {
     if (vb.cells[c] || before.board[(c / n) | 0][c % n] !== null) continue; // 숨길 때 비어 있었고 지금도 비어 보이는 칸
@@ -83,24 +89,34 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
     // 사전 확률은 완만하게: 백은 뻔한 자리를 피해 멀리 숨기기도 한다(무작위로 숨기는 백에게 뻔한 자리만 의심하면 당한다)
     const prior = (r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05) + (model?.get(c) ?? 0) * MODEL_SCALE + (hist?.get(c) ?? 0) * histScale;
     const use = Math.max(0, vb.moveScore(c, 2));
-    vb.cells[c] = 2;
+    vb.place(c, 2);
     const danger1 = vb.winningMoves(2).length > 0;
     let danger2 = false;
     if (!danger1 && whites.some((w) => near(w, c, n, 4))) {
       for (let m = 0; m < n * n && !danger2; m++) {
         if (vb.cells[m] || !sameLine(c, m, n)) continue;
-        vb.cells[m] = 2;
+        vb.place(m, 2);
         if (vb.winningMoves(2).length >= 2) danger2 = true;
-        vb.cells[m] = 0;
+        vb.unplace(m);
       }
     }
-    vb.cells[c] = 0;
-    out.push({ pos: c, w: prior * (1 + use / 300) * (danger1 ? 30 : danger2 ? 8 : 1), danger1, danger2 });
+    // 숨은 돌이 따내기 받침이 되는 자리: 거기 있으면 백이 다음 수에 흑 두 점을 새로 따낼 수 있다
+    let dangerCap = false;
+    const cr = (c / n) | 0, cc = c % n;
+    for (const [dr, dc] of DIRS) {
+      const r3 = cr + 3 * dr, c3 = cc + 3 * dc;
+      if (r3 < 0 || c3 < 0 || r3 >= n || c3 >= n) continue;
+      const p3 = r3 * n + c3;
+      if (vb.cells[p3] || capNow.has(p3)) continue;
+      if (vb.capturesAt(p3, 2).length) { dangerCap = true; break; }
+    }
+    vb.unplace(c);
+    out.push({ pos: c, w: prior * (1 + use / 300) * (danger1 ? 30 : danger2 ? 8 : dangerCap ? 4 : 1), danger1, danger2, dangerCap });
   }
   out.sort((x, y) => y.w - x.w);
   const sum = out.reduce((a, x) => a + x.w, 0) || 1;
   // 위험 칸(바로 이김·막을 수 없는 넉)은 순위가 낮아도 늘 함께 돌려준다
-  const keep = [...out.slice(0, maxCells), ...out.slice(maxCells).filter((x) => x.danger1 || x.danger2)];
+  const keep = [...out.slice(0, maxCells), ...out.slice(maxCells).filter((x) => x.danger1 || x.danger2 || x.dangerCap)];
   return keep.map((x) => ({ ...x, w: x.w / sum }));
 }
 
@@ -120,7 +136,10 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   if (wins.length) return toPos(wins[0], n);
   if (vb.winningMoves(2).length) return chooseMove(view, plainLevel, rand); // 보이는 백의 위협부터 막는다
   const d1 = belief.filter((x) => x.danger1);
-  if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) return toPos(d1[0].pos, n);
+  if (d1.length && d1.reduce((a, x) => a + x.w, 0) >= 0.08) {
+    const block = blockHiddenWins(view, d1);
+    if (block >= 0) return toPos(block, n);
+  }
   const { timeMs: t, depth, width } = level.fast;
   const hyp = belief.slice(0, 4);
   // 거기 숨은 돌이 있으면 백이 막을 수 없는 넉을 만드는 자리는 순위가 낮아도 꼭 따로 읽는다(최소 6%로 친다).
@@ -128,9 +147,10 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   // 거기 숨은 돌이 있으면 백이 바로 이기는 자리는 짐작상 낮아도 반드시 읽는다(엉뚱한 곳에 숨기고 줄을 이어 오는 백 대비)
   for (const x of belief) if (x.danger1 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.1) });
   for (const x of belief) if (x.danger2 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.06) });
+  for (const x of belief) if (x.dangerCap && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.04) });
   const roots = new FastSearcher(vb, width).searchRoot(depth, t * 0.15, false, true).scores.slice(0, 10).map((x) => x.p);
   for (const x of belief.slice(0, 3)) if (!roots.includes(x.pos)) roots.push(x.pos);
-  for (const x of belief) if ((x.danger1 || x.danger2) && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
+  for (const x of belief) if ((x.danger1 || x.danger2 || x.dangerCap) && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
   const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
   const ev = new Map<number, number>(roots.map((p) => [p, 0]));
   const hypMass = hyp.reduce((a, x) => a + x.w, 0);
@@ -179,11 +199,50 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   // 비슷하게 좋은 수(가장 좋은 값과 VARY_EV 안쪽) 중 무작위 — 같은 판을 되풀이하지 않게
   let bestV = -Infinity;
   for (const v of ev.values()) if (v > bestV) bestV = v;
-  const near = [...ev].filter(([, v]) => v >= bestV - VARY_EV).map(([p]) => p);
+  const vary = view.moveCount < 12 ? VARY_EV_OPENING : VARY_EV; // 초반엔 더 넓게 — 같은 응수를 되풀이해 읽히지 않게
+  const near = [...ev].filter(([, v]) => v >= bestV - vary).map(([p]) => p);
   return toPos(near[Math.floor(rand() * near.length)], n);
 }
+/**
+ * 숨은 돌이 있으면 백이 바로 오목을 만드는 자리(위험 칸)가 여럿일 때: 가장 의심되는 한 곳만 찔러 보지 않고,
+ * 그럴듯한 위험 판들을 가장 많이(확률 합) 막는 수를 둔다. 막는다 = 그 자리를 눌러 숨은 돌을 찾거나,
+ * 그 판에서 흑이 두고 나면 백에게 바로 이기는 수가 남지 않는 것. 막을 수 없으면 -1.
+ */
+function blockHiddenWins(view: GameState, d1: BeliefCell[]): number {
+  return blockHiddenWinsCover(view, d1).pos;
+}
+
+/** blockHiddenWins + 그 수가 막는 확률 합과 위험 판 전체 확률 합 */
+function blockHiddenWinsCover(view: GameState, d1: BeliefCell[]): { pos: number; cover: number; total: number } {
+  const n = view.config.boardSize;
+  const worlds = d1.map((x) => {
+    const board = view.board.map((r) => r.slice());
+    board[(x.pos / n) | 0][x.pos % n] = "white";
+    const st: GameState = { ...view, board, hidden: null };
+    return { x, st, wins: FastBoard.fromState(st).winningMoves(2) };
+  });
+  const cands = new Set<number>();
+  for (const w of worlds) { cands.add(w.x.pos); for (const p of w.wins) cands.add(p); }
+  let best = -1, bestCover = 0;
+  for (const m of cands) {
+    if (view.board[(m / n) | 0][m % n] !== null) continue;
+    let cover = 0;
+    for (const w of worlds) {
+      if (m === w.x.pos) { cover += w.x.w; continue; } // 누르면 찾는다(드러나고 다시 둔다)
+      if (w.st.board[(m / n) | 0][m % n] !== null) continue;
+      const r = tryMove(w.st, toPos(m, n));
+      if (!r.ok) continue;
+      if (r.state.isFinished ? r.state.winner === "black" : FastBoard.fromState(r.state).winningMoves(2).length === 0) cover += w.x.w;
+    }
+    if (cover > bestCover) { bestCover = cover; best = m; }
+  }
+  return { pos: best, cover: bestCover, total: worlds.reduce((a, w) => a + w.x.w, 0) };
+}
+
 /** 여러 판 읽기에서 "비슷하게 좋다"로 보는 폭 */
 const VARY_EV = 25;
+/** 초반(12수 전)의 폭 */
+const VARY_EV_OPENING = 80;
 /** 착수로 지우기: 흑 자신에게도 이만큼 안쪽으로 좋은 수일 때만(형세 점수) */
 const PROBE_MARGIN = 150;
 
@@ -246,7 +305,13 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
   if (!belief.length) return null;
   const n = view.config.boardSize;
   const d1 = belief.filter((x) => x.danger1).sort((a, b) => b.w - a.w)[0];
-  if (d1 && d1.w >= SCAN_D1) return { pos: toPos(d1.pos, n), reason: "danger1", w: d1.w };
+  if (d1 && d1.w >= SCAN_D1) {
+    // 한 수로 모든 위험 판을 막을 수 있으면(예: 3목 끝의 두 빈칸 — 안쪽에 두면 둘 다 막는다) 스캔을 아끼고 그 수를 둔다
+    const all = belief.filter((x) => x.danger1);
+    const b = blockHiddenWinsCover(view, all);
+    if (b.pos >= 0 && b.cover >= b.total * 0.999) return null;
+    return { pos: toPos(d1.pos, n), reason: "danger1", w: d1.w };
+  }
   // 배제용 스캔: 맞히려는 게 아니라, 거기 숨은 돌이 있으면 흑의 수가 가장 크게 망가지는 의심 자리를 지워 둔다.
   // 위험 = (그 자리일 확률) × (흑이 지금 두려는 수가 그 판에서 잃는 값). 가장 큰 곳이 기준을 넘으면 스캔.
   const fastLevel = level && withHidden(level).fast;

@@ -126,6 +126,13 @@ export class FastBoard {
     return b;
   }
 
+  /**
+   * 가정해 보기용: 따내기 없이 돌 하나를 놓는다/뺀다(창 점수·근처 칸까지 함께 고친다).
+   * cells를 직접 바꾸면 근처 칸 표시가 안 바뀌어 winningMoves가 그 돌 둘레의 이기는 수를 놓친다.
+   */
+  place(pos: number, color: Color) { this.put(pos, color); }
+  unplace(pos: number) { this.remove(pos); }
+
   /** 돌 하나 놓기/빼기의 기본 처리(창 점수·근처·해시) */
   private put(pos: number, color: Color) {
     for (const w of this.cellWindows[pos]) {

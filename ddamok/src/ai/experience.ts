@@ -10,8 +10,8 @@ import { scanAt, tryMove, viewFor } from "../game/rules.ts";
 const memory = new Map<string, Map<number, number>>();
 const MAX_KEYS = 50_000;
 
-/** 진 수 하나당 깎는 점수(형세 점수 단위). 열린 3이 160, 4가 2200 정도라 비슷한 수끼리만 순서를 바꾼다 */
-export const LEARN_WEIGHT = 300;
+/** 진 수 하나당 깎는 점수(형세 점수 단위). 열린 3이 160, 4가 2200 정도 — 진 수순은 확실히 피하되 결정적인 수(4·막기)는 그대로 둔다 */
+export const LEARN_WEIGHT = 800;
 
 export function positionKey(view: GameState): string {
   const cells = view.board.map((r) => r.map((c) => (c === "black" ? "b" : c === "white" ? "w" : ".")).join("")).join("");
