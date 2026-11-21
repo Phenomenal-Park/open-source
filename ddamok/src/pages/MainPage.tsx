@@ -67,6 +67,8 @@ export function MainPage() {
   /** (시험) 지뢰룰: 백이 지뢰 자리를 고르는 중 / 흑이 지뢰를 밟은 자리 */
   const [mining, setMining] = useState(false);
   const [boom, setBoom] = useState<{ pos: Position; id: number; at: number } | null>(null);
+  /** 스캔에 걸려 사라지는 숨은 돌(숨은 돌 소멸 규칙) */
+  const [vanish, setVanish] = useState<{ pos: Position; id: number } | null>(null);
   /** 흑 스캔: 다음에 누르는 자리를 스캔한다 */
   const [scanning, setScanning] = useState(false);
   const [scanFx, setScanFx] = useState<{ pos: Position; id: number } | null>(null);
@@ -129,7 +131,8 @@ export function MainPage() {
     if (!scanKey || scanSeen.current === scanKey) { scanSeen.current = scanKey; return; }
     scanSeen.current = scanKey;
     setScanFx({ pos: state.scan!.pos, id: Date.now() });
-    if (state.scan!.hit) setNotice({ kind: "found", at: state.moveCount, pos: state.scan!.pos, id: Date.now() });
+    if (state.scan!.hit && state.config.scanRemoves && state.config.hiddenMove) setVanish({ pos: state.scan!.pos, id: Date.now() }); // 숨은 돌이 부서지듯 사라진다
+    else if (state.scan!.hit) setNotice({ kind: "found", at: state.moveCount, pos: state.scan!.pos, id: Date.now() });
     else scanMissSound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanKey]);
@@ -409,6 +412,7 @@ export function MainPage() {
     setHistory(createHistory(freshGame(size, hiddenMove, rule)));
     setMining(false);
     setBoom(null);
+    setVanish(null);
     setFx(null);
     setResultOpen(true);
     setArmedUntil(null);
@@ -505,6 +509,7 @@ export function MainPage() {
   else if (scanning) status = t("hidden.scanPick");
   else if (mining) status = t("mine.pick");
   else if (boom && boom.at === state.moveCount) status = t(state.config.mineKeepsTurn ? "mine.steppedKeep" : "mine.stepped");
+  else if (state.config.scanRemoves && state.config.hiddenMove && state.scan?.hit && state.scan.at === state.moveCount && state.currentPlayer === "black") status = t(viewer === "white" ? "hidden.oppVanished" : "hidden.vanished");
   else if (state.config.whiteMine && state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black") status = t(state.scan.hit ? (viewer === "white" ? "mine.oppDefused" : "mine.defused") : (viewer === "white" ? "hidden.oppScanMiss" : "mine.scanMiss"));
   else if (state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "white") status = t(state.scan.hit ? "hidden.oppScanHit" : "hidden.oppScanMiss");
   else if (state.scan && !state.scan.hit && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "black") status = t("hidden.scanMiss");
@@ -573,6 +578,7 @@ export function MainPage() {
             mineEnd={state.isFinished}
             mining={mining}
             boom={boom}
+            vanish={vanish}
           />
           {banner > 0 && (
             <div key={banner} className={`hidden-banner${bannerText === "hidden.banner" ? "" : " mine-banner"}`} aria-hidden><span>{t(bannerText)}</span></div>

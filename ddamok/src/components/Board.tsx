@@ -43,6 +43,8 @@ interface BoardProps {
   mining?: boolean;
   /** (시험) 흑이 지뢰를 밟은 자리("지뢰!") */
   boom?: { pos: Position; id: number } | null;
+  /** 스캔에 걸려 사라지는 숨은 백 돌: 잠깐 드러나 빛나다 부서지듯 사라진다 */
+  vanish?: { pos: Position; id: number } | null;
 }
 
 function starPoints(n: number): Position[] {
@@ -57,7 +59,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx, magic, mine, mineEnd, mining, boom }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx, magic, mine, mineEnd, mining, boom, vanish }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -186,6 +188,13 @@ export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, 
       )}
 
       {scanFx && <ScanSparkle key={`scan-${scanFx.id}`} cx={xy(scanFx.pos.col)} cy={xy(scanFx.pos.row)} seed={scanFx.id} />}
+      {vanish && (
+        <g key={`vanish-${vanish.id}`} className="vanish-fx" aria-hidden>
+          <Stone player="white" cx={xy(vanish.pos.col)} cy={xy(vanish.pos.row)} r={R} className="stone vanishing" />
+          <ScanSparkle cx={xy(vanish.pos.col)} cy={xy(vanish.pos.row)} seed={vanish.id + 7} />
+          <text className="found-pop vanish-pop" x={xy(vanish.pos.col)} y={xy(vanish.pos.row) - CELL * 0.7} fontSize={CELL * 0.55} textAnchor="middle">{t("hidden.vanish")}</text>
+        </g>
+      )}
 
       {boom && (
         <text key={`boom-${boom.id}`} className="found-pop boom-pop" x={xy(boom.pos.col)} y={xy(boom.pos.row) - CELL * 0.7} fontSize={CELL * 0.6} textAnchor="middle">{t("mine.boom")}</text>
