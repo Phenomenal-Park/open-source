@@ -344,7 +344,7 @@ await check("[프로필·설정] 급·점수(?)·전적, 설정 화면의 AI 상
   assert.match(await B.locator(".big-rating").textContent(), /\?점/);
   assert.match(await B.locator(".stats").textContent(), /1승 0패 0무/);
   assert.match(await B.locator(".stats").textContent(), /승률100%/);
-  assert.match(await B.locator(".records h2").first().textContent(), /명승부 0\/3/);
+  assert.match(await B.locator(".records h2").first().textContent(), /명승부 0\/1/);
   assert.equal(await B.locator(".profile ~ .records .record-list li").count(), 3); // 최근 대국(친구매치 2판 + 레이팅매치)
   await shot(B, "desktop-profile");
   await B.goto(base + "/settings");
@@ -388,13 +388,13 @@ await check("[기보] 닉네임 검색 → 최근 기보 → 수순 넘겨 보�
   await shot(A, "phone-records");
 });
 
-await check("[명승부] 기보 화면에서 박제 → 프로필에 '명승부 1/3', 상대 닉네임·당시 점수, '흑번 9수끝 오목승' 표기", async () => {
+await check("[명승부] 기보 화면에서 박제 → 프로필에 '명승부 1/1', 상대 닉네임·당시 점수, '흑번 9수끝 오목승' 표기", async () => {
   await A.goto(base + "/records?user=" + encodeURIComponent("방송인A"));
   await A.locator(".record-list li a").last().click(); // 친구매치(오목) 기보
   await A.getByRole("button", { name: /명승부로 박제/ }).click();
-  await A.getByRole("button", { name: /명승부 해제 · 1\/3/ }).waitFor();
+  await A.getByRole("button", { name: /명승부 해제 · 1\/1/ }).waitFor();
   await A.goto(base + "/profile");
-  await A.locator(".records h2", { hasText: "명승부 1/3" }).waitFor();
+  await A.locator(".records h2", { hasText: "명승부 1/1" }).waitFor();
   const fav = await A.locator(".records").first().locator(".record-list li").first().textContent();
   assert.match(fav, /viewer_b \(500\?\)/, fav);
   assert.match(fav, /(흑번 9수끝 오목승|백번 9수끝 오목패)/, fav);

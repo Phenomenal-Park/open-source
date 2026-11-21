@@ -71,7 +71,7 @@ export function formatRating(rating: number, provisional: boolean): string {
 }
 
 /** 명승부(박제) 한도 */
-export const FAVORITES_MAX = 3;
+export const FAVORITES_MAX = 1;
 
 export interface OnlineResult {
   /** 무승부면 null */

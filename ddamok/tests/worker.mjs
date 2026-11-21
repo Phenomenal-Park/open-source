@@ -515,34 +515,22 @@ await check("기보 보관 한도(테스트 2판): 오래된 기보는 정리, �
   assert.deepEqual([after.games, after.wins, after.losses], [me.games, me.wins, me.losses]);
 });
 
-await check("명승부: 1인 3판까지, 내가 둔 대국만", async () => {
+await check("명승부: 1인 1판, 내가 둔 대국만", async () => {
   const mine = (await api("/api/records?user=white_1")).data.games.map((g) => g.id);
   assert.ok(mine.length >= 2);
-  const other = (await api("/api/records?user=" + encodeURIComponent("흑돌왕"))).data.games[0].id;
-  for (const id of mine.slice(0, 2)) assert.equal((await api("/api/favorites", { gameId: id, on: true }, B.token)).status, 200);
+  assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, B.token)).data.count, 1);
   const c = await signup("outsider");
   await api("/api/verify", { code: c.devCode }, c.token);
   assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, c.token)).status, 403); // 남의 대국
   // 같은 판을 다시 눌러도 한도를 쓰지 않는다
-  assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, B.token)).data.count, 2);
-  const third = other !== mine[0] && other !== mine[1] ? other : null;
-  const pool = [...new Set([...mine, ...(third ? [third] : [])])];
-  const ids = (await api("/api/records?user=white_1")).data.games.map((g) => g.id);
-  // 3판째까지 성공, 4판째는 거절(기보가 모자라면 가능한 만큼만 확인)
-  const extra = ids.filter((id) => !mine.slice(0, 2).includes(id));
-  if (extra.length) {
-    assert.equal((await api("/api/favorites", { gameId: extra[0], on: true }, B.token)).data.count, 3);
-    const fourth = (await api("/api/records?user=white_1")).data.games.map((g) => g.id).find((id) => ![...mine.slice(0, 2), extra[0]].includes(id));
-    if (fourth) {
-      const full = await api("/api/favorites", { gameId: fourth, on: true }, B.token);
-      assert.equal(full.status, 409);
-      assert.equal(full.data.error, "fav_full");
-    }
-  }
-  void pool;
+  assert.equal((await api("/api/favorites", { gameId: mine[0], on: true }, B.token)).data.count, 1);
+  // 2판째는 거절
+  const full = await api("/api/favorites", { gameId: mine[1], on: true }, B.token);
+  assert.equal(full.status, 409);
+  assert.equal(full.data.error, "fav_full");
   const list = (await api("/api/records?user=white_1")).data;
-  assert.ok(list.favorites.length <= 3);
-  assert.equal(list.favoritesMax, 3);
+  assert.equal(list.favorites.length, 1);
+  assert.equal(list.favoritesMax, 1);
 });
 
 await check("레이팅매치에서 사람이 없으면 15초 뒤 가장 가까운 AI(허용 시), AI는 서버가 둔다", async () => {
