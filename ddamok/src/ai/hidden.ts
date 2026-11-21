@@ -455,6 +455,19 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
       .slice(0, 4);
     for (const x of far) if (x.s > 0) options.push({ p: x.p, hidden: true, v: clamp(value(x.p, true)) + x.s * FAR_LATENT });
   }
+  // 첫 수(백 돌이 아직 없음)에도 엉뚱한 곳에 숨길 수 있게: 천원에서 3~4칸 떨어진 자리 몇 곳을 후보로(판마다 다르게 뽑는다)
+  if (avoid && b.cells.every((x) => x !== 2)) {
+    const h = (n / 2) | 0;
+    const ring: number[] = [];
+    for (let p = 0; p < n * n; p++) {
+      const d = Math.max(Math.abs(((p / n) | 0) - h), Math.abs((p % n) - h));
+      if (!b.cells[p] && d >= 3 && d <= 4) ring.push(p);
+    }
+    for (let k = 0; k < 4 && ring.length; k++) {
+      const p = ring.splice(Math.floor(Math.random() * ring.length), 1)[0];
+      options.push({ p, hidden: true, v: clamp(value(p, true)) + FIRST_FAR_BONUS });
+    }
+  }
   return { options, jitter: { hidden: Math.max(HIDE_JITTER, fast.noise || 0), visible: fast.noise || 0 } };
 }
 
@@ -548,6 +561,8 @@ const HIDE_JITTER = 500;
 /** 초반에 이번 차례 숨길 마음이 있을 확률 */
 const HIDE_WILL = 0.5;
 
+/** 첫 수에 먼 곳에 숨길 때 더하는 값(들키지 않는 값 — 백 돌이 없어 잠재 가치를 셀 수 없다) */
+const FIRST_FAR_BONUS = 120;
 /** 먼 히든 자리의 잠재 가치 1점당 형세 점수 */
 const FAR_LATENT = 40;
 
@@ -601,4 +616,18 @@ export function swapColors(s: GameState): GameState {
     winner: s.winner ? other(s.winner) : null,
     swapped: !s.swapped,
   };
+}
+
+/** 숨긴다면 어디에: 백 AI의 숨김 후보(먼 곳 포함) 중 흔들림을 넣어 하나를 고른다. 숨길 수 없으면 null */
+export function chooseHideSpot(state: GameState, level: AiLevel, rand: Rng = Math.random): Position | null {
+  if (!canUseHidden(state) || !withHidden(level).fast) return null;
+  const plain = chooseMove(state, level, rand);
+  const { options, jitter } = whiteHideOptions(state, level, plain);
+  let best: HideOption | null = null, bestV = -Infinity;
+  for (const o of options) {
+    if (!o.hidden) continue;
+    const v = o.v + (rand() - 0.5) * 2 * jitter.hidden;
+    if (v > bestV) { bestV = v; best = o; }
+  }
+  return best ? toPos(best.p, state.config.boardSize) : null;
 }
