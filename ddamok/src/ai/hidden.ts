@@ -206,6 +206,8 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   // 비슷하게 좋은 수(가장 좋은 값과 VARY_EV 안쪽) 중 무작위 — 같은 판을 되풀이하지 않게
   let bestV = -Infinity;
   for (const v of ev.values()) if (v > bestV) bestV = v;
+  // 대부분의 가설 판에서 진다고 읽히면 포기하지 말고, 보이는 판에서 가장 잘 버티는 수를 둔다
+  if (bestV <= -5e4) return chooseMove(view, plainLevel, rand);
   const vary = view.moveCount < 12 ? VARY_EV_OPENING : VARY_EV; // 초반엔 더 넓게 — 같은 응수를 되풀이해 읽히지 않게
   const near = [...ev].filter(([, v]) => v >= bestV - vary).map(([p]) => p);
   return toPos(near[Math.floor(rand() * near.length)], n);

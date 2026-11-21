@@ -276,6 +276,13 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     const v = x.s + (noise ? gaussian(rand) * noise : 0);
     if (v > bestV) { bestV = v; best = x; }
   }
+  // 질 것으로 읽혀도 포기하지 않는다: 깊게 보면 모든 수가 지는 판이면, 짧게(4수) 다시 읽어 지금 보이는 위협을
+  // 가장 잘 막는 자연스러운 수를 둔다(상대가 실수할 여지를 남긴다). 바로 이기는 수가 있으면 위에서 이미 둔다.
+  if (best.s <= -(WIN / 2) && scores.length > 1) {
+    const resist = new FastSearcher(b, level.width).searchRoot(Math.min(4, level.depth), Math.max(20, level.timeMs * 0.2), true, true, scores.slice(0, 12).map((x) => x.p)).scores;
+    const keep = resist.find((x) => x.s > -(WIN / 2)) ?? resist[0];
+    if (keep) return toPos(keep.p);
+  }
   if (!noise && level.vary && scores.length > 1 && Math.abs(best.s) < WIN / 2) {
     const alt = varyAmong(b, scores.slice(0, 3).map((x) => x.p), best.p, level, rand, key);
     if (alt >= 0) return toPos(alt);
