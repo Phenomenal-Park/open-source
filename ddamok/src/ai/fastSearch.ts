@@ -178,6 +178,7 @@ export class FastSearcher {
     this.focusOn = focus;
     const b = this.b, me = b.toMove;
     let roots = rootMoves ?? this.forcedReplies(me) ?? this.ordered(me, -1, 0);
+    if (!roots.length) return { scores: [], stats: { nodes: this.nodes, depth: 0, ms: 0 } }; // 볼 수가 없다(예: 후보가 가설 자리 하나뿐)
     let result = roots.map((p) => ({ p, s: b.moveScore(p, me) / 1000 }));
     let reached = 0;
     for (let d = 1; d <= maxDepth; d++) {

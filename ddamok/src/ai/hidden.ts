@@ -418,7 +418,7 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
     const s2 = simulateBlack(r.state);
     if (s2.isFinished) return s2.winner === "white" ? 1e9 : -1e9;
     const fb = FastBoard.fromState(s2);
-    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, fast.width).searchRoot(6, leafMs, false, true).scores[0].s;
+    return fb.winningMoves(2).length ? 1e8 : new FastSearcher(fb, fast.width).searchRoot(6, leafMs, false, true).scores[0]?.s ?? 0;
   };
   let findProb = (_p: number) => 0;
   const avoid = opts.avoidObvious ?? true; // 흑이 의심할 만한 뻔한 자리는 피한다(기본)
