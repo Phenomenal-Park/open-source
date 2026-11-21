@@ -3,7 +3,7 @@
 //   (흑이 그 자리를 누르면 드러나고 흑이 다시 두는 것까지 흉내 낸다.) 약한 단계는 가끔 무작위로 숨긴다.
 // - 흑: 숨은 돌이 있다는 것만 안다. "백 돌이 거기 있으면 백이 바로 이기는" 빈칸이 있으면 그 자리를 눌러 본다
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
-import { canScan, canUseHidden, createGameFromConfig, scanAt, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
+import { canScan, canUseHidden, createGameFromConfig, replayMagic, scanAt, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, WIN, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
@@ -67,7 +67,7 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
     }
     const r = tryMove(before, view.moves[i]);
     if (!r.ok) return [];
-    before = r.state;
+    before = replayMagic(r.state, view);
   }
   if (view.swapped) before = swapColors(before); // (양쪽 히든) 백이 흑의 숨은 돌을 읽을 때: 색을 바꾼 판
   const b0 = FastBoard.fromState(before);

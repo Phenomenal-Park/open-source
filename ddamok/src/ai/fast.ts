@@ -4,7 +4,7 @@
 // 형세 점수는 "5칸 창" 단위로 바뀐 부분만 갱신한다: 판 위 모든 5칸 창의 흑·백 돌 수를 들고 있다가,
 // 돌 하나가 놓이거나(따여서) 빠지면 그 칸을 지나는 최대 20개 창만 다시 센다.
 import type { GameState, Player } from "../game/types.ts";
-import { blockedCell } from "../game/rules.ts";
+import { blockedCells } from "../game/rules.ts";
 
 export const EMPTY = 0, BLACK = 1, WHITE = 2;
 /** (실험) ⓧ 자리: 아무도 둘 수 없고 줄을 끊는다 */
@@ -124,10 +124,9 @@ export class FastBoard {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
     }
-    const wall = blockedCell(s);
-    if (wall) b.addWall(wall.row * n + wall.col);
+    for (const wall of blockedCells(s)) b.addWall(wall.row * n + wall.col);
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
-    b.wallAnchor = !!s.config.greenStone;
+    b.wallAnchor = !!s.config.greenStone || !!s.config.randomMagic;
     b.wallCosts = !!s.config.scanCostsMove;
     // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)
     const h = s.hidden;

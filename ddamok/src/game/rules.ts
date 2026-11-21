@@ -11,6 +11,58 @@ export function blockedCell(state: GameState): Position | null {
   return state.config.blackBlock && s && !s.hit ? s.pos : null;
 }
 
+/** (실험) 아무도 둘 수 없는 중립 칸 전부: 흑 ⓧ/매직스톤 + 랜덤 매직스톤 */
+export function blockedCells(state: GameState): Position[] {
+  const out: Position[] = [];
+  const b = blockedCell(state);
+  if (b) out.push(b);
+  for (const m of state.magic ?? []) if (!m.hit) out.push(m.pos);
+  return out;
+}
+
+/** 이 중립 칸들이 따내기 받침이 되는가 */
+function anchorCells(state: GameState): Position[] {
+  const out: Position[] = [];
+  const b = blockedCell(state);
+  if (b && state.config.greenStone) out.push(b);
+  for (const m of state.magic ?? []) if (!m.hit) out.push(m.pos);
+  return out;
+}
+
+/** 랜덤 매직스톤이 나타날 차례인가(5수마다, 아직 이번 몫이 안 나왔을 때) */
+export const MAGIC_EVERY = 5;
+export function magicDue(state: GameState): boolean {
+  if (!state.config.randomMagic || state.isFinished || state.moves.length === 0 || state.moves.length % MAGIC_EVERY !== 0) return false;
+  return !(state.magic ?? []).some((m) => m.at === state.moves.length);
+}
+
+/** 매직스톤이 나타날 수 있는 자리: 천원 중심 9×9 안, 보이는 판에서 빈 교차점(숨은 돌 자리도 빈칸으로 보인다) */
+export function magicCandidates(state: GameState): Position[] {
+  const v = viewFor(state, null);
+  const c = centerOf(state.config.boardSize), out: Position[] = [];
+  const blocked = blockedCells(state);
+  for (let r = c.row - 4; r <= c.row + 4; r++) for (let cc = c.col - 4; cc <= c.col + 4; cc++) {
+    if (!inBounds(state.config.boardSize, r, cc) || v.board[r][cc] !== null) continue;
+    if (blocked.some((b) => b.row === r && b.col === cc)) continue;
+    out.push({ row: r, col: cc });
+  }
+  return out;
+}
+
+/** 기보 다시 두기용: source에 기록된 매직스톤 중 지금(target까지 둔 수)에 나타난 것을 target에 그대로 붙인다 */
+export function replayMagic(target: GameState, source: GameState): GameState {
+  const add = (source.magic ?? []).filter((m) => m.at === target.moves.length && !(target.magic ?? []).some((x) => x.at === m.at));
+  return add.length ? { ...target, magic: [...(target.magic ?? []), ...add] } : target;
+}
+
+/** 매직스톤을 pos에 나타나게 한다(차례는 그대로). 백의 숨은 돌 자리면 숨은 돌이 드러나고 매직스톤은 남지 않는다 */
+export function placeMagic(state: GameState, pos: Position): GameState {
+  const h = state.hidden;
+  const hit = !!h && h.index >= 0 && !h.revealed && samePos(h.pos, pos);
+  const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };
+  return { ...state, magic: [...(state.magic ?? []), rec], hidden: hit ? { ...h!, revealed: true } : state.hidden };
+}
+
 export function whyIllegal(state: GameState, position: Position, player: Player = state.currentPlayer): IllegalReason | null {
   if (state.isFinished) return "finished";                                   // 1. 종료 여부
   if (player !== state.currentPlayer) return "not-your-turn";                // 2. 차례
@@ -19,7 +71,7 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
     return "out-of-bounds";                                                  // 3. 판 내부
   }
   if (state.board[row][col] !== null) return "occupied";                    // 4. 빈 교차점
-  if (samePos(blockedCell(state), position)) return "occupied";             //    (실험) ⓧ 자리
+  if (blockedCells(state).some((b) => samePos(b, position))) return "occupied"; // (실험) ⓧ·매직스톤 자리
   // 흑의 첫 수(빈 판의 첫 착수)는 천원만
   if (state.config.firstMoveCenter && state.moveCount === 0 && !state.board.some((r) => r.some((c) => c !== null))) {
     const c = centerOf(state.config.boardSize);
@@ -164,7 +216,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
 
   // 6–7. 이번 착수점 기준 8방향 포획 대상 수집
   const immune = state.config.whiteFirstStoneImmune && state.moves.length >= 2 ? state.moves[1] : null;
-  const captured = getCapturedStones(board, pos, me, immune, state.config.greenStone ? blockedCell(state) : null);
+  const captured = getCapturedStones(board, pos, me, immune, anchorCells(state));
 
   // 8. 동시에 제거
   for (const { row, col } of captured) board[row][col] = null;
@@ -187,6 +239,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     hidden: opts.hidden && me === "white" ? { index: state.moves.length, pos, revealed: false } : state.hidden,
     hiddenB: opts.hidden && me === "black" ? { index: state.moves.length, pos, revealed: false } : state.hiddenB ?? null,
     scanW: state.scanW ?? null,
+    magic: state.magic,
     winner: null,
     winReason: null,
     winningLine: null,
@@ -226,7 +279,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     next.winReason = captureWin ? "capture" : "five";
     next.winningLine = line;
     next.isFinished = true;
-  } else if (!board.some((row, r) => row.some((c, cc) => c === null && !samePos(blockedCell(state), { row: r, col: cc })))) {
+  } else if (!board.some((row, r) => row.some((c, cc) => c === null && !blockedCells(state).some((b) => samePos(b, { row: r, col: cc }))))) {
     // 판이 다 찼고(포획으로 생긴 빈칸도 없음) 승자가 없으면 무승부
     next.winReason = "draw";
     next.isFinished = true;

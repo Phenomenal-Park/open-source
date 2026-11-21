@@ -134,3 +134,37 @@ describe("매직스톤: 쓰면 턴이 넘어간다 (실험)", () => {
     expect(r.state.currentPlayer).toBe("white");
   });
 });
+
+describe("매직스톤 랜덤 출현 (실험)", () => {
+  const rm = (hidden = true) => createGame(15, { hiddenMove: hidden, randomMagic: true, captureTarget: { black: 10, white: 10 } });
+
+  it("5수마다 나타날 차례이고, 9×9 안 빈칸에만, 양쪽 모두의 받침이 된다", async () => {
+    const { magicDue, magicCandidates, placeMagic } = await import("./rules.ts");
+    let s = seq(rm(), at(7, 7), at(5, 5), at(0, 0), at(5, 6));
+    expect(magicDue(s)).toBe(false);
+    s = seq(s, at(0, 2));
+    expect(magicDue(s)).toBe(true);
+    const cands = magicCandidates(s);
+    expect(cands.every((p) => Math.abs(p.row - 7) <= 4 && Math.abs(p.col - 7) <= 4)).toBe(true);
+    expect(cands).toContainEqual(at(5, 7));
+    expect(cands).not.toContainEqual(at(5, 5));
+    s = placeMagic(s, at(5, 7));
+    expect(magicDue(s)).toBe(false);
+    expect(s.currentPlayer).toBe("white");
+    expect(tryMove(s, at(5, 7))).toEqual({ ok: false, reason: "occupied" });
+    s = seq(s, at(1, 1));
+    const t = tryMove(s, at(5, 4)); // 흑 5,4 - 백 5,5 5,6 - 매직 5,7
+    if (!t.ok) throw new Error(t.reason);
+    expect(t.captured).toHaveLength(2);
+    expect(FastBoard.fromState(s).capturesAt(5 * 15 + 4, 1)).toHaveLength(2);
+  });
+
+  it("숨은 돌 자리에 나타나면 숨은 돌이 드러나고 매직스톤은 남지 않는다", async () => {
+    const { placeMagic, blockedCells } = await import("./rules.ts");
+    const s = seq(rm(), at(7, 7), { hidden: at(6, 6) });
+    const m = placeMagic(s, at(6, 6));
+    expect(m.hidden?.revealed).toBe(true);
+    expect(blockedCells(m)).toEqual([]);
+    expect(m.board[6][6]).toBe("white");
+  });
+});

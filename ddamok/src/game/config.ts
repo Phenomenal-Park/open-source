@@ -28,6 +28,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     scanCostsMove: overrides.scanCostsMove ?? false,
     blackBlock: overrides.blackBlock ?? false,
     greenStone: overrides.greenStone ?? false,
+    randomMagic: overrides.randomMagic ?? false,
   };
 }
 

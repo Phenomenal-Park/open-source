@@ -18,8 +18,8 @@ export function getCapturedStones(
   player: Player,
   /** (실험용) 절대 따이지 않는 돌 — 이 돌이 낀 두 돌은 둘 다 따이지 않는다 */
   immune: Position | null = null,
-  /** (실험) 초록돌: 양쪽 모두의 받침이 되는 중립 돌 자리 */
-  anchor: Position | null = null,
+  /** (실험) 매직스톤: 양쪽 모두의 받침이 되는 중립 돌 자리들 */
+  anchors: readonly Position[] = [],
 ): Position[] {
   const size = board.length;
   const enemy = opponent(player);
@@ -32,7 +32,7 @@ export function getCapturedStones(
     const r3 = position.row + 3 * dr, c3 = position.col + 3 * dc;
     if (!inBounds(size, r3, c3)) continue; // 판 밖으로 넘어가는 판정은 없다 (r1, r2는 r3보다 안쪽)
     if (board[r1][c1] !== enemy || board[r2][c2] !== enemy) continue;
-    if (board[r3][c3] !== player && !(anchor && anchor.row === r3 && anchor.col === c3)) continue;
+    if (board[r3][c3] !== player && !anchors.some((a) => a.row === r3 && a.col === c3)) continue;
     if (immune && ((immune.row === r1 && immune.col === c1) || (immune.row === r2 && immune.col === c2))) continue;
     for (const [r, c] of [[r1, c1], [r2, c2]] as const) {
       const key = r * size + c;
