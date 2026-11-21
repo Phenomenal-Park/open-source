@@ -146,15 +146,15 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
     if (block >= 0) return toPos(block, n);
   }
   const { timeMs: t, depth, width } = level.fast;
-  const hyp = belief.slice(0, 6); // 백이 숨길 자리를 섞으니(대부분 덜 뻔한 곳) 후보를 넓게 읽는다
+  const hyp = belief.slice(0, 4);
   // 거기 숨은 돌이 있으면 백이 막을 수 없는 넉을 만드는 자리는 순위가 낮아도 꼭 따로 읽는다(최소 6%로 친다).
   // 백은 천원에서 3~4칸 떨어진 곳에 숨기고 그쪽으로 줄을 이어 오는데, 흑 눈에는 별것 아닌 돌들로 보인다.
   // 거기 숨은 돌이 있으면 백이 바로 이기는 자리는 짐작상 낮아도 반드시 읽는다(엉뚱한 곳에 숨기고 줄을 이어 오는 백 대비)
-  for (const x of belief) if (x.danger1 && !hyp.includes(x) && hyp.length < 10) hyp.push({ ...x, w: Math.max(x.w, 0.1) });
-  for (const x of belief) if (x.danger2 && !hyp.includes(x) && hyp.length < 10) hyp.push({ ...x, w: Math.max(x.w, 0.06) });
-  for (const x of belief) if (x.dangerCap && !hyp.includes(x) && hyp.length < 10) hyp.push({ ...x, w: Math.max(x.w, 0.04) });
+  for (const x of belief) if (x.danger1 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.1) });
+  for (const x of belief) if (x.danger2 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.06) });
+  for (const x of belief) if (x.dangerCap && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.04) });
   const roots = new FastSearcher(vb, width).searchRoot(depth, t * 0.15, false, true).scores.slice(0, 10).map((x) => x.p);
-  for (const x of belief.slice(0, 4)) if (!roots.includes(x.pos)) roots.push(x.pos);
+  for (const x of belief.slice(0, 3)) if (!roots.includes(x.pos)) roots.push(x.pos);
   for (const x of belief) if ((x.danger1 || x.danger2 || x.dangerCap) && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
   const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
   const ev = new Map<number, number>(roots.map((p) => [p, 0]));
@@ -330,7 +330,7 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
     if (plan.length) {
       const ms = Math.max(15, fastLevel.timeMs * 0.12);
       let bestRisk = 0, bestCell = -1;
-      for (const x of belief.slice(0, 8)) {
+      for (const x of belief.slice(0, 6)) {
         if (x.w < SCAN_RISK_MIN_W) continue; // 거기 있을 법하지 않은 자리에 한 번뿐인 스캔을 쓰지 않는다
         const board = view.board.map((r) => r.slice());
         board[(x.pos / n) | 0][x.pos % n] = "white";
@@ -682,7 +682,7 @@ const SCAN_D2 = 0.1;
 /** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
 const SCAN_RISK = 300;
 /** 지우기용 스캔도 이 의심(확률) 이상인 자리에만 — 20% 미만 자리에 쓴 6번은 하나도 맞지 않았다 */
-const SCAN_RISK_MIN_W = 0.25;
+const SCAN_RISK_MIN_W = 0.2;
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
 function simulateBlack(s: GameState): GameState {
