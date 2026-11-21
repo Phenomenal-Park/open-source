@@ -441,6 +441,10 @@ function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Posi
   }
   if (best < 0) return null;
   if (lost) return bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
+  // 이 판단은 보이는 판만 읽는다. 숨은 돌이 아직 안 드러났으면 착수(숨은 돌 가능성까지 읽는 수)에 맡긴다
+  // (1·2세트: 숨은 돌이 남은 채 매직스톤을 쓴 5판 흑 0승 — 그 사이 숨은 돌로 공격당했다)
+  const h = view.hidden;
+  if (h && h.index >= 0 && !h.revealed) return null;
   return bestS - base[0].s >= MAGIC_MARGIN ? { pos: toPos(best, n), reason: "green" } : null;
 }
 /** 매직스톤(턴을 씀)을 흑돌 대신 둘 기준(형세 점수): 흑돌만큼 좋으면 쓴다 — 끝까지 안 쓰면 그냥 버려진다 */
