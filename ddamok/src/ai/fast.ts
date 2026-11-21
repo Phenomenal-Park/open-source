@@ -349,6 +349,17 @@ export class FastBoard {
     return s;
   }
 
+  /** color가 빈칸 pos에 두면 자기 줄이 얼마나 자라는가(상대 돌이 없는 5칸 창들의 값 증가 합 — 막는 값은 뺀 공격 값) */
+  ownGain(pos: number, color: Color): number {
+    let s = 0;
+    for (const w of this.cellWindows[pos]) {
+      const mine = color === BLACK ? this.wb[w] : this.ww[w];
+      const theirs = color === BLACK ? this.ww[w] : this.wb[w];
+      if (!theirs && mine < 5) s += mine === 4 ? 100_000 : WIN_VALUE[mine + 1] - WIN_VALUE[mine];
+    }
+    return s;
+  }
+
   /** color가 pos에 두면 "4개 + 빈칸 1" 창이 생기는가(넉 점을 만드는 수 — 연속 위협 후보) */
   makesFour(pos: number, color: Color): boolean {
     for (const w of this.cellWindows[pos]) {

@@ -451,7 +451,7 @@ function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Posi
 const MAGIC_MARGIN = 0;
 
 /**
- * (실험) 백 지뢰 판단: 착수 대신 묻을 자리(없으면 null). 흑은 지뢰를 못 보므로, 흑이 두려는 자리(흑의 이기는 자리·좋은 수)에 묻으면
+ * (실험) 백 지뢰 판단: 착수 대신 묻을 자리(없으면 null). 흑은 지뢰를 못 보므로, 흑이 뻗어 나가는 방향(흑 줄의 끝·틈, 흑의 이기는 자리)에 묻으면
  * 흑이 밟아 그 자리가 막히고 흑은 한 수를 잃는다. 후보마다 "흑이 실제로 둘 수(지뢰를 모르는 흑의 짧은 읽기)"를 흉내 내,
  * 밟으면 백 차례로, 안 밟으면 흑이 그 수를 둔 뒤 백 차례로 읽어 보통 착수(가장 좋은 수)와 비교한다. 더 나을 때만 묻는다.
  */
@@ -465,8 +465,11 @@ export function mineDecision(state: GameState, level: AiLevel): Position | null 
   const normal = new FastSearcher(b, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores[0]?.s ?? 0;
   const blackView = { ...state, currentPlayer: "black" as const };
   const vb = FastBoard.fromState(blackView); // 지뢰 없는(흑이 보는) 판, 흑 차례
+  // 후보: 흑이 이기는 자리 + 흑 자신의 줄이 가장 크게 자라는 자리(공격 방향). 흑이 백을 막으려고 둘 수비 자리는 빼고 본다 —
+  // 거기 묻으면 생긴 매직스톤이 백의 줄을 막아 백이 손해다.
   const cands = new Set<number>(vb.winningMoves(1));
-  for (const x of new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.15), false, true).scores.slice(0, 4)) cands.add(x.p);
+  const grow = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN).sort((a, b) => b.g - a.g).slice(0, 6);
+  for (const x of grow) cands.add(x.p);
   const blackPick = (st: GameState): number => {
     const fb = FastBoard.fromState({ ...st, mine: null });
     const w = fb.winningMoves(1);
@@ -474,7 +477,7 @@ export function mineDecision(state: GameState, level: AiLevel): Position | null 
     return new FastSearcher(fb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.12), false, true).scores[0]?.p ?? -1;
   };
   let best = -1, bestV = normal;
-  for (const p of [...cands].slice(0, 6)) {
+  for (const p of [...cands].slice(0, 8)) {
     const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
     const m = blackPick(placed);
     if (m < 0) continue;
@@ -488,6 +491,8 @@ export function mineDecision(state: GameState, level: AiLevel): Position | null 
 }
 /** 지뢰를 보통 착수 대신 묻을 기준(형세 점수) */
 const MINE_MARGIN = 0;
+/** 지뢰 후보로 볼 흑 줄의 최소 성장(흑 2개 창이 3개가 되는 정도 이상) */
+const MINE_MIN_GAIN = 100;
 
 /** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
 const SHIELD_D1 = 0.08;
