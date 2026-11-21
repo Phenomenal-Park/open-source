@@ -16,6 +16,7 @@ export function blockedCells(state: GameState): Position[] {
   const out: Position[] = [];
   const b = blockedCell(state);
   if (b) out.push(b);
+  if (state.config.scanWall && state.scan?.hit) out.push(state.scan.pos); // (실험) 스캔에 걸려 사라진 숨은 돌 자리
   for (const m of state.magic ?? []) if (!m.hit) out.push(m.pos);
   return out;
 }

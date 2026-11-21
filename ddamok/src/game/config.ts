@@ -26,6 +26,7 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     mutualHidden: overrides.mutualHidden ?? false,
     scanRemoves: overrides.scanRemoves ?? false,
     scanCostsMove: overrides.scanCostsMove ?? false,
+    scanWall: overrides.scanWall ?? false,
     blackBlock: overrides.blackBlock ?? false,
     greenStone: overrides.greenStone ?? false,
     randomMagic: overrides.randomMagic ?? false,

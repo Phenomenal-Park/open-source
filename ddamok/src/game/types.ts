@@ -45,6 +45,8 @@ export interface GameConfig {
    * 이 설정에서는 "숨긴 뒤 5수면 공개"가 없다. 기본 false
    */
   mutualHidden?: boolean;
+  /** (실험) 스캔이 맞아 숨은 돌을 걷어 낸 자리를 ⓧ(아무도 못 두는 칸, 따내기 받침 아님)로 남긴다 */
+  scanWall?: boolean;
   /** (실험) 스캔이 맞으면 상대의 숨은 돌을 걷어 낸다(판에서 없어진다) */
   scanRemoves?: boolean;
   /** (실험) 스캔에 한 수를 쓴다(스캔하면 차례가 넘어간다) */

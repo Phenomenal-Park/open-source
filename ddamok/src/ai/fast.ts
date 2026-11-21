@@ -125,11 +125,12 @@ export class FastBoard {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
     }
-    // 중립 칸: 흑 ⓧ(초록돌 규칙이면 받침) + 랜덤 매직스톤(늘 받침)
+    // 중립 칸: 흑 ⓧ(초록돌 규칙이면 받침) · 스캔 ⓧ(받침 아님) · 매직스톤(늘 받침)
     const own = blockedCell(s);
+    const magicAt = (p: { row: number; col: number }) => (s.magic ?? []).some((m) => !m.hit && m.pos.row === p.row && m.pos.col === p.col);
     for (const wall of blockedCells(s)) {
       const isOwn = !!own && own.row === wall.row && own.col === wall.col;
-      b.addWall(wall.row * n + wall.col, isOwn ? !!s.config.greenStone : true);
+      b.addWall(wall.row * n + wall.col, isOwn ? !!s.config.greenStone : magicAt(wall));
     }
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
     // (실험) 백 지뢰(백이 보는 판에서만): 백은 그 자리에 못 두고, 흑이 두면 중립 돌이 된다 → 양쪽 모두에게 막힌 칸으로 본다

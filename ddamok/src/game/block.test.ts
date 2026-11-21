@@ -277,3 +277,19 @@ describe("지뢰: 밟아도 차례 유지 (실험)", () => {
     expect(t2.ok && t2.state.currentPlayer).toBe("white");
   });
 });
+
+describe("스캔 적중 자리 ⓧ (실험)", () => {
+  it("숨은 돌이 스캔에 걸려 사라진 자리는 아무도 못 두고, 따내기 받침도 아니다", async () => {
+    const { blockedCells } = await import("./rules.ts");
+    let s = seq(createGame(15, { hiddenMove: true, scanRemoves: true, scanWall: true, noTimedReveal: true, captureTarget: { black: 8, white: 8 } }), at(7, 7), { hidden: at(5, 5) }, at(9, 9), at(0, 0));
+    const r = scanAt(s, at(5, 5));
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.hit).toBe(true);
+    s = r.state;
+    expect(s.board[5][5]).toBeNull();
+    expect(blockedCells(s)).toEqual([at(5, 5)]);
+    expect(tryMove(s, at(5, 5))).toEqual({ ok: false, reason: "occupied" });
+    const b = FastBoard.fromState(s);
+    expect(b.cells[5 * 15 + 5]).toBe(WALL);
+  });
+});
