@@ -25,7 +25,7 @@ const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) ||
 const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
   rule === "mine"
     ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, mineScan: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 8/8, 밟으면 흑 차례 잃음, 흑 스캔 1번(찾으면 지뢰가 사라지고 흑 차례 그대로)
-    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 }, noTimedReveal: true } : {}) }); // AI 대국 히든룰: 8/8, 숨긴 돌은 저절로 공개되지 않는다
+    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 }, noTimedReveal: true, scanRemoves: true } : {}) }); // AI 대국 히든룰: 8/8, 숨긴 돌은 저절로 공개되지 않고, 흑 스캔에 걸리면 사라진다
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
