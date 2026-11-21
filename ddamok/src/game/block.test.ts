@@ -63,3 +63,20 @@ describe("흑 ⓧ (실험)", () => {
     expect(rep.ok && blockedCell(rep.state)).toEqual(at(12, 12));
   });
 });
+
+describe("ⓧ를 아는 수읽기 (실험)", () => {
+  it("흑에게 ⓧ가 남아 있으면 백은 열린 넷을 확실한 승리로 보지 않는다", async () => {
+    const { FastSearcher, WIN } = await import("../ai/fastSearch.ts");
+    // 백 6,4~6,6 열린 삼, 백 차례: 6,7(또는 6,3)이면 열린 넷
+    const w = seq(on(), at(7, 7), at(6, 4), at(0, 0), at(6, 5), at(0, 2), at(6, 6), at(0, 4));
+    expect(w.currentPlayer).toBe("white");
+    const b1 = FastBoard.fromState(w);
+    expect(b1.wallAvail).toBe(true);
+    const withX = new FastSearcher(b1, 12).searchRoot(4, 300, false, true).scores[0].s;
+    const b2 = FastBoard.fromState(w);
+    b2.setWallAvail(false);
+    const without = new FastSearcher(b2, 12).searchRoot(4, 300, false, true).scores[0].s;
+    expect(without).toBeGreaterThanOrEqual(WIN / 2);
+    expect(withX).toBeLessThan(WIN / 2);
+  });
+});

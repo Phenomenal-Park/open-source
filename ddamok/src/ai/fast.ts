@@ -126,6 +126,7 @@ export class FastBoard {
     }
     const wall = blockedCell(s);
     if (wall) b.addWall(wall.row * n + wall.col);
+    if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
     b.caps = [0, s.capturedByBlack, s.capturedByWhite];
     b.toMove = s.currentPlayer === "black" ? BLACK : WHITE;
     return b;
@@ -149,6 +150,25 @@ export class FastBoard {
     this.cells[pos] = WALL;
     this.empties--;
     this.hash ^= 0x5bd1e995 ^ pos;
+  }
+
+  /** addWall 되돌리기(수읽기 안에서 흑의 ⓧ를 가정해 볼 때) */
+  removeWall(pos: number) {
+    for (const w of this.cellWindows[pos]) {
+      this.wb[w]--; this.ww[w]--;
+      const b = this.wb[w], wh = this.ww[w];
+      if (!wh && b && b < 5) { this.cnt[5 + b]++; if (b === 4) this.fours[1]++; }
+      if (!b && wh && wh < 5) { this.cnt[10 + wh]++; if (wh === 4) this.fours[2]++; }
+    }
+    this.cells[pos] = EMPTY;
+    this.empties++;
+    this.hash ^= 0x5bd1e995 ^ pos;
+  }
+
+  /** (실험) 흑이 아직 ⓧ를 쓸 수 있는가 — 수읽기는 "백의 결정타(막을 곳 둘 이상)를 흑이 ⓧ+착수로 막는" 경우까지 본다 */
+  wallAvail = false;
+  setWallAvail(v: boolean) {
+    if (v !== this.wallAvail) { this.wallAvail = v; this.hash ^= 0x2545f491; }
   }
 
   /** 돌 하나 놓기/빼기의 기본 처리(창 점수·근처·해시) */

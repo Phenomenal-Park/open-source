@@ -112,6 +112,24 @@ export class FastSearcher {
     if (!moves.length) return -(WIN - ply);
     const a0 = alpha;
     let best = -Infinity, bestMove = moves[0];
+    // (실험) 흑 ⓧ: 백이 막을 곳이 둘 이상인 결정타를 만들었으면, 흑은 그중 하나를 ⓧ로 막고(차례 그대로) 이어서 둘 수 있다
+    if (forced && me === 1 && b.wallAvail) {
+      const threats = b.winningMoves(2);
+      if (threats.length >= 2) {
+        for (const t of threats) {
+          b.addWall(t); b.setWallAvail(false);
+          const v = this.node(depth, alpha, beta, ply);
+          b.setWallAvail(true); b.removeWall(t);
+          if (v > best) best = v;
+          if (v > alpha) alpha = v;
+          if (alpha >= beta) break;
+        }
+        if (alpha >= beta) {
+          this.tt.set(key, { depth, score: best, flag: 1, move: bestMove });
+          return best;
+        }
+      }
+    }
     for (const m of moves) {
       const res = b.play(m);
       const v = res === 1 ? WIN - ply : res === 2 ? 0 : -this.node(forced ? depth : depth - 1, -beta, -alpha, ply + 1);
@@ -150,6 +168,8 @@ export class FastSearcher {
       // 이제 상대 차례: 내가 다음에 이길 자리가 있어야 강제수
       const threats = b.winningMoves(me);
       if (!threats.length) { b.undo(); continue; }
+      // (실험) 흑에게 ⓧ가 남아 있으면 백의 쌍넉도 막힌다고 보고, 확실한 승리로 치지 않는다
+      if (op === 1 && b.wallAvail && threats.length >= 2) { b.undo(); continue; }
       const replies = new Set(threats);
       for (const q of b.candidates()) if (b.capturesAt(q, op).length) replies.add(q);
       let allWin = true;

@@ -362,6 +362,7 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
     const d = scanDecision(view, level);
     if (d) return { pos: d.pos, reason: "hidden" };
   }
+  vb.setWallAvail(false); // ⓧ 없이 버틸 수 있는지 본다
   const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores;
   if (!base.length || base[0].s > -(WIN / 2)) return null;
   const cands = new Set(vb.winningMoves(2));
