@@ -107,7 +107,7 @@ export const BLACK_HIDDEN_FROM = 4;
 /** 지금 차례인 쪽이 히든을 쓸 수 있는가(보통은 백만, 양쪽 히든이면 흑도 세 번째 수부터) */
 export function canUseHidden(state: GameState): boolean {
   if (!state.config.hiddenMove || state.isFinished) return false;
-  if (state.currentPlayer === "white") return state.hidden === null;
+  if (state.currentPlayer === "white") return state.hidden === null && state.moveCount >= (state.config.whiteHiddenFrom ?? 0);
   return !!state.config.mutualHidden && (state.hiddenB ?? null) === null && state.moveCount >= BLACK_HIDDEN_FROM;
 }
 

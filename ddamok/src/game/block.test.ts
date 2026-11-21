@@ -186,3 +186,14 @@ describe("실드 + 랜덤 매직스톤 (실험)", () => {
     expect(scanAt({ ...s, scan: null }, at(9, 7))).toEqual({ ok: false, reason: "occupied" });
   });
 });
+
+describe("백 히든 시작 때 (실험)", () => {
+  it("whiteHiddenFrom 5면 백의 세 번째 수부터 숨길 수 있다", () => {
+    const s = createGame(15, { hiddenMove: true, whiteHiddenFrom: 5 });
+    const s1 = seq(s, at(7, 7));
+    expect(tryMove(s1, at(7, 8), undefined, { hidden: true })).toEqual({ ok: false, reason: "hidden-unavailable" });
+    const s5 = seq(s1, at(7, 8), at(8, 8), at(6, 6), at(9, 9));
+    expect(s5.moveCount).toBe(5);
+    expect(tryMove(s5, at(5, 5), undefined, { hidden: true }).ok).toBe(true);
+  });
+});

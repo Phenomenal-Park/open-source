@@ -68,6 +68,8 @@ export interface GameConfig {
   randomMagic?: boolean;
   /** (실험) "숨긴 뒤 5수면 공개"를 끈다 */
   noTimedReveal?: boolean;
+  /** (실험) 백이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수). 5 = 백의 세 번째 수. 기본 0(언제든) */
+  whiteHiddenFrom?: number;
 }
 
 /** 흑 스캔: 백이 히든을 쓴 뒤 한 판에 한 번, 흑 차례에 교차점 하나에 숨은 돌이 있는지 본다(차례는 그대로) */

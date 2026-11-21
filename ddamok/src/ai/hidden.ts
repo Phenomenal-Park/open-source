@@ -541,9 +541,9 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
     const w = new Map(rank.map((x, i) => [x.p, 0.7 ** i] as const));
     const wsum = [...w.values()].reduce((a, x) => a + x, 0) || 1;
     findProb = (p) => Math.min(0.9, 2 * ((w.get(p) ?? 0) / wsum));
-    // (매직스톤 실험) 흑이 곧 둘 법한 자리(흑 입장 좋은 수 위 8곳)에 숨기면 흑의 착수에 부딪혀 드러난다
-    // (1세트: 흑이 착수로 찾은 32판에서 백 6승). 그런 자리도 들킬 확률로 친다.
-    if (state.config.blackBlock) {
+    // 흑이 곧 둘 법한 자리(흑 입장 좋은 수 위 8곳)에 숨기면 흑의 착수에 부딪혀 드러난다
+    // (매직스톤 실험 1세트: 흑이 착수로 찾은 32판에서 백 6승 → 이렇게 고친 뒤 첫 수에 숨긴 판 백 승률 17% → 67%). 그런 자리도 들킬 확률로 친다.
+    {
       const rb = b.candidates().map((p) => ({ p, s: b.moveScore(p, 1) })).sort((x, y) => y.s - x.s).slice(0, 8);
       const wb = new Map(rb.map((x, i) => [x.p, 0.7 ** i] as const));
       const wbsum = [...wb.values()].reduce((a, x) => a + x, 0) || 1;
