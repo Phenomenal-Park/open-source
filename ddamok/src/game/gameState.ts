@@ -20,6 +20,8 @@ export function createGameFromConfig(config: GameConfig): GameState {
     moves: [],
     hidden: null,
     scan: null,
+    hiddenB: null,
+    scanW: null,
     winner: null,
     winReason: null,
     winningLine: null,

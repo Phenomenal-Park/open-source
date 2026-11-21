@@ -40,6 +40,11 @@ export interface GameConfig {
   secondMoveLineBan: "none" | "cross" | "star";
   /** 백 히든: 백은 한 판에 한 번, 돌을 숨겨서 둘 수 있다(같은 화면 2인 대국에서는 끈다). 기본 false */
   hiddenMove: boolean;
+  /**
+   * (실험) 양쪽 히든: 흑도 히든 1번(흑의 세 번째 수부터), 백도 스캔 1번(흑이 숨긴 뒤).
+   * 이 설정에서는 "숨긴 뒤 5수면 공개"가 없다. 기본 false
+   */
+  mutualHidden?: boolean;
 }
 
 /** 흑 스캔: 백이 히든을 쓴 뒤 한 판에 한 번, 흑 차례에 교차점 하나에 숨은 돌이 있는지 본다(차례는 그대로) */
@@ -78,6 +83,12 @@ export interface GameState {
   hidden: HiddenStone | null;
   /** 흑 스캔(쓰지 않았으면 null) */
   scan: ScanRecord | null;
+  /** (양쪽 히든) 흑이 숨겨 둔 돌 */
+  hiddenB?: HiddenStone | null;
+  /** (양쪽 히든) 백 스캔 */
+  scanW?: ScanRecord | null;
+  /** (AI용) 흑백을 맞바꿔 본 판인가 */
+  swapped?: boolean;
 
   /** 무승부면 null(winReason "draw") */
   winner: Player | null;

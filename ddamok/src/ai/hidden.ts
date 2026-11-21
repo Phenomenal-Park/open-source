@@ -65,6 +65,7 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
     if (!r.ok) return [];
     before = r.state;
   }
+  if (view.swapped) before = swapColors(before); // (양쪽 히든) 백이 흑의 숨은 돌을 읽을 때: 색을 바꾼 판
   const b0 = FastBoard.fromState(before);
   // "내가 백이라면 어디 숨겼을까"(같은 엔진으로 흉내) — 있으면 사전 확률에 크게 더한다
   const model = modelLevel ? whiteHideModel(before, modelLevel) : null;
@@ -577,4 +578,27 @@ function latent(b: FastBoard, p: number, n: number): number {
     if (ok && w >= 1 && w <= 2) v += w;
   }
   return v;
+}
+
+/**
+ * (양쪽 히든) 흑과 백을 맞바꾼 판: 흑의 숨은 돌을 읽는 백이 "흑 입장의 추리"를 그대로 쓰도록.
+ * 돌 색·차례·따낸 수·따냄 목표·숨은 돌/스캔을 서로 바꾼다. 수의 좌표는 그대로다.
+ */
+export function swapColors(s: GameState): GameState {
+  const sw = (c: GameState["board"][number][number]) => (c === "black" ? "white" : c === "white" ? "black" : c);
+  const other = (p: "black" | "white"): "black" | "white" => (p === "black" ? "white" : "black");
+  return {
+    ...s,
+    config: { ...s.config, captureTarget: { black: s.config.captureTarget.white, white: s.config.captureTarget.black } },
+    board: s.board.map((r) => r.map(sw)),
+    currentPlayer: other(s.currentPlayer),
+    capturedByBlack: s.capturedByWhite,
+    capturedByWhite: s.capturedByBlack,
+    hidden: s.hiddenB ?? null,
+    hiddenB: s.hidden,
+    scan: s.scanW ?? null,
+    scanW: s.scan,
+    winner: s.winner ? other(s.winner) : null,
+    swapped: !s.swapped,
+  };
 }

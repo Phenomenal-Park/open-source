@@ -41,15 +41,21 @@ export interface MoveOptions {
 
 const samePos = (a: Position | null | undefined, b: Position | null | undefined) => !!a && !!b && a.row === b.row && a.col === b.col;
 
-/** 백 히든을 지금 쓸 수 있는가 */
+/** 흑이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수): 흑의 세 번째 수 */
+export const BLACK_HIDDEN_FROM = 4;
+
+/** 지금 차례인 쪽이 히든을 쓸 수 있는가(보통은 백만, 양쪽 히든이면 흑도 세 번째 수부터) */
 export function canUseHidden(state: GameState): boolean {
-  return state.config.hiddenMove && !state.isFinished && state.currentPlayer === "white" && state.hidden === null;
+  if (!state.config.hiddenMove || state.isFinished) return false;
+  if (state.currentPlayer === "white") return state.hidden === null;
+  return !!state.config.mutualHidden && (state.hiddenB ?? null) === null && state.moveCount >= BLACK_HIDDEN_FROM;
 }
 
 /** 백이 히든을 누르고 제한 시간 안에 두지 못했다: 이 판의 히든 기회가 사라진다(백 차례 그대로) */
 export function forfeitHidden(state: GameState): GameState {
   if (!canUseHidden(state)) return state;
-  return { ...state, hidden: { index: -1, pos: { row: -1, col: -1 }, revealed: true } };
+  const gone = { index: -1, pos: { row: -1, col: -1 }, revealed: true };
+  return state.currentPlayer === "white" ? { ...state, hidden: gone } : { ...state, hiddenB: gone };
 }
 
 /** 숨긴 뒤 백이 이만큼 더 두면 숨은 돌이 드러난다 */
@@ -58,15 +64,20 @@ export const HIDDEN_TURNS = 5;
 /** 숨은 돌이 드러나기까지 남은 백의 수(숨기지 않았거나 이미 드러났으면 null) */
 export function hiddenTurnsLeft(state: GameState): number | null {
   const h = state.hidden;
-  if (!h || h.revealed || h.index < 0) return null;
+  if (!h || h.revealed || h.index < 0 || state.config.mutualHidden) return null;
   const whiteMovesSince = Math.floor((state.moves.length - 1 - h.index) / 2);
   return Math.max(0, HIDDEN_TURNS - whiteMovesSince);
 }
 
 /** 흑 스캔을 지금 쓸 수 있는가: 백이 히든을 썼고, 아직 드러나지 않았고, 흑 차례이고, 이 판에서 스캔을 안 썼을 때 */
 export function canScan(state: GameState): boolean {
-  const h = state.hidden;
-  return state.config.hiddenMove && !state.isFinished && state.currentPlayer === "black" && state.scan === null && !!h && h.index >= 0 && !h.revealed;
+  if (!state.config.hiddenMove || state.isFinished) return false;
+  if (state.currentPlayer === "black") {
+    const h = state.hidden;
+    return state.scan === null && !!h && h.index >= 0 && !h.revealed;
+  }
+  const hb = state.hiddenB;
+  return !!state.config.mutualHidden && (state.scanW ?? null) === null && !!hb && hb.index >= 0 && !hb.revealed;
 }
 
 /**
@@ -77,13 +88,16 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
   if (!canScan(state)) return { ok: false, reason: "scan-unavailable" };
   const n = state.config.boardSize;
   if (!Number.isInteger(pos?.row) || !Number.isInteger(pos?.col) || pos.row < 0 || pos.col < 0 || pos.row >= n || pos.col >= n) return { ok: false, reason: "out-of-bounds" };
-  const h = state.hidden!;
+  const byBlack = state.currentPlayer === "black";
+  const h = (byBlack ? state.hidden : state.hiddenB)!;
   const hit = samePos(h.pos, pos);
   if (!hit && state.board[pos.row][pos.col] !== null) return { ok: false, reason: "occupied" };
+  const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };
+  const h2 = hit ? { ...h, revealed: true } : h;
   return {
     ok: true,
     hit,
-    state: { ...state, scan: { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit }, hidden: hit ? { ...h, revealed: true } : h, lastCaptured: [] },
+    state: byBlack ? { ...state, scan: rec, hidden: h2, lastCaptured: [] } : { ...state, scanW: rec, hiddenB: h2, lastCaptured: [] },
   };
 }
 
@@ -91,12 +105,22 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
  * `viewer`에게 보이는 판. 아직 드러나지 않은 백 히든 돌은 백만 볼 수 있다(흑·관전자에게는 빈칸, 기보 좌표도 가린다).
  */
 export function viewFor(state: GameState, viewer: Player | null): GameState {
-  const h = state.hidden;
-  if (!h || h.revealed || viewer === "white" || h.pos.row < 0) return state;
-  const board = state.board.map((r) => r.slice());
-  if (board[h.pos.row][h.pos.col] === "white") board[h.pos.row][h.pos.col] = null;
-  const moves = state.moves.map((m, i) => (i === h.index ? { row: -1, col: -1 } : m));
-  return { ...state, board, moves, lastMove: samePos(state.lastMove, h.pos) ? null : state.lastMove, hidden: { ...h, pos: { row: -1, col: -1 } } };
+  let s = state;
+  const h = s.hidden;
+  if (h && !h.revealed && viewer !== "white" && h.pos.row >= 0) {
+    const board = s.board.map((r) => r.slice());
+    if (board[h.pos.row][h.pos.col] === "white") board[h.pos.row][h.pos.col] = null;
+    const moves = s.moves.map((m, i) => (i === h.index ? { row: -1, col: -1 } : m));
+    s = { ...s, board, moves, lastMove: samePos(s.lastMove, h.pos) ? null : s.lastMove, hidden: { ...h, pos: { row: -1, col: -1 } } };
+  }
+  const hb = s.hiddenB;
+  if (hb && !hb.revealed && viewer !== "black" && hb.pos.row >= 0) {
+    const board = s.board.map((r) => r.slice());
+    if (board[hb.pos.row][hb.pos.col] === "black") board[hb.pos.row][hb.pos.col] = null;
+    const moves = s.moves.map((m, i) => (i === hb.index ? { row: -1, col: -1 } : m));
+    s = { ...s, board, moves, lastMove: samePos(s.lastMove, hb.pos) ? null : s.lastMove, hiddenB: { ...hb, pos: { row: -1, col: -1 } } };
+  }
+  return s;
 }
 
 /**
@@ -108,6 +132,10 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   const h = state.hidden;
   if (!opts.hidden && h && !h.revealed && !state.isFinished && player === state.currentPlayer && player === "black" && samePos(h.pos, position)) {
     return { ok: true, state: { ...state, hidden: { ...h, revealed: true }, lastCaptured: [] }, captured: [], revealedHidden: true };
+  }
+  const hb0 = state.hiddenB;
+  if (!opts.hidden && hb0 && !hb0.revealed && !state.isFinished && player === state.currentPlayer && player === "white" && samePos(hb0.pos, position)) {
+    return { ok: true, state: { ...state, hiddenB: { ...hb0, revealed: true }, lastCaptured: [] }, captured: [], revealedHidden: true };
   }
   const reason = whyIllegal(state, position, player);
   if (reason) return { ok: false, reason };
@@ -142,7 +170,9 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     lastCaptured: captured,
     moves: [...state.moves, pos],
     scan: state.scan ?? null,
-    hidden: opts.hidden ? { index: state.moves.length, pos, revealed: false } : state.hidden,
+    hidden: opts.hidden && me === "white" ? { index: state.moves.length, pos, revealed: false } : state.hidden,
+    hiddenB: opts.hidden && me === "black" ? { index: state.moves.length, pos, revealed: false } : state.hiddenB ?? null,
+    scanW: state.scanW ?? null,
     winner: null,
     winReason: null,
     winningLine: null,
@@ -155,7 +185,15 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     const anchored = me === "white" && DIRECTIONS.some(([dr, dc]) =>
       pos.row + 3 * dr === hs.pos.row && pos.col + 3 * dc === hs.pos.col
       && captured.some((c) => c.row === pos.row + dr && c.col === pos.col + dc));
-    if (opts.hidden || anchored || captured.some((c) => samePos(c, hs.pos))) next.hidden = { ...hs, revealed: true };
+    if ((opts.hidden && me === "white") || anchored || captured.some((c) => samePos(c, hs.pos))) next.hidden = { ...hs, revealed: true };
+  }
+  // 흑 히든도 같은 방식으로 드러난다
+  const hbs = next.hiddenB;
+  if (hbs && !hbs.revealed && hbs.index >= 0 && captured.length) {
+    const anchoredB = me === "black" && DIRECTIONS.some(([dr, dc]) =>
+      pos.row + 3 * dr === hbs.pos.row && pos.col + 3 * dc === hbs.pos.col
+      && captured.some((c) => c.row === pos.row + dr && c.col === pos.col + dc));
+    if ((opts.hidden && me === "black") || anchoredB || captured.some((c) => samePos(c, hbs.pos))) next.hiddenB = { ...hbs, revealed: true };
   }
 
   // 숨긴 뒤 백이 HIDDEN_TURNS수를 더 두면 드러난다
@@ -184,6 +222,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   }
   // 대국이 끝나면 숨은 돌도 드러난다
   if (next.isFinished && next.hidden && !next.hidden.revealed) next.hidden = { ...next.hidden, revealed: true };
+  if (next.isFinished && next.hiddenB && !next.hiddenB.revealed) next.hiddenB = { ...next.hiddenB, revealed: true };
   return { ok: true, state: next, captured };
 }
 
