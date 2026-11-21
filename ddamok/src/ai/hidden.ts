@@ -3,7 +3,7 @@
 //   (흑이 그 자리를 누르면 드러나고 흑이 다시 두는 것까지 흉내 낸다.) 약한 단계는 가끔 무작위로 숨긴다.
 // - 흑: 숨은 돌이 있다는 것만 안다. "백 돌이 거기 있으면 백이 바로 이기는" 빈칸이 있으면 그 자리를 눌러 본다
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
-import { canScan, canUseHidden, createGameFromConfig, replayMagic, scanAt, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
+import { canPlaceMine, canScan, canUseHidden, createGameFromConfig, replayMagic, scanAt, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, WIN, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
@@ -449,6 +449,45 @@ function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Posi
 }
 /** 매직스톤(턴을 씀)을 흑돌 대신 둘 기준(형세 점수): 흑돌만큼 좋으면 쓴다 — 끝까지 안 쓰면 그냥 버려진다 */
 const MAGIC_MARGIN = 0;
+
+/**
+ * (실험) 백 지뢰 판단: 착수 대신 묻을 자리(없으면 null). 흑은 지뢰를 못 보므로, 흑이 두려는 자리(흑의 이기는 자리·좋은 수)에 묻으면
+ * 흑이 밟아 그 자리가 막히고 흑은 한 수를 잃는다. 후보마다 "흑이 실제로 둘 수(지뢰를 모르는 흑의 짧은 읽기)"를 흉내 내,
+ * 밟으면 백 차례로, 안 밟으면 흑이 그 수를 둔 뒤 백 차례로 읽어 보통 착수(가장 좋은 수)와 비교한다. 더 나을 때만 묻는다.
+ */
+export function mineDecision(state: GameState, level: AiLevel): Position | null {
+  if (!canPlaceMine(state)) return null;
+  const fl = withHidden(level).fast;
+  if (!fl) return null;
+  const n = state.config.boardSize;
+  const b = FastBoard.fromState(state);
+  if (b.winningMoves(2).length) return null; // 바로 이길 수 있으면 이긴다
+  const normal = new FastSearcher(b, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores[0]?.s ?? 0;
+  const blackView = { ...state, currentPlayer: "black" as const };
+  const vb = FastBoard.fromState(blackView); // 지뢰 없는(흑이 보는) 판, 흑 차례
+  const cands = new Set<number>(vb.winningMoves(1));
+  for (const x of new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.15), false, true).scores.slice(0, 4)) cands.add(x.p);
+  const blackPick = (st: GameState): number => {
+    const fb = FastBoard.fromState({ ...st, mine: null });
+    const w = fb.winningMoves(1);
+    if (w.length) return w[0];
+    return new FastSearcher(fb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.12), false, true).scores[0]?.p ?? -1;
+  };
+  let best = -1, bestV = normal;
+  for (const p of [...cands].slice(0, 6)) {
+    const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
+    const m = blackPick(placed);
+    if (m < 0) continue;
+    const r = tryMove(placed, toPos(m, n));
+    if (!r.ok) continue;
+    if (r.state.isFinished) { if (r.state.winner === "black") continue; }
+    const v = r.state.isFinished ? 1e9 : new FastSearcher(FastBoard.fromState(r.state), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores[0]?.s ?? 0;
+    if (v > bestV + MINE_MARGIN) { bestV = v; best = p; }
+  }
+  return best >= 0 ? toPos(best, n) : null;
+}
+/** 지뢰를 보통 착수 대신 묻을 기준(형세 점수) */
+const MINE_MARGIN = 0;
 
 /** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
 const SHIELD_D1 = 0.08;

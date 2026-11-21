@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockedCell, canScan, createGame, hiddenTurnsLeft, replayMoves, scanAt, tryMove, type GameState, type Position } from "./index.ts";
+import { blockedCell, canScan, createGame, hiddenTurnsLeft, replayMoves, scanAt, tryMove, viewFor, type GameState, type Position } from "./index.ts";
 import { FastBoard, WALL } from "../ai/fast.ts";
 import { at } from "./testUtils.ts";
 
@@ -195,5 +195,30 @@ describe("백 히든 시작 때 (실험)", () => {
     const s5 = seq(s1, at(7, 8), at(8, 8), at(6, 6), at(9, 9));
     expect(s5.moveCount).toBe(5);
     expect(tryMove(s5, at(5, 5), undefined, { hidden: true }).ok).toBe(true);
+  });
+});
+
+describe("백 지뢰 (실험)", () => {
+  it("착수 대신 묻고(턴을 씀), 흑에게는 안 보이고, 흑이 밟으면 매직스톤이 되며 흑은 차례를 잃는다", async () => {
+    const { placeMine, canPlaceMine, blockedCells } = await import("./rules.ts");
+    let s = seq(createGame(15, { whiteMine: true, captureTarget: { black: 10, white: 10 } }), at(7, 7));
+    expect(canPlaceMine(s)).toBe(true);
+    const r = placeMine(s, at(7, 9));
+    if (!r.ok) throw new Error(r.reason);
+    s = r.state;
+    expect(s.currentPlayer).toBe("black");
+    expect(viewFor(s, "black").mine?.pos).toEqual({ row: -1, col: -1 });
+    expect(viewFor(s, "white").mine?.pos).toEqual(at(7, 9));
+    s = seq(s, at(7, 8));
+    expect(tryMove(s, at(7, 9))).toEqual({ ok: false, reason: "occupied" }); // 백은 자기 지뢰 자리에 못 둔다
+    s = seq(s, at(0, 0));
+    const t = tryMove(s, at(7, 9)); // 흑이 밟음
+    if (!t.ok) throw new Error(t.reason);
+    expect(t.state.currentPlayer).toBe("white");
+    expect(t.state.board[7][9]).toBeNull();
+    expect(blockedCells(t.state)).toEqual([at(7, 9)]);
+    expect(t.state.mine?.triggered).toBe(true);
+    expect(canPlaceMine(t.state)).toBe(false);
+    expect(FastBoard.fromState(viewFor(s, "white")).cells[7 * 15 + 9]).toBe(WALL);
   });
 });

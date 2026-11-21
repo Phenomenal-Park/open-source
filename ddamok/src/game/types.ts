@@ -68,6 +68,12 @@ export interface GameConfig {
   randomMagic?: boolean;
   /** (실험) "숨긴 뒤 5수면 공개"를 끈다 */
   noTimedReveal?: boolean;
+  /**
+   * (실험) 백 지뢰: 백은 한 판에 한 번, 착수 대신 빈 교차점 하나에 지뢰를 묻는다(턴을 씀, 흑에게는 안 보임).
+   * 흑이 그 자리에 두면 지뢰가 매직스톤(중립, 양쪽 따내기 받침, 오목에 안 듦)으로 변하고 흑은 그 차례를 잃는다.
+   * 백은 자기 지뢰 자리에 둘 수 없다.
+   */
+  whiteMine?: boolean;
   /** (실험) 백이 히든을 쓸 수 있는 가장 이른 때(그때까지 둔 수의 개수). 5 = 백의 세 번째 수. 기본 0(언제든) */
   whiteHiddenFrom?: number;
 }
@@ -114,6 +120,8 @@ export interface GameState {
   scanW?: ScanRecord | null;
   /** (실험) 랜덤으로 나타난 매직스톤들(at = 그때까지 둔 수, hit = 숨은 돌 자리라 숨은 돌을 드러내고 사라짐) */
   magic?: ScanRecord[];
+  /** (실험) 백 지뢰(at = 묻은 때까지 둔 수, 흑이 밟으면 triggered — 그 자리는 magic에 들어간다) */
+  mine?: { pos: Position; at: number; triggered: boolean } | null;
   /** (AI용) 흑백을 맞바꿔 본 판인가 */
   swapped?: boolean;
 

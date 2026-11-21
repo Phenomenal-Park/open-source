@@ -4,7 +4,7 @@
 // 수를 고를 때 experienceBonus로 점수를 고친다. 기억은 이 실행(브라우저 탭·측정 프로그램) 안에서만 산다.
 import type { GameState, Player, Position } from "../game/types.ts";
 import { createGameFromConfig } from "../game/gameState.ts";
-import { replayMagic } from "../game/rules.ts";
+import { placeMine, replayMagic } from "../game/rules.ts";
 import { scanAt, tryMove, viewFor } from "../game/rules.ts";
 
 /** 판 + 차례 + 따낸 수 + 숨은 돌을 아는지 → 수 → (이긴 횟수 − 진 횟수) */
@@ -35,6 +35,10 @@ export function learnFromGame(final: GameState): void {
   const hiddenIndex = final.hidden && final.hidden.index >= 0 ? final.hidden.index : null;
   let s = createGameFromConfig(final.config);
   for (let i = 0; i < final.moves.length; i++) {
+    if (final.mine && final.mine.at === i && !s.mine) {
+      const r = placeMine(s, final.mine.pos);
+      if (r.ok) s = r.state;
+    }
     if (final.scan && final.scan.at === i) {
       const r = scanAt(s, final.scan.pos);
       if (r.ok) s = r.state;

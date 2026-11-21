@@ -132,6 +132,9 @@ export class FastBoard {
       b.addWall(wall.row * n + wall.col, isOwn ? !!s.config.greenStone : true);
     }
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
+    // (실험) 백 지뢰(백이 보는 판에서만): 백은 그 자리에 못 두고, 흑이 두면 중립 돌이 된다 → 양쪽 모두에게 막힌 칸으로 본다
+    const mn = s.mine;
+    if (mn && !mn.triggered && mn.pos.row >= 0) b.addWall(mn.pos.row * n + mn.pos.col, false);
     b.wallAnchor = !!s.config.greenStone;
     b.wallCosts = !!s.config.scanCostsMove;
     // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)

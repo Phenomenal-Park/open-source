@@ -49,6 +49,21 @@ export function magicCandidates(state: GameState): Position[] {
   return out;
 }
 
+/** (실험) 백이 지금 지뢰를 묻을 수 있는가 */
+export function canPlaceMine(state: GameState): boolean {
+  return !!state.config.whiteMine && !state.isFinished && state.currentPlayer === "white" && !state.mine;
+}
+
+/** (실험) 백 지뢰 묻기: 착수 대신(턴을 씀). 빈 교차점에만 */
+export function placeMine(state: GameState, pos: Position): { ok: true; state: GameState } | { ok: false; reason: IllegalReason } {
+  if (!canPlaceMine(state)) return { ok: false, reason: "not-your-turn" };
+  const reason = whyIllegal(state, pos, "white");
+  if (reason) return { ok: false, reason };
+  const h = state.hidden;
+  if (h && !h.revealed && samePos(h.pos, pos)) return { ok: false, reason: "occupied" };
+  return { ok: true, state: { ...state, mine: { pos: { row: pos.row, col: pos.col }, at: state.moves.length, triggered: false }, currentPlayer: "black", lastCaptured: [] } };
+}
+
 /** 기보 다시 두기용: source에 기록된 매직스톤 중 지금(target까지 둔 수)에 나타난 것을 target에 그대로 붙인다 */
 export function replayMagic(target: GameState, source: GameState): GameState {
   const add = (source.magic ?? []).filter((m) => m.at === target.moves.length && !(target.magic ?? []).some((x) => x.at === m.at));
@@ -72,6 +87,7 @@ export function whyIllegal(state: GameState, position: Position, player: Player 
   }
   if (state.board[row][col] !== null) return "occupied";                    // 4. 빈 교차점
   if (blockedCells(state).some((b) => samePos(b, position))) return "occupied"; // (실험) ⓧ·매직스톤 자리
+  if (player === "white" && state.mine && !state.mine.triggered && samePos(state.mine.pos, position)) return "occupied"; // (실험) 자기 지뢰 자리
   // 흑의 첫 수(빈 판의 첫 착수)는 천원만
   if (state.config.firstMoveCenter && state.moveCount === 0 && !state.board.some((r) => r.some((c) => c !== null))) {
     const c = centerOf(state.config.boardSize);
@@ -185,6 +201,8 @@ export function viewFor(state: GameState, viewer: Player | null): GameState {
     const moves = s.moves.map((m, i) => (i === hb.index ? { row: -1, col: -1 } : m));
     s = { ...s, board, moves, lastMove: samePos(s.lastMove, hb.pos) ? null : s.lastMove, hiddenB: { ...hb, pos: { row: -1, col: -1 } } };
   }
+  const mn = s.mine;
+  if (mn && !mn.triggered && viewer !== "white" && !s.isFinished) s = { ...s, mine: { ...mn, pos: { row: -1, col: -1 } } };
   return s;
 }
 
@@ -206,6 +224,13 @@ export function tryMove(state: GameState, position: Position, player: Player = s
   const reason = whyIllegal(state, position, player);
   if (reason) return { ok: false, reason };
   if (opts.hidden && !canUseHidden(state)) return { ok: false, reason: "hidden-unavailable" };
+  // (실험) 흑이 백의 지뢰를 밟았다: 그 자리는 매직스톤이 되고 흑은 이 차례를 잃는다(기보에는 밟은 자리로 남는다)
+  const mn = state.mine;
+  if (mn && !mn.triggered && player === "black" && samePos(mn.pos, position)) {
+    const p0 = { row: position.row, col: position.col };
+    return { ok: true, captured: [], state: { ...state, mine: { ...mn, triggered: true }, magic: [...(state.magic ?? []), { pos: p0, at: state.moves.length + 1, hit: false }],
+      moves: [...state.moves, p0], moveCount: state.moveCount + 1, lastMove: p0, lastCaptured: [], currentPlayer: "white" } };
+  }
 
   const me = state.currentPlayer;
   const pos = { row: position.row, col: position.col };
@@ -240,6 +265,7 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     hiddenB: opts.hidden && me === "black" ? { index: state.moves.length, pos, revealed: false } : state.hiddenB ?? null,
     scanW: state.scanW ?? null,
     magic: state.magic,
+    mine: state.mine,
     winner: null,
     winReason: null,
     winningLine: null,
