@@ -22,7 +22,13 @@ export function RulesPage() {
     <main className="page narrow">
       <article className="panel prose">
         <h2>{t("rulesPage.title")}</h2>
-        <ul>{(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7", "rules.7b", "rules.8", "rules.9"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
+        <ul>{(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
+        <h3>{t("rulesPage.hidden")}</h3>
+        <ul>{(["rules.h1", "rules.h2", "rules.h3", "rules.h4"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
+        <h3>{t("rulesPage.mine")}</h3>
+        <ul>{(["rules.m1", "rules.m2", "rules.m3", "rules.m4", "rules.m5"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
+        <h3>{t("rulesPage.modes")}</h3>
+        <ul>{(["rules.x1", "rules.x2", "rules.x3", "rules.x4"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
         <h3>{t("rulesPage.online")}</h3>
         <ul>{(["rulesPage.o1", "rulesPage.o2", "rulesPage.o3", "rulesPage.o4", "rulesPage.o5"] as const).map((k) => <li key={k}>{t(k)}</li>)}</ul>
       </article>
