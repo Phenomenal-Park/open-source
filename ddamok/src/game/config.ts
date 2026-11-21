@@ -38,6 +38,32 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
   };
 }
 
+/**
+ * 대국 규칙(이름은 "○○따목").
+ * - plain(따목): 히든·스캔 없음, 흑 12 / 백 10
+ * - hidden(히든따목): 백 히든 1번(아무 때나, 저절로 공개 안 됨) + 흑 스캔 1번(맞히면 숨은 돌 발각·소멸), 8/8
+ * - mine(지뢰따목): 백 지뢰 1번(착수 대신) + 흑 스캔 1번(찾으면 매직스톤, 흑 차례 유지), 밟으면 매직스톤·흑 차례 잃음, 8/8
+ * - hidden13: 예전 히든룰 v1.3(5수 공개, 스캔에 맞아도 돌이 남음, 10/10) — 옛 기보를 다시 둘 때만
+ */
+export type GameRule = "plain" | "hidden" | "mine" | "hidden13";
+export const GAME_RULES: readonly GameRule[] = ["plain", "hidden", "mine"];
+
+export function ruleConfig(rule: GameRule): Partial<Omit<GameConfig, "boardSize">> {
+  switch (rule) {
+    case "hidden": return { hiddenMove: true, noTimedReveal: true, scanRemoves: true, captureTarget: { black: 8, white: 8 } };
+    case "mine": return { whiteMine: true, mineScan: true, captureTarget: { black: 8, white: 8 } };
+    case "hidden13": return { hiddenMove: true, captureTarget: { black: 10, white: 10 } };
+    default: return {};
+  }
+}
+
+/** 이 설정이 어느 규칙인가(기록·표시용) */
+export function ruleOf(config: GameConfig): GameRule {
+  if (config.whiteMine) return "mine";
+  if (config.hiddenMove) return config.scanRemoves ? "hidden" : "hidden13";
+  return "plain";
+}
+
 /** 흑의 두 번째 수에 자리 제한이 있는 규칙인가 */
 export function secondMoveRestricted(config: GameConfig): boolean {
   return config.secondMoveMinDistance > 0 || config.secondMoveLineBan !== "none";

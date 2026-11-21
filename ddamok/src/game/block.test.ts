@@ -293,3 +293,26 @@ describe("스캔 적중 자리 ⓧ (실험)", () => {
     expect(b.cells[5 * 15 + 5]).toBe(WALL);
   });
 });
+
+describe("세 가지 룰 설정과 기보 재생", () => {
+  it("지뢰따목: 지뢰·밟음·스캔이 기보 재생으로 똑같이 되살아난다", async () => {
+    const { ruleConfig, ruleOf } = await import("./config.ts");
+    const { placeMine, blockedCells } = await import("./rules.ts");
+    const { makeConfig } = await import("./config.ts");
+    const cfg = makeConfig(15, ruleConfig("mine"));
+    expect(ruleOf(cfg)).toBe("mine");
+    expect(ruleOf(makeConfig(15, ruleConfig("hidden")))).toBe("hidden");
+    expect(ruleOf(makeConfig(15, ruleConfig("plain")))).toBe("plain");
+    let s = seq(createGame(15, ruleConfig("mine")), at(7, 7));
+    const r = placeMine(s, at(7, 9));
+    if (!r.ok) throw new Error(r.reason);
+    s = seq(r.state, at(7, 9)); // 흑이 밟음 → 매직스톤, 백 차례
+    expect(s.currentPlayer).toBe("white");
+    s = seq(s, at(6, 6), at(8, 8));
+    const rep = replayMoves(cfg, s.moves, null, null, { at: 1, pos: at(7, 9) });
+    if (!rep.ok) throw new Error(rep.reason);
+    expect(blockedCells(rep.state)).toEqual(blockedCells(s));
+    expect(rep.state.board).toEqual(s.board);
+    expect(rep.state.currentPlayer).toBe(s.currentPlayer);
+  });
+});
