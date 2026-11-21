@@ -269,9 +269,9 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
   }
   const d2 = belief.filter((x) => x.danger2).sort((a, b) => b.w - a.w)[0];
   if (d2 && d2.w >= SCAN_D2) return { pos: toPos(d2.pos, n), reason: "danger2", w: d2.w };
-  // 확신이 설 때만: 처음엔 의심이 한 자리에 35% 이상 몰려야 쓰고, 수가 진행될수록 기준을 20%까지 낮춘다
-  const need = Math.max(SCAN_TOP, 0.35 - 0.0125 * Math.max(0, view.moveCount - 4));
-  return belief[0].w >= need ? { pos: toPos(belief[0].pos, n), reason: "top", w: belief[0].w } : null;
+  // "그냥 가장 의심되는 자리"는 찍지 않는다: 위험이 없는 자리는 맞혀도 얻는 게 적다(35% 이상 확신 스캔 16번 중 5번 적중, 흑 6승).
+  // 스캔은 거기 숨은 돌이 있으면 흑이 크게 잃는 자리를 지우는 데만 쓴다(그런 스캔 9번 중 8번 적중, 흑 6승).
+  return null;
 }
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;
@@ -280,7 +280,6 @@ const HIST_SCALE = 40;
 /** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
 const SCAN_D1 = 0.04;
 const SCAN_D2 = 0.1;
-const SCAN_TOP = 0.2;
 /** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
 const SCAN_RISK = 300;
 /** 지우기용 스캔도 이 의심(확률) 이상인 자리에만 — 20% 미만 자리에 쓴 6번은 하나도 맞지 않았다 */
