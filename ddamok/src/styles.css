@@ -91,6 +91,13 @@ button, input, select { font: inherit; }
 .scan-miss { fill: none; stroke: #a86f00; stroke-width: .6; opacity: .85; pointer-events: none; }
 .scan-miss circle { stroke-dasharray: 1.2 .9; }
 .btn.scan-btn.active { border-color: #ffd84a; color: #ffd84a; }
+/* (베타) 지뢰룰 */
+.mine-mark circle { fill: none; stroke: #d2452f; stroke-width: .6; stroke-dasharray: 1.1 .8; pointer-events: none; }
+.mine-mark .mine-dot { fill: #d2452f; stroke: none; }
+.btn.mine-btn.active { border-color: #d2452f; color: #d2452f; }
+.hidden-banner.mine-banner span { text-shadow: 0 0 22px #17a673, 0 0 6px #17a673, 0 5px 0 rgba(0,0,0,.55); }
+.boom-pop { fill: #17a673; }
+.stone.magic-pop { animation: reveal .7s ease-out; }
 .ghost-count { fill: #3a2e1c; font-weight: 800; pointer-events: none; }
 .hidden-mark { fill: none; stroke: var(--accent); stroke-width: .7; stroke-dasharray: 1.4 1; pointer-events: none; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }

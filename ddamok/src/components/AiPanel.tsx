@@ -5,9 +5,12 @@ import type { Player } from "../game/index.ts";
 import { colorName, rankLabel, rankName, lang, t, type MessageKey } from "../i18n/index.ts";
 import { Fold } from "./Fold.tsx";
 
+/** AI 대국 규칙: 히든룰(백 히든 + 흑 스캔) / (시험) 지뢰룰 */
+export type AiRule = "hidden" | "mine";
+
 interface AiPanelProps {
-  active: { levelId: string; aiColor: Player } | null;
-  onStart: (levelId: string, humanColor: Player) => void;
+  active: { levelId: string; aiColor: Player; rule?: AiRule } | null;
+  onStart: (levelId: string, humanColor: Player, rule: AiRule) => void;
   onStop: () => void;
 }
 
@@ -21,6 +24,7 @@ function estimateRank(label: string): string {
 
 export function AiPanel({ active, onStart, onStop }: AiPanelProps) {
   const [levelId, setLevelId] = useState(AI_LEVELS[2].id);
+  const [rule, setRule] = useState<AiRule>("hidden");
   // 각 AI의 현재 급수: 서버의 AI 계정 점수(사람과의 레이팅매치로 바뀜). 서버가 없으면 출시 전 추정치.
   const [ranks, setRanks] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -46,9 +50,17 @@ export function AiPanel({ active, onStart, onStop }: AiPanelProps) {
               ))}
             </select>
           </label>
+          <label className="size-picker ai-level">
+            {t("ai.rule")}
+            <select value={rule} onChange={(e) => setRule(e.target.value as AiRule)}>
+              <option value="hidden">{t("ai.rule.hidden")}</option>
+              <option value="mine">{t("ai.rule.mine")}</option>
+            </select>
+          </label>
+          {rule === "mine" && <p className="muted small-note">{t("mine.rule")}</p>}
           <div className="seat-buttons">
-            <button className="btn small primary" onClick={() => onStart(levelId, "black")}>{t("ai.asBlack")}</button>
-            <button className="btn small" onClick={() => onStart(levelId, "white")}>{t("ai.asWhite")}</button>
+            <button className="btn small primary" onClick={() => onStart(levelId, "black", rule)}>{t("ai.asBlack")}</button>
+            <button className="btn small" onClick={() => onStart(levelId, "white", rule)}>{t("ai.asWhite")}</button>
           </div>
           <p className="muted small-note">{t("ai.note")}</p>
         </>

@@ -51,6 +51,16 @@ export function Stone({ player, cx, cy, r, className, opacity }: StoneProps) {
   );
 }
 
+/** (시험) 매직스톤: 에메랄드빛 중립 돌 */
+export function MagicStone({ cx, cy, r, className }: { cx: number; cy: number; r: number; className?: string }) {
+  return (
+    <g className={className} style={{ transformOrigin: `${cx}px ${cy}px` }}>
+      <circle cx={cx} cy={cy} r={r} fill="url(#stone-magic)" stroke="rgba(0,60,40,.55)" strokeWidth={0.3} />
+      <ellipse cx={cx - r * 0.3} cy={cy - r * 0.34} rx={r * 0.26} ry={r * 0.15} fill="#fff" opacity={0.55} transform={`rotate(-35 ${cx - r * 0.3} ${cy - r * 0.34})`} />
+    </g>
+  );
+}
+
 /** SVG <defs>에 한 번만 넣는 돌·판 그림 재료 */
 export function StoneDefs() {
   return (
@@ -59,6 +69,11 @@ export function StoneDefs() {
         <stop offset="0%" stopColor="#5a5a5a" />
         <stop offset="45%" stopColor="#1d1d1d" />
         <stop offset="100%" stopColor="#050505" />
+      </radialGradient>
+      <radialGradient id="stone-magic" cx="35%" cy="30%" r="80%">
+        <stop offset="0%" stopColor="#8ff0c4" />
+        <stop offset="45%" stopColor="#17a673" />
+        <stop offset="100%" stopColor="#065c3e" />
       </radialGradient>
       <radialGradient id="stone-white" cx="35%" cy="30%" r="80%">
         <stop offset="0%" stopColor="#ffffff" />

@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent } from "react";
 import { isLegalMove, secondMoveRestricted, type GameState, type Player, type Position } from "../game/index.ts";
-import { Stone, StoneDefs } from "./Stone.tsx";
+import { MagicStone, Stone, StoneDefs } from "./Stone.tsx";
 import { t } from "../i18n/index.ts";
 import { useLook } from "../theme.ts";
 
@@ -33,6 +33,14 @@ interface BoardProps {
   scanning?: boolean;
   /** 방금 스캔한 자리: 노란 반짝임 가루가 퍼진다 */
   scanFx?: { pos: Position; id: number } | null;
+  /** (시험) 매직스톤 자리들(에메랄드빛 중립 돌) */
+  magic?: Position[];
+  /** (시험) 내(백)가 묻은 지뢰 — 나에게만 보인다 */
+  mine?: Position | null;
+  /** (시험) 지뢰를 고르는 중: 돌 대신 지뢰 표시 */
+  mining?: boolean;
+  /** (시험) 흑이 지뢰를 밟은 자리("지뢰!") */
+  boom?: { pos: Position; id: number } | null;
 }
 
 function starPoints(n: number): Position[] {
@@ -47,7 +55,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx, magic, mine, mining, boom }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -124,6 +132,11 @@ export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, 
         )}
       </g>
 
+      {magic?.map((p) => (
+        <MagicStone key={`magic-${p.row}-${p.col}`} cx={xy(p.col)} cy={xy(p.row)} r={R} className={boom && boom.pos.row === p.row && boom.pos.col === p.col ? "stone magic-pop" : "stone"} />
+      ))}
+      {mine && <MineMark cx={xy(mine.col)} cy={xy(mine.row)} />}
+
       {fx && (
         <g key={fx.id} className="capture-fx">
           {fx.stones.map((p) => (
@@ -143,7 +156,8 @@ export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, 
         <text key={`ban-${p.row}-${p.col}`} className="banned" x={xy(p.col)} y={xy(p.row)} fontSize={CELL * 0.62} textAnchor="middle" dominantBaseline="central">⛔</text>
       ))}
 
-      {canHover && !scanning && <Stone player={state.currentPlayer} cx={xy(hover!.col)} cy={xy(hover!.row)} r={R} opacity={0.4} />}
+      {canHover && !scanning && !mining && <Stone player={state.currentPlayer} cx={xy(hover!.col)} cy={xy(hover!.row)} r={R} opacity={0.4} />}
+      {canHover && mining && <g opacity={0.6}><MineMark cx={xy(hover!.col)} cy={xy(hover!.row)} /></g>}
       {canHover && scanning && <ScanAim cx={xy(hover!.col)} cy={xy(hover!.row)} />}
 
       {/* 흑 스캔이 빗나간 자리(그 자리에 돌이 놓이기 전까지) */}
@@ -168,6 +182,9 @@ export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, 
 
       {scanFx && <ScanSparkle key={`scan-${scanFx.id}`} cx={xy(scanFx.pos.col)} cy={xy(scanFx.pos.row)} seed={scanFx.id} />}
 
+      {boom && (
+        <text key={`boom-${boom.id}`} className="found-pop boom-pop" x={xy(boom.pos.col)} y={xy(boom.pos.row) - CELL * 0.7} fontSize={CELL * 0.6} textAnchor="middle">{t("mine.boom")}</text>
+      )}
       {found && (
         <text key={`found-${found.id}`} className="found-pop" x={xy(found.pos.col)} y={xy(found.pos.row) - CELL * 0.7} fontSize={CELL * 0.6} textAnchor="middle">{t("hidden.found")}</text>
       )}
@@ -214,6 +231,16 @@ function ScanSparkle({ cx, cy, seed }: { cx: number; cy: number; seed: number })
           d={`M ${p.x} ${p.y - p.s * 1.6} L ${p.x + p.s * 0.4} ${p.y - p.s * 0.4} L ${p.x + p.s * 1.6} ${p.y} L ${p.x + p.s * 0.4} ${p.y + p.s * 0.4} L ${p.x} ${p.y + p.s * 1.6} L ${p.x - p.s * 0.4} ${p.y + p.s * 0.4} L ${p.x - p.s * 1.6} ${p.y} L ${p.x - p.s * 0.4} ${p.y - p.s * 0.4} Z`}
         />
       ))}
+    </g>
+  );
+}
+
+/** (시험) 지뢰 표시(백에게만): 붉은 점선 고리 + 가운데 점 */
+function MineMark({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <g className="mine-mark" aria-hidden>
+      <circle cx={cx} cy={cy} r={R * 0.78} />
+      <circle cx={cx} cy={cy} r={R * 0.22} className="mine-dot" />
     </g>
   );
 }

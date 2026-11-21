@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  canScan, canUseHidden, createGame, hiddenTurnsLeft, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
+  blockedCells, canPlaceMine, canScan, canUseHidden, createGame, placeMine, hiddenTurnsLeft, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
   undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
@@ -9,7 +9,7 @@ import { findMatch, GameConnection, type ConnStatus } from "../online/client.ts"
 import { Board, type CaptureFx } from "../components/Board.tsx";
 import { Scoreboard, type SeatLabel } from "../components/Scoreboard.tsx";
 import { GameResult, type ResultView } from "../components/GameResult.tsx";
-import { AiPanel } from "../components/AiPanel.tsx";
+import { AiPanel, type AiRule } from "../components/AiPanel.tsx";
 import { AuthBox } from "../components/AuthBox.tsx";
 import { OnlinePanel } from "../components/OnlinePanel.tsx";
 import { Fold } from "../components/Fold.tsx";
@@ -22,8 +22,10 @@ import { beep, captureSound, foundSound, hiddenSound, scanMissSound, stoneClick 
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
 /** 백 히든은 AI 대국에서만(같은 화면 2인 대국은 숨길 수 없다) */
 /** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
-const freshGame = (size: number, hiddenMove = false) =>
-  createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 10, white: 10 } } : {}) });
+const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
+  rule === "mine"
+    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, captureTarget: { black: 10, white: 10 } }) // (시험) 지뢰룰: 히든 없이 10/10
+    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 10, white: 10 } } : {}) });
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
@@ -47,7 +49,7 @@ export function MainPage() {
   const [history, setHistory] = useState<GameHistory>(() => createHistory(freshGame(DEFAULT_BOARD_SIZE)));
   const [fx, setFx] = useState<CaptureFx | null>(null);
   const [resultOpen, setResultOpen] = useState(true);
-  const [aiGame, setAiGame] = useState<{ levelId: string; aiColor: Player } | null>(null);
+  const [aiGame, setAiGame] = useState<{ levelId: string; aiColor: Player; rule?: AiRule } | null>(null);
   const [online, setOnline] = useState<Online | null>(null);
   const [waiting, setWaiting] = useState<{ mode: MatchMode; code: string | null; rule?: MatchRule } | null>(null);
   const [onlineError, setOnlineError] = useState<string | null>(null);
@@ -61,6 +63,10 @@ export function MainPage() {
   /** 이용 제한(관리자) — 온라인 대국 불가 */
   const [bannedUntil, setBannedUntil] = useState<number | null>(null);
   const [banner, setBanner] = useState(0);
+  const [bannerText, setBannerText] = useState<MessageKey>("hidden.banner");
+  /** (시험) 지뢰룰: 백이 지뢰 자리를 고르는 중 / 흑이 지뢰를 밟은 자리 */
+  const [mining, setMining] = useState(false);
+  const [boom, setBoom] = useState<{ pos: Position; id: number; at: number } | null>(null);
   /** 흑 스캔: 다음에 누르는 자리를 스캔한다 */
   const [scanning, setScanning] = useState(false);
   const [scanFx, setScanFx] = useState<{ pos: Position; id: number } | null>(null);
@@ -212,10 +218,19 @@ export function MainPage() {
 
   // ── 로컬·AI ─────────────────────────────
   const commit = useCallback((h: GameHistory, pos: Position, opts: MoveOptions = {}) => {
-    const r = tryMove(currentState(h), pos, undefined, opts);
+    const prev = currentState(h);
+    const r = tryMove(prev, pos, undefined, opts);
     if (!r.ok) return h; // 둘 수 없는 곳: 상태 변경 없음
     const next = [...h, r.state];
     const s = r.state;
+    if (prev.mine && !prev.mine.triggered && s.mine?.triggered) {
+      // (시험) 흑이 지뢰를 밟았다: 매직스톤이 생기고 흑은 이번 차례를 잃는다
+      setBoom({ pos, id: Date.now(), at: s.moveCount });
+      setBannerText("mine.boom");
+      setBanner((b) => b + 1);
+      setFx(null);
+      return next;
+    }
     if (r.revealedHidden) {
       setNotice({ kind: "found", at: s.moveCount, pos, id: Date.now() });
       setFx(null);
@@ -229,6 +244,12 @@ export function MainPage() {
 
   function play(pos: Position) {
     if (scanning) return doScan(pos);
+    if (mining && !online) {
+      if (aiThinking) return;
+      setMining(false);
+      setHistory((h) => { const r = placeMine(currentState(h), pos); return r.ok ? [...h, r.state] : h; });
+      return;
+    }
     if (online) {
       const g = online.game;
       if (!g || g.status !== "playing" || !onlineState || onlineState.currentPlayer !== online.you) return;
@@ -272,6 +293,7 @@ export function MainPage() {
       return; // 배너·카운트다운은 서버 상태가 오면 띄운다
     }
     setArmedUntil(Date.now() + HIDDEN_MS);
+    setBannerText("hidden.banner");
     setBanner((b) => b + 1);
     setNotice(null);
   }
@@ -332,8 +354,19 @@ export function MainPage() {
     const id = ++aiRequest.current;
     const started = performance.now();
     const worker = workerRef.current;
-    const onMessage = (e: MessageEvent<{ id: number; move: Position; hidden?: boolean; scan?: Position }>) => {
+    const onMessage = (e: MessageEvent<{ id: number; move: Position; hidden?: boolean; scan?: Position; mine?: Position }>) => {
       if (e.data.id !== id) return;
+      const mine = e.data.mine;
+      if (mine) {
+        // (시험) 백 AI가 지뢰를 묻는다: 흑에게는 자리가 안 보이고 "지뢰 매설!"만 뜬다
+        setBannerText("mine.banner");
+        setBanner((b) => b + 1);
+        setTimeout(() => {
+          if (aiRequest.current !== id) return;
+          setHistory((h) => { const r = placeMine(currentState(h), mine); return r.ok ? [...h, r.state] : h; });
+        }, Math.max(0, BANNER_MS - (performance.now() - started)));
+        return;
+      }
       const scan = e.data.scan;
       if (scan) {
         // 흑 AI 스캔: 적용하면 판이 바뀌어 다시 묻고, 그때 둔다
@@ -344,7 +377,7 @@ export function MainPage() {
         return;
       }
       const hidden = !!e.data.hidden;
-      if (hidden) setBanner((b) => b + 1); // AI도 "백 히든!" 뒤에 둔다
+      if (hidden) { setBannerText("hidden.banner"); setBanner((b) => b + 1); } // AI도 "백 히든!" 뒤에 둔다
       const wait = Math.max(0, (hidden ? BANNER_MS : 350) - (performance.now() - started));
       setTimeout(() => {
         if (aiRequest.current !== id) return;
@@ -372,8 +405,10 @@ export function MainPage() {
 
   useEffect(() => () => workerRef.current?.terminate(), []);
 
-  const reset = useCallback((size: number, hiddenMove = false) => {
-    setHistory(createHistory(freshGame(size, hiddenMove)));
+  const reset = useCallback((size: number, hiddenMove = false, rule: AiRule = "hidden") => {
+    setHistory(createHistory(freshGame(size, hiddenMove, rule)));
+    setMining(false);
+    setBoom(null);
     setFx(null);
     setResultOpen(true);
     setArmedUntil(null);
@@ -405,7 +440,7 @@ export function MainPage() {
       if (onlinePlaying) return;
       leaveOnline();
     }
-    reset(boardSize, !!aiGame);
+    reset(boardSize, !!aiGame, aiGame?.rule);
   }
 
   function resign() {
@@ -468,6 +503,8 @@ export function MainPage() {
   else if (online?.game?.result) status = online.game.result.winner ? t("status.wins", { color: colorName(online.game.result.winner) }) : t("status.draw");
   else if (state.isFinished) status = state.winner ? t("status.winsBy", { color: colorName(state.winner), reason: t(`reason.${state.winReason!}`) }) : t("status.draw");
   else if (scanning) status = t("hidden.scanPick");
+  else if (mining) status = t("mine.pick");
+  else if (boom && boom.at === state.moveCount) status = t("mine.stepped");
   else if (state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "white") status = t(state.scan.hit ? "hidden.oppScanHit" : "hidden.oppScanMiss");
   else if (state.scan && !state.scan.hit && state.scan.at === state.moveCount && state.currentPlayer === "black" && viewer === "black") status = t("hidden.scanMiss");
   else if (online) status = `${t(state.currentPlayer === online.you ? "status.myTurn" : "status.theirTurn")} · ${moveNo}${online.status === "reconnecting" ? ` · ${t("status.reconnecting")}` : ""}`;
@@ -478,6 +515,7 @@ export function MainPage() {
   else status = `${t("status.turn", { color: colorName(state.currentPlayer) })} · ${moveNo}`;
   const scanStatus = scanning || (!!state.scan && state.scan.at === state.moveCount && state.currentPlayer === "black");
   if (!state.isFinished && viewer === "black" && hs && !hs.revealed && armedAt === null && !scanStatus) status += ` · ${t("hidden.lurking")}`;
+  if (!state.isFinished && viewer === "black" && state.mine && !state.mine.triggered && !(boom && boom.at === state.moveCount)) status += ` · ${t("mine.lurking")}`;
 
   let result: ResultView | null = null;
   if (online?.game?.result && onlineState) {
@@ -529,9 +567,13 @@ export function MainPage() {
             ghostCount={viewer === "white" ? hiddenTurnsLeft(state) : null}
             reveal={hs?.revealed && state.board[hs.pos.row]?.[hs.pos.col] === "white" ? hs.pos : null}
             found={notice?.kind === "found" && notice.pos ? { pos: notice.pos, id: notice.id } : null}
+            magic={state.config.whiteMine || state.magic?.length ? blockedCells(state) : undefined}
+            mine={viewer === "white" && state.mine && !state.mine.triggered ? state.mine.pos : null}
+            mining={mining}
+            boom={boom}
           />
           {banner > 0 && (
-            <div key={banner} className="hidden-banner" aria-hidden><span>{t("hidden.banner")}</span></div>
+            <div key={banner} className={`hidden-banner${bannerText === "hidden.banner" ? "" : " mine-banner"}`} aria-hidden><span>{t(bannerText)}</span></div>
           )}
           {result && cardKey !== endKey && (
             <div key={endKey} className="end-banner" aria-hidden>
@@ -576,6 +618,9 @@ export function MainPage() {
                 {viewer === "white" && canUseHidden(state) && armedAt === null && (
                   <button className="btn hidden-btn" onClick={startHidden} disabled={aiThinking}>{t("btn.hidden")}</button>
                 )}
+                {viewer === "white" && state.config.whiteMine && !state.mine && !state.isFinished && (
+                  <button className={`btn mine-btn${mining ? " active" : ""}`} onClick={() => setMining((x) => !x)} disabled={aiThinking || !canPlaceMine(state)}>{t(mining ? "btn.cancel" : "btn.mine")}</button>
+                )}
                 {viewer === "black" && state.config.hiddenMove && state.scan === null && !state.isFinished && (
                   <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
                 )}
@@ -609,9 +654,9 @@ export function MainPage() {
             <OnlinePanel session={session} waiting={waiting} error={onlineError} onFind={find} onCancel={cancelFind} bannedUntil={bannedUntil} />
             <AiPanel
               active={aiGame}
-              onStart={(levelId, humanColor) => {
-                setAiGame({ levelId, aiColor: opponent(humanColor) });
-                reset(boardSize, true);
+              onStart={(levelId, humanColor, rule) => {
+                setAiGame({ levelId, aiColor: opponent(humanColor), rule });
+                reset(boardSize, true, rule);
               }}
               onStop={() => {
                 setAiGame(null);

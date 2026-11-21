@@ -3,7 +3,7 @@
 import type { GameState } from "../game/types.ts";
 import { chooseMove } from "./search.ts";
 import { levelById } from "./levels.ts";
-import { chooseBlackMove, chooseBlackScan, chooseWhiteMove } from "./hidden.ts";
+import { chooseBlackMove, chooseBlackScan, chooseWhiteMove, mineDecision } from "./hidden.ts";
 import { learnFromGame } from "./experience.ts";
 
 self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: string } | { learn: GameState }>) => {
@@ -12,6 +12,11 @@ self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: strin
   const { id, state, levelId } = e.data;
   const level = levelById(levelId);
   if (!level || state.isFinished) return;
+  // (시험) 지뢰룰: 백 AI는 지뢰를 묻을지 먼저 정한다(흑 AI는 지뢰를 못 보는 판을 받는다)
+  if (state.config.whiteMine && state.currentPlayer === "white") {
+    const mine = mineDecision(state, level);
+    if (mine) { self.postMessage({ id, mine }); return; }
+  }
   if (!state.config.hiddenMove) { self.postMessage({ id, move: chooseMove(state, level), hidden: false }); return; }
   if (state.currentPlayer === "white") { self.postMessage({ id, ...chooseWhiteMove(state, level) }); return; }
   // 흑: 정말 의심되는 자리가 있으면 먼저 스캔을 알린다(화면이 스캔을 적용한 뒤 다시 물으면 그때 둔다)
