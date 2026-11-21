@@ -138,7 +138,7 @@ export const en: Messages = {
   "rule.short.hidden": "1 White hidden move · 1 Black scan · capture 8 to win",
   "rule.short.mine": "1 White mine · 1 Black scan · capture 8 to win",
   "rule.short.hidden13": "White hidden (shown after 5 moves) · 1 Black scan · capture 10 to win",
-  "rule.thisGame": "This game",
+  "rule.thisGame": "Game rule:",
   "online.rule.random": "Hidden or Mine (random)",
   "online.rule.mine": "mine ddamok",
   "online.rule.plain": "ddamok",

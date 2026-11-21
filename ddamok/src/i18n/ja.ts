@@ -138,7 +138,7 @@ export const ja: Messages = {
   "rule.short.hidden": "白の隠し手1回 · 黒のスキャン1回 · 8個取ると勝ち",
   "rule.short.mine": "白の地雷1回 · 黒のスキャン1回 · 8個取ると勝ち",
   "rule.short.hidden13": "白の隠し手（5手後に公開） · 黒のスキャン1回 · 10個取ると勝ち",
-  "rule.thisGame": "この対局",
+  "rule.thisGame": "ゲームルール：",
   "online.rule.random": "ヒドゥン・地雷ランダム",
   "online.rule.mine": "地雷タモク",
   "online.rule.plain": "タモク",

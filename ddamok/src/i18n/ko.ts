@@ -138,7 +138,7 @@ export const ko = {
   "rule.short.hidden": "백 히든 1번 · 흑 스캔 1번 · 8개 따내면 승리",
   "rule.short.mine": "백 지뢰 1번 · 흑 스캔 1번 · 8개 따내면 승리",
   "rule.short.hidden13": "백 히든(5수 뒤 공개) · 흑 스캔 1번 · 10개 따내면 승리",
-  "rule.thisGame": "이번 판",
+  "rule.thisGame": "게임 룰:",
   "online.rule.random": "히든·지뢰 무작위",
   "online.rule.mine": "지뢰따목",
   "online.rule.plain": "따목",
