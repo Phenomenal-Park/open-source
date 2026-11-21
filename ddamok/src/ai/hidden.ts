@@ -211,6 +211,11 @@ function chooseBlackMoveCautious(view: GameState, level: AiLevel, rand: Rng): Po
  * 근거 없이 찍지 않는다 — 백이 숨긴 바로 다음(흑 2수째 등)에는 쓰지 않고, 백이 그 뒤에 둔 수로 흔적이 생긴 다음에 쓴다.
  */
 export function chooseBlackScan(view: GameState, level?: AiLevel): Position | null {
+  return scanDecision(view, level)?.pos ?? null;
+}
+
+/** 스캔 판단과 그 이유(위험 칸 / 넉 칸 / 확신)·그 자리 의심(확률) — 측정·분석용으로도 쓴다 */
+export function scanDecision(view: GameState, level?: AiLevel): { pos: Position; reason: "danger1" | "danger2" | "top"; w: number } | null {
   if (!canScan(view)) return null;
   // 근거 없이 찍지 않는다: 백이 숨긴 뒤 보이는 수를 한 번 이상 두어 흔적이 생긴 다음에만
   if (view.moves.length < view.hidden!.index + 3) return null;
@@ -218,12 +223,12 @@ export function chooseBlackScan(view: GameState, level?: AiLevel): Position | nu
   if (!belief.length) return null;
   const n = view.config.boardSize;
   const d1 = belief.filter((x) => x.danger1).sort((a, b) => b.w - a.w)[0];
-  if (d1 && d1.w >= SCAN_D1) return toPos(d1.pos, n);
+  if (d1 && d1.w >= SCAN_D1) return { pos: toPos(d1.pos, n), reason: "danger1", w: d1.w };
   const d2 = belief.filter((x) => x.danger2).sort((a, b) => b.w - a.w)[0];
-  if (d2 && d2.w >= SCAN_D2) return toPos(d2.pos, n);
+  if (d2 && d2.w >= SCAN_D2) return { pos: toPos(d2.pos, n), reason: "danger2", w: d2.w };
   // 확신이 설 때만: 처음엔 의심이 한 자리에 35% 이상 몰려야 쓰고, 수가 진행될수록 기준을 20%까지 낮춘다
   const need = Math.max(SCAN_TOP, 0.35 - 0.0125 * Math.max(0, view.moveCount - 4));
-  return belief[0].w >= need ? toPos(belief[0].pos, n) : null;
+  return belief[0].w >= need ? { pos: toPos(belief[0].pos, n), reason: "top", w: belief[0].w } : null;
 }
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;
