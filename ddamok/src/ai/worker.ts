@@ -4,8 +4,11 @@ import type { GameState } from "../game/types.ts";
 import { chooseMove } from "./search.ts";
 import { levelById } from "./levels.ts";
 import { chooseBlackMove, chooseBlackScan, chooseWhiteMove } from "./hidden.ts";
+import { learnFromGame } from "./experience.ts";
 
-self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: string }>) => {
+self.onmessage = (e: MessageEvent<{ id: number; state: GameState; levelId: string } | { learn: GameState }>) => {
+  // 끝난 판에서 배운다(진 수순을 되풀이하지 않게) — 이 탭이 열려 있는 동안 기억한다
+  if ("learn" in e.data) { learnFromGame(e.data.learn); return; }
   const { id, state, levelId } = e.data;
   const level = levelById(levelId);
   if (!level || state.isFinished) return;

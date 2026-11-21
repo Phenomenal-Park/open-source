@@ -8,6 +8,7 @@ import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
 import { chooseMove } from "./search.ts";
+import { experienceBonus, positionKey } from "./experience.ts";
 
 const SIM: FastLevel = { depth: 4, timeMs: 30, width: 10, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 };
 type Rng = () => number;
@@ -147,6 +148,9 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
       ev.set(p, ev.get(p)! + (wd.w / wsum) * clamp(v));
     }
   }
+  // 경험: 이 자리에서 진 적이 있는 수는 깎는다
+  const key = positionKey(view);
+  for (const [p, v] of ev) ev.set(p, v + experienceBonus(key, p));
   // 비슷하게 좋은 수(가장 좋은 값과 VARY_EV 안쪽) 중 무작위 — 같은 판을 되풀이하지 않게
   let bestV = -Infinity;
   for (const v of ev.values()) if (v > bestV) bestV = v;

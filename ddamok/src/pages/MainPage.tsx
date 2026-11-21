@@ -360,6 +360,16 @@ export function MainPage() {
     };
   }, [aiGame, aiThinking, state, commit]);
 
+  // AI 대국이 끝나면 AI가 그 판에서 배운다(같은 판에 같은 수로 또 지지 않게)
+  const learnedKey = useRef("");
+  useEffect(() => {
+    if (!aiGame || !state.isFinished || !workerRef.current) return;
+    const key = state.moves.map((m) => `${m.row},${m.col}`).join(" ");
+    if (learnedKey.current === key) return;
+    learnedKey.current = key;
+    workerRef.current.postMessage({ learn: state });
+  }, [aiGame, state]);
+
   useEffect(() => () => workerRef.current?.terminate(), []);
 
   const reset = useCallback((size: number, hiddenMove = false) => {

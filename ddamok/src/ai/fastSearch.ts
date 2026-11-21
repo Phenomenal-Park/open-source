@@ -3,6 +3,7 @@
 //   - 상대가 다음 수에 이길 자리가 있으면(넉 점·포획 승리 위협) 그 자리 막기·따내서 깨기만 둔다(깊이를 줄이지 않음).
 import type { GameState, Position } from "../game/types.ts";
 import { isLegalMove } from "../game/rules.ts";
+import { experienceBonus, positionKey } from "./experience.ts";
 import { secondMoveRestricted } from "../game/config.ts";
 import { FastBoard, type Color } from "./fast.ts";
 
@@ -265,13 +266,17 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
     }
     scores.sort((p, q) => q.s - p.s);
   }
+  // 경험: 이 자리에서 진 적이 있는 수는 점수를 깎는다(이긴 수는 조금 더한다)
+  const key = positionKey(state);
+  for (const x of scores) x.s += experienceBonus(key, x.p);
+  scores.sort((p, q) => q.s - p.s);
   let best = scores[0], bestV = -Infinity;
   for (const x of scores) {
     const v = x.s + (noise ? gaussian(rand) * noise : 0);
     if (v > bestV) { bestV = v; best = x; }
   }
   if (!noise && level.vary && scores.length > 1 && Math.abs(best.s) < WIN / 2) {
-    const alt = varyAmong(b, scores.slice(0, 3).map((x) => x.p), best.p, level, rand);
+    const alt = varyAmong(b, scores.slice(0, 3).map((x) => x.p), best.p, level, rand, key);
     if (alt >= 0) return toPos(alt);
   }
   return toPos(best.p);
@@ -281,7 +286,7 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
  * 비슷하게 좋은 후보 중 무작위: 후보마다 상대 차례로 짧게 읽어(같은 깊이·같은 창) 견주고,
  * 가장 좋은 수보다 level.vary 이상 나쁘지 않은 것 중 하나를 고른다. 모두 나쁘면 -1.
  */
-function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLevel, rand: () => number): number {
+function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLevel, rand: () => number, key: string): number {
   const vals: { p: number; v: number }[] = [];
   const ms = Math.max(10, level.timeMs * 0.08);
   for (const p of cands) {
@@ -290,7 +295,7 @@ function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLeve
       if (res === 1) return p; // 이기는 수
       if (res === 2) continue;
       const opp = new FastSearcher(b, level.width).searchRoot(Math.min(level.depth, 6), ms, true, true).scores[0];
-      vals.push({ p, v: opp ? -opp.s : 0 });
+      vals.push({ p, v: (opp ? -opp.s : 0) + experienceBonus(key, p) });
     } finally {
       b.undo();
     }

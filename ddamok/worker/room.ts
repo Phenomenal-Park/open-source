@@ -7,6 +7,7 @@ import type { GameState, Player, Position } from "../src/game/types.ts";
 import { isProvisional, rateDraw, rateGame, type PlayerUpdate } from "../src/rating/elo.ts";
 import { chooseMove } from "../src/ai/search.ts";
 import { chooseBlackMove, chooseBlackScan, chooseWhiteMove } from "../src/ai/hidden.ts";
+import { learnFromGame } from "../src/ai/experience.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
@@ -398,6 +399,10 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private async finish(winner: Player | null, reason: ResultReason) {
+    // AI가 둔 판이면 그 판에서 배운다(같은 서버 실행 안에서만 기억)
+    if (this.data && (this.data.black.bot || this.data.white.bot) && (reason === "five" || reason === "capture")) {
+      try { learnFromGame(this.replay(this.data)); } catch { /* 배우지 못해도 결과는 그대로 */ }
+    }
     const d = this.data!;
     if (d.status !== "playing") return;
     d.status = "finished";
