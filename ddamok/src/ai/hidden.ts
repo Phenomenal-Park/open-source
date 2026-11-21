@@ -433,7 +433,8 @@ function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Posi
   let best = -1, bestS = -Infinity;
   for (const p of cands) {
     const st: GameState = { ...view, scan: { pos: toPos(p, n), at: view.moves.length, hit: false }, currentPlayer: "white" };
-    const sc = new FastSearcher(FastBoard.fromState(st), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores;
+    // 흑돌 착수와 같은 깊이·시간으로 읽어야 공정하다(1세트: 짧게 읽어 40판 중 2판만 씀)
+    const sc = new FastSearcher(FastBoard.fromState(st), fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.35), false, true).scores;
     if (!sc.length) continue;
     const v = -sc[0].s;
     if (v > bestS) { bestS = v; best = p; }
@@ -442,8 +443,8 @@ function magicAsMove(view: GameState, vb: FastBoard, fl: FastLevel): { pos: Posi
   if (lost) return bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
   return bestS - base[0].s >= MAGIC_MARGIN ? { pos: toPos(best, n), reason: "green" } : null;
 }
-/** 매직스톤(턴을 씀)을 흑돌 대신 둘 기준(형세 점수) */
-const MAGIC_MARGIN = 150;
+/** 매직스톤(턴을 씀)을 흑돌 대신 둘 기준(형세 점수): 흑돌만큼 좋으면 쓴다 — 끝까지 안 쓰면 그냥 버려진다 */
+const MAGIC_MARGIN = 0;
 
 /** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
 const SHIELD_D1 = 0.08;
