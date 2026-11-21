@@ -21,6 +21,8 @@ interface BoardProps {
   fx: CaptureFx | null;
   /** 백 히든: 내(백)가 숨겨 둔 돌 — 흐리게 보인다 */
   ghost?: Position | null;
+  /** 숨은 돌이 드러나기까지 남은 백의 수(백에게만, 숨긴 돌 위에 숫자로) */
+  ghostCount?: number | null;
   /** 백 히든: 드러난 숨은 돌 — 스르르 나타난다 */
   reveal?: Position | null;
   /** 기보: 히든으로 둔 돌 표시(점선 고리) */
@@ -45,7 +47,7 @@ function starPoints(n: number): Position[] {
 
 const xy = (i: number) => PAD + i * CELL;
 
-export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hiddenMark, scanning, scanFx }: BoardProps) {
+export function Board({ state, onPlay, disabled, fx, ghost, ghostCount, reveal, found, hiddenMark, scanning, scanFx }: BoardProps) {
   const look = useLook();
   const n = state.config.boardSize;
   const size = PAD * 2 + (n - 1) * CELL;
@@ -154,6 +156,10 @@ export function Board({ state, onPlay, disabled, fx, ghost, reveal, found, hidde
 
       {state.lastMove && (
         <circle className="last-move" cx={xy(state.lastMove.col)} cy={xy(state.lastMove.row)} r={1.5} />
+      )}
+
+      {ghost && ghostCount != null && (
+        <text className="ghost-count" x={xy(ghost.col)} y={xy(ghost.row)} fontSize={CELL * 0.55} textAnchor="middle" dominantBaseline="central">{ghostCount}</text>
       )}
 
       {hiddenMark && (

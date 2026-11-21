@@ -143,6 +143,7 @@ export const en: Messages = {
   "rules.5": "Black wins by capturing **12** stones, White by capturing **10**.",
   "rules.6": "In AI and online games, White may play one **hidden move** per game. Placed within 10 seconds, it stays invisible to Black but counts for fives and captures. Miss the time and the chance is gone. In games with the hidden move, both sides win by capturing **10**.",
   "rules.7": "If Black taps the hidden point, the stone appears and Black plays again. It also appears when it helps capture or when the game ends.",
+  "rules.7b": "The hidden stone is revealed once White has played **5 more moves** (White sees the countdown on the stone).",
   "rules.8": "After White goes hidden, Black may **scan** once per game on Black's turn: pick one point to check for the hidden stone. If it's there, it appears. Scanning doesn't use Black's turn.",
   "rules.9": "Casual and Friend games can also use **no-hidden rules** (no hidden move or scan; Black 12, White 10). Rated games always use hidden rules.",
   "sound.title": "Sound",

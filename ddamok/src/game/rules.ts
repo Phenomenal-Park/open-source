@@ -52,6 +52,17 @@ export function forfeitHidden(state: GameState): GameState {
   return { ...state, hidden: { index: -1, pos: { row: -1, col: -1 }, revealed: true } };
 }
 
+/** 숨긴 뒤 백이 이만큼 더 두면 숨은 돌이 드러난다 */
+export const HIDDEN_TURNS = 5;
+
+/** 숨은 돌이 드러나기까지 남은 백의 수(숨기지 않았거나 이미 드러났으면 null) */
+export function hiddenTurnsLeft(state: GameState): number | null {
+  const h = state.hidden;
+  if (!h || h.revealed || h.index < 0) return null;
+  const whiteMovesSince = Math.floor((state.moves.length - 1 - h.index) / 2);
+  return Math.max(0, HIDDEN_TURNS - whiteMovesSince);
+}
+
 /** 흑 스캔을 지금 쓸 수 있는가: 백이 히든을 썼고, 아직 드러나지 않았고, 흑 차례이고, 이 판에서 스캔을 안 썼을 때 */
 export function canScan(state: GameState): boolean {
   const h = state.hidden;
@@ -145,6 +156,11 @@ export function tryMove(state: GameState, position: Position, player: Player = s
       pos.row + 3 * dr === hs.pos.row && pos.col + 3 * dc === hs.pos.col
       && captured.some((c) => c.row === pos.row + dr && c.col === pos.col + dc));
     if (opts.hidden || anchored || captured.some((c) => samePos(c, hs.pos))) next.hidden = { ...hs, revealed: true };
+  }
+
+  // 숨긴 뒤 백이 HIDDEN_TURNS수를 더 두면 드러난다
+  if (me === "white" && !opts.hidden && next.hidden && !next.hidden.revealed && next.hidden.index >= 0 && hiddenTurnsLeft(next) === 0) {
+    next.hidden = { ...next.hidden, revealed: true };
   }
 
   // 10. 포획 승리

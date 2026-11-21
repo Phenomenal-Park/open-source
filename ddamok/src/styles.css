@@ -91,6 +91,7 @@ button, input, select { font: inherit; }
 .scan-miss { fill: none; stroke: #a86f00; stroke-width: .6; opacity: .85; pointer-events: none; }
 .scan-miss circle { stroke-dasharray: 1.2 .9; }
 .btn.scan-btn.active { border-color: #ffd84a; color: #ffd84a; }
+.ghost-count { fill: #3a2e1c; font-weight: 800; pointer-events: none; }
 .hidden-mark { fill: none; stroke: var(--accent); stroke-width: .7; stroke-dasharray: 1.4 1; pointer-events: none; }
 .stone.ghost { opacity: .45; stroke-dasharray: .9 .7; }
 .stone.reveal { animation: reveal 1.5s ease-out; }

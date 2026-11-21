@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  canScan, canUseHidden, createGame, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
+  canScan, canUseHidden, createGame, hiddenTurnsLeft, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
   undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
@@ -526,6 +526,7 @@ export function MainPage() {
             fx={fx}
             disabled={boardLocked}
             ghost={viewer === "white" && hs && !hs.revealed ? hs.pos : null}
+            ghostCount={viewer === "white" ? hiddenTurnsLeft(state) : null}
             reveal={hs?.revealed && state.board[hs.pos.row]?.[hs.pos.col] === "white" ? hs.pos : null}
             found={notice?.kind === "found" && notice.pos ? { pos: notice.pos, id: notice.id } : null}
           />

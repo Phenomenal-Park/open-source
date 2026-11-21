@@ -103,5 +103,21 @@ describe("백 히든", () => {
     expect(tryMove(s, at(7, 8), undefined, { hidden: true })).toEqual({ ok: false, reason: "hidden-unavailable" });
     expect(tryMove(s, at(7, 8)).ok).toBe(true);
   });
+
+  it("숨긴 뒤 백이 5수를 더 두면 드러난다(그 전까지 남은 수가 줄어든다)", async () => {
+    const { hiddenTurnsLeft } = await import("./rules.ts");
+    let s = seq(on(), at(7, 7), { hidden: at(3, 3) });
+    expect(hiddenTurnsLeft(s)).toBe(5);
+    const far: Position[] = [at(0, 0), at(14, 14), at(0, 2), at(14, 12), at(0, 4), at(14, 10), at(0, 6), at(14, 8), at(0, 8)];
+    // 흑 0,0 · 백 14,14 → 백 1수
+    s = seq(s, far[0], far[1]);
+    expect(hiddenTurnsLeft(s)).toBe(4);
+    s = seq(s, far[2], far[3], far[4], far[5], far[6], far[7]); // 백 4수째까지
+    expect(hiddenTurnsLeft(s)).toBe(1);
+    expect(s.hidden?.revealed).toBe(false);
+    s = seq(s, far[8], at(12, 6)); // 백 5수째 → 드러남
+    expect(s.hidden?.revealed).toBe(true);
+    expect(hiddenTurnsLeft(s)).toBeNull();
+  });
 });
 
