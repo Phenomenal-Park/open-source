@@ -487,8 +487,19 @@ function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: 
     if (w.length) return w[0];
     return new FastSearcher(fb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.12), false, true).scores[0]?.p ?? -1;
   };
+  // 흑에게 스캔이 있으면(지뢰를 묻은 뒤 한 번) 흑은 "가장 두고 싶은 자리"부터 의심해 스캔한다.
+  // 찾히면 그 자리는 매직스톤이 되고 흑은 그대로 둔다 → 백은 묻는 데 쓴 한 수만 잃는다. 그 확률만큼 값을 깎는다.
+  const scanRisk = new Map<number, number>();
+  if (state.config.mineScan && state.scan === null) {
+    const top = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.15), false, true).scores.slice(0, 3);
+    top.forEach((x, i) => scanRisk.set(x.p, MINE_SCAN_RISK[i]));
+    for (const w of vb.winningMoves(1)) scanRisk.set(w, Math.max(scanRisk.get(w) ?? 0, MINE_SCAN_RISK[0]));
+    // 흑 공격 방향의 다른 자리도 후보에 넣는다(덜 뻔한 급소)
+    const more = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN / 2).sort((a, c) => c.g - a.g).slice(0, 10);
+    for (const x of more) cands.add(x.p);
+  }
   const opts: { p: number; v: number }[] = [];
-  for (const p of [...cands].slice(0, 8)) {
+  for (const p of [...cands].slice(0, scanRisk.size ? 12 : 8)) {
     const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
     const m = blackPick(placed);
     if (m < 0) continue;
@@ -500,7 +511,15 @@ function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: 
       r = tryMove(r.state, toPos(m2, n));
     }
     if (!r.ok || (r.state.isFinished && r.state.winner === "black")) continue;
-    const v = r.state.isFinished ? 1e9 : new FastSearcher(FastBoard.fromState(r.state), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores[0]?.s ?? 0;
+    let v = r.state.isFinished ? 1e9 : new FastSearcher(FastBoard.fromState(r.state), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores[0]?.s ?? 0;
+    const risk = scanRisk.get(p) ?? (scanRisk.size ? MINE_SCAN_RISK_OTHER : 0);
+    if (risk > 0) {
+      // 찾힌 판: 그 자리는 매직스톤, 흑 차례(백은 한 수를 버렸다)
+      const found: GameState = { ...state, magic: [...(state.magic ?? []), { pos: toPos(p, n), at: state.moves.length, hit: false }], currentPlayer: "black" };
+      const fv = -(new FastSearcher(FastBoard.fromState(found), fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(20, fl.timeMs * 0.1), false, true).scores[0]?.s ?? 0);
+      const clamp = (x: number) => Math.max(-1e5, Math.min(1e5, x));
+      v = (1 - risk) * clamp(v) + risk * clamp(fv);
+    }
     opts.push({ p, v });
   }
   return { normal, opts };
@@ -618,6 +637,9 @@ function chooseBlackMoveMine(view: GameState, level: AiLevel, rand: Rng): Positi
 
 /** 지뢰를 보통 착수 대신 묻을 기준(형세 점수) */
 const MINE_MARGIN = 0;
+/** 흑에게 스캔이 있을 때 그 자리를 흑이 먼저 스캔할 확률: 흑이 가장 두고 싶은 수 1·2·3위 / 그 밖 */
+const MINE_SCAN_RISK = [0.85, 0.4, 0.25];
+const MINE_SCAN_RISK_OTHER = 0.08;
 /** 지뢰 자리 섞기: 가장 좋은 자리와 이만큼 안쪽이면 비슷하게 좋다고 본다(형세 점수) */
 const MINE_WINDOW = 150;
 /** 지뢰 후보로 볼 흑 줄의 최소 성장(흑 2개 창이 3개가 되는 정도 이상) */
