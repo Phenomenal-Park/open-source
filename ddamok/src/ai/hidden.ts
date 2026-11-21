@@ -315,8 +315,12 @@ export function chooseWhiteMove(state: GameState, level: AiLevel, rand: Rng = Ma
   if (!L.fast) return { move: plain, hidden: state.moveCount >= 1 && state.moveCount <= 21 && rand() < 0.1 };
   const n = state.config.boardSize;
   const { options, jitter } = whiteHideOptions(state, level, plain, opts);
+  // 쓰는 때를 판마다 다르게: 초반(21수까지)에는 이번 차례에 숨길 마음이 있을 때만(HIDE_WILL) 숨기는 후보를 본다.
+  // 첫 수 절반, 나머지는 3·5·7수째 쪽으로 퍼진다. 숨겨야 바로 이기는 등 결정적인 경우는 늘 본다.
+  const willing = state.moveCount > 21 || rand() < HIDE_WILL || options.some((o) => o.hidden && o.v >= 1e8);
   let best = { move: plain, hidden: false }, bestV = -Infinity;
   for (const o of options) {
+    if (o.hidden && !willing) continue;
     const v = o.v + (rand() - 0.5) * 2 * (o.hidden ? jitter.hidden : jitter.visible);
     if (v > bestV) { bestV = v; best = { move: toPos(o.p, n), hidden: o.hidden }; }
   }
@@ -432,7 +436,10 @@ function stealthy(state: GameState, level: AiLevel, plain: Position, rand: Rng =
   const top = sc[0].s;
   if (top >= STEALTH_DECISIVE) return plain;
   const p0 = plain.row * n + plain.col;
-  const pool = sc.filter((x) => x.s >= top - STEALTH_MARGIN).slice(0, 6);
+  // 숨긴 직후 몇 수(백 수 3번까지)는 블러핑: 숨긴 곳과 딴판인 수도 더 넓게 허용한다(숨은 돌은 나중에 이어질 때 힘을 쓴다)
+  const sinceHide = state.moves.length - h.index;
+  const margin = sinceHide <= 6 ? STEALTH_MARGIN_EARLY : STEALTH_MARGIN;
+  const pool = sc.filter((x) => x.s >= top - margin).slice(0, 8);
   if (!pool.some((x) => x.p === p0)) pool.unshift({ p: p0, s: sc.find((x) => x.p === p0)?.s ?? top });
   let best = p0, bestV = -Infinity;
   for (const x of pool) {
@@ -448,13 +455,17 @@ function stealthy(state: GameState, level: AiLevel, plain: Position, rand: Rng =
 }
 /** 티 안 내기: 가장 좋은 수보다 이만큼 덜 좋은 수까지 고려한다 */
 const STEALTH_MARGIN = 150;
+/** 숨긴 직후(블러핑)에는 이만큼까지 */
+const STEALTH_MARGIN_EARLY = 350;
 /** 티 안 내기: 숨은 돌 자리 의심(확률) 1당 깎는 점수 */
 const STEALTH_WEIGHT = 1500;
 /** 이 점수 이상인 수(사실상 이기는 공격)는 티를 내더라도 둔다 */
 const STEALTH_DECISIVE = 5000;
 
 /** 숨길 자리 고르기의 흔들림: 비슷하게 좋은 자리 중에서 판마다 다르게 숨긴다(늘 같은 자리면 사람이 금방 외운다) */
-const HIDE_JITTER = 250;
+const HIDE_JITTER = 500;
+/** 초반에 이번 차례 숨길 마음이 있을 확률 */
+const HIDE_WILL = 0.5;
 
 /** 먼 히든 자리의 잠재 가치 1점당 형세 점수 */
 const FAR_LATENT = 40;
