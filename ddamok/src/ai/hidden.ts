@@ -253,6 +253,7 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
       const ms = Math.max(15, fastLevel.timeMs * 0.12);
       let bestRisk = 0, bestCell = -1;
       for (const x of belief.slice(0, 6)) {
+        if (x.w < SCAN_RISK_MIN_W) continue; // 거기 있을 법하지 않은 자리에 한 번뿐인 스캔을 쓰지 않는다
         const board = view.board.map((r) => r.slice());
         board[(x.pos / n) | 0][x.pos % n] = "white";
         const fb = FastBoard.fromState({ ...view, board, hidden: null });
@@ -282,6 +283,8 @@ const SCAN_D2 = 0.1;
 const SCAN_TOP = 0.2;
 /** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
 const SCAN_RISK = 300;
+/** 지우기용 스캔도 이 의심(확률) 이상인 자리에만 — 20% 미만 자리에 쓴 6번은 하나도 맞지 않았다 */
+const SCAN_RISK_MIN_W = 0.2;
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
 function simulateBlack(s: GameState): GameState {
