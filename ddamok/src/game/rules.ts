@@ -152,7 +152,7 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
   const byBlack = state.currentPlayer === "black";
   const h = byBlack ? state.hidden : state.hiddenB;
   const hit = !!h && h.index >= 0 && !h.revealed && samePos(h.pos, pos);
-  if (!hit && state.board[pos.row][pos.col] !== null) return { ok: false, reason: "occupied" };
+  if (!hit && (state.board[pos.row][pos.col] !== null || blockedCells(state).some((b) => samePos(b, pos)))) return { ok: false, reason: "occupied" };
   const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };
   const h2 = hit ? { ...h!, revealed: true } : h ?? null;
   let next: GameState = byBlack ? { ...state, scan: rec, hidden: h2, lastCaptured: [] } : { ...state, scanW: rec, hiddenB: h2, lastCaptured: [] };

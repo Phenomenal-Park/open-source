@@ -4,7 +4,7 @@
 // 형세 점수는 "5칸 창" 단위로 바뀐 부분만 갱신한다: 판 위 모든 5칸 창의 흑·백 돌 수를 들고 있다가,
 // 돌 하나가 놓이거나(따여서) 빠지면 그 칸을 지나는 최대 20개 창만 다시 센다.
 import type { GameState, Player } from "../game/types.ts";
-import { blockedCells } from "../game/rules.ts";
+import { blockedCell, blockedCells } from "../game/rules.ts";
 
 export const EMPTY = 0, BLACK = 1, WHITE = 2;
 /** (실험) ⓧ 자리: 아무도 둘 수 없고 줄을 끊는다 */
@@ -91,6 +91,7 @@ export class FastBoard {
     this.whiteImmuneRule = whiteImmuneRule;
     this.empties = n * n;
     this.near = new Int16Array(n * n);
+    this.anchorAt = new Uint8Array(n * n);
     const windows: number[][] = [];
     const axisOf: number[] = [];
     for (const [ai, [dr, dc]] of AXES.entries()) {
@@ -124,9 +125,14 @@ export class FastBoard {
       const v = s.board[r][c];
       if (v) b.put(r * n + c, v === "black" ? BLACK : WHITE);
     }
-    for (const wall of blockedCells(s)) b.addWall(wall.row * n + wall.col);
+    // 중립 칸: 흑 ⓧ(초록돌 규칙이면 받침) + 랜덤 매직스톤(늘 받침)
+    const own = blockedCell(s);
+    for (const wall of blockedCells(s)) {
+      const isOwn = !!own && own.row === wall.row && own.col === wall.col;
+      b.addWall(wall.row * n + wall.col, isOwn ? !!s.config.greenStone : true);
+    }
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
-    b.wallAnchor = !!s.config.greenStone || !!s.config.randomMagic;
+    b.wallAnchor = !!s.config.greenStone;
     b.wallCosts = !!s.config.scanCostsMove;
     // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)
     const h = s.hidden;
@@ -144,7 +150,8 @@ export class FastBoard {
   unplace(pos: number) { this.remove(pos); }
 
   /** (실험) 빈칸 pos를 ⓧ로 막는다: 그 칸을 지나는 창은 양쪽 모두에게 죽은 창이 된다(흑·백이 섞인 창처럼) */
-  addWall(pos: number) {
+  addWall(pos: number, anchor = this.wallAnchor) {
+    this.anchorAt[pos] = anchor ? 1 : 0;
     for (const w of this.cellWindows[pos]) {
       const b = this.wb[w], wh = this.ww[w];
       if (!wh && b && b < 5) { this.cnt[5 + b]--; if (b === 4) this.fours[1]--; }
@@ -169,8 +176,10 @@ export class FastBoard {
     this.hash ^= 0x5bd1e995 ^ pos;
   }
 
-  /** (실험) ⓧ 칸이 초록돌(양쪽 모두의 따내기 받침)인가 */
+  /** (실험) 흑이 놓는 ⓧ 칸이 초록돌(양쪽 모두의 따내기 받침)인가 */
   wallAnchor = false;
+  /** 칸별: 중립 칸이 따내기 받침인가(ⓧ는 규칙에 따라, 랜덤 매직스톤은 늘) */
+  private anchorAt = new Uint8Array(0);
   /** (실험) ⓧ/매직스톤을 쓰면 차례가 넘어가는가 */
   wallCosts = false;
   /** 차례만 넘긴다(수읽기에서 "턴을 쓰는 매직스톤"을 가정할 때, 기록은 남기지 않는다) */
@@ -261,7 +270,7 @@ export class FastBoard {
       if (r3 < 0 || r3 >= n || c3 < 0 || c3 >= n) continue;
       const p1 = (r + dr) * n + c + dc, p2 = (r + 2 * dr) * n + c + 2 * dc;
       const e3 = this.cells[r3 * n + c3];
-      if (this.cells[p1] === enemy && this.cells[p2] === enemy && (e3 === color || (e3 === WALL && this.wallAnchor)) && p1 !== this.immune && p2 !== this.immune) out.push(p1, p2);
+      if (this.cells[p1] === enemy && this.cells[p2] === enemy && (e3 === color || (e3 === WALL && this.anchorAt[r3 * n + c3] === 1)) && p1 !== this.immune && p2 !== this.immune) out.push(p1, p2);
     }
     return out;
   }

@@ -168,3 +168,21 @@ describe("매직스톤 랜덤 출현 (실험)", () => {
     expect(m.board[6][6]).toBe("white");
   });
 });
+
+describe("실드 + 랜덤 매직스톤 (실험)", () => {
+  it("매직스톤만 따내기 받침이고 실드는 받침이 아니다", async () => {
+    const { placeMagic } = await import("./rules.ts");
+    let s = seq(createGame(15, { hiddenMove: true, blackBlock: true, randomMagic: true, noTimedReveal: true, captureTarget: { black: 10, white: 10 } }), at(7, 7), at(5, 5), at(0, 0), at(5, 6));
+    const r = scanAt(s, at(5, 7)); // 실드
+    if (!r.ok) throw new Error(r.reason);
+    s = seq(r.state, at(0, 2), at(9, 5), at(14, 14), at(9, 6)); // 백 9,5 9,6
+    s = placeMagic(s, at(9, 7));
+    expect(tryMove(s, at(5, 4)).ok && (tryMove(s, at(5, 4)) as any).captured).toEqual([]); // 실드 받침 → 안 따임
+    const t = tryMove(s, at(9, 4)); // 매직스톤 받침 → 따냄
+    expect(t.ok && t.captured).toHaveLength(2);
+    const b = FastBoard.fromState(s);
+    expect(b.capturesAt(5 * 15 + 4, 1)).toEqual([]);
+    expect(b.capturesAt(9 * 15 + 4, 1)).toHaveLength(2);
+    expect(scanAt({ ...s, scan: null }, at(9, 7))).toEqual({ ok: false, reason: "occupied" });
+  });
+});
