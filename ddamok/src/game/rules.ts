@@ -94,11 +94,15 @@ export function scanAt(state: GameState, pos: Position): { ok: true; state: Game
   if (!hit && state.board[pos.row][pos.col] !== null) return { ok: false, reason: "occupied" };
   const rec = { pos: { row: pos.row, col: pos.col }, at: state.moves.length, hit };
   const h2 = hit ? { ...h, revealed: true } : h;
-  return {
-    ok: true,
-    hit,
-    state: byBlack ? { ...state, scan: rec, hidden: h2, lastCaptured: [] } : { ...state, scanW: rec, hiddenB: h2, lastCaptured: [] },
-  };
+  let next: GameState = byBlack ? { ...state, scan: rec, hidden: h2, lastCaptured: [] } : { ...state, scanW: rec, hiddenB: h2, lastCaptured: [] };
+  if (hit && state.config.scanRemoves) {
+    // (실험) 맞히면 숨은 돌을 걷어 낸다
+    const board = next.board.map((r) => r.slice());
+    board[pos.row][pos.col] = null;
+    next = { ...next, board, lastMove: samePos(next.lastMove, pos) ? null : next.lastMove };
+  }
+  if (state.config.scanCostsMove) next = { ...next, currentPlayer: opponent(state.currentPlayer) }; // (실험) 스캔에 한 수를 쓴다
+  return { ok: true, hit, state: next };
 }
 
 /**

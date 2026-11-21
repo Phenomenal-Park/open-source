@@ -45,6 +45,10 @@ export interface GameConfig {
    * 이 설정에서는 "숨긴 뒤 5수면 공개"가 없다. 기본 false
    */
   mutualHidden?: boolean;
+  /** (실험) 스캔이 맞으면 상대의 숨은 돌을 걷어 낸다(판에서 없어진다) */
+  scanRemoves?: boolean;
+  /** (실험) 스캔에 한 수를 쓴다(스캔하면 차례가 넘어간다) */
+  scanCostsMove?: boolean;
 }
 
 /** 흑 스캔: 백이 히든을 쓴 뒤 한 판에 한 번, 흑 차례에 교차점 하나에 숨은 돌이 있는지 본다(차례는 그대로) */

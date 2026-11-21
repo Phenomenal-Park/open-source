@@ -24,6 +24,8 @@ export function makeConfig(boardSize: number = DEFAULT_BOARD_SIZE, overrides: Pa
     secondMoveLineBan: overrides.secondMoveLineBan ?? "none",
     hiddenMove: overrides.hiddenMove ?? false,
     mutualHidden: overrides.mutualHidden ?? false,
+    scanRemoves: overrides.scanRemoves ?? false,
+    scanCostsMove: overrides.scanCostsMove ?? false,
   };
 }
 
