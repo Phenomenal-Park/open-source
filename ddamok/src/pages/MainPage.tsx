@@ -4,7 +4,7 @@ import {
   undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
-import { formatRating, type GameSnapshot, type MatchMode } from "../online/protocol.ts";
+import { formatRating, type GameSnapshot, type MatchMode, type MatchRule } from "../online/protocol.ts";
 import { findMatch, GameConnection, type ConnStatus } from "../online/client.ts";
 import { Board, type CaptureFx } from "../components/Board.tsx";
 import { Scoreboard, type SeatLabel } from "../components/Scoreboard.tsx";
@@ -49,7 +49,7 @@ export function MainPage() {
   const [resultOpen, setResultOpen] = useState(true);
   const [aiGame, setAiGame] = useState<{ levelId: string; aiColor: Player } | null>(null);
   const [online, setOnline] = useState<Online | null>(null);
-  const [waiting, setWaiting] = useState<{ mode: MatchMode; code: string | null; hidden?: boolean } | null>(null);
+  const [waiting, setWaiting] = useState<{ mode: MatchMode; code: string | null; rule?: MatchRule } | null>(null);
   const [onlineError, setOnlineError] = useState<string | null>(null);
   const [, tick] = useState(0);
   const workerRef = useRef<Worker | null>(null);
@@ -402,11 +402,11 @@ export function MainPage() {
     if (online && onlinePlaying && window.confirm(t("confirm.resign"))) conn.current?.send({ type: "resign" });
   }
 
-  function find(mode: MatchMode, code: string | null, hidden = true, clockMin?: number) {
+  function find(mode: MatchMode, code: string | null, rule: MatchRule = "any", clockMin?: number) {
     if (!session) return;
     setOnlineError(null);
     cancelMatch.current?.();
-    setWaiting({ mode, code, hidden });
+    setWaiting({ mode, code, rule });
     cancelMatch.current = findMatch(session.token, mode, code, {
       onWaiting: () => undefined,
       onMatched: (gameId) => {
@@ -419,7 +419,7 @@ export function MainPage() {
         setWaiting(null);
         setOnlineError(message);
       },
-    }, hidden, clockMin);
+    }, rule, clockMin);
   }
 
   function cancelFind() {

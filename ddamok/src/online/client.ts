@@ -1,5 +1,5 @@
 // 브라우저 쪽 온라인 연결: 매칭 대기 소켓과 대국 소켓(끊기면 자동 재접속).
-import type { ClientMessage, GameSnapshot, MatchMode, ServerMessage } from "./protocol.ts";
+import type { ClientMessage, GameSnapshot, MatchMode, MatchRule, ServerMessage } from "./protocol.ts";
 import { HEARTBEAT_MS, HEARTBEAT_TIMEOUT_MS, PING, WS_PROTOCOL } from "./protocol.ts";
 import type { Player } from "../game/types.ts";
 import { errorText, t } from "../i18n/index.ts";
@@ -15,8 +15,12 @@ export interface MatchHandlers {
 }
 
 /** 매칭 대기. 돌려주는 함수를 부르면 취소. */
-export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, hidden = true, clockMin?: number): () => void {
-  const q = new URLSearchParams({ mode, ...(mode === "friend" && code ? { code, hidden: hidden ? "1" : "0", time: String(clockMin ?? 3) } : {}) });
+export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, rule: MatchRule = "any", clockMin?: number): () => void {
+  const q = new URLSearchParams({
+    mode,
+    ...(mode !== "rated" ? { rule } : {}),
+    ...(mode === "friend" && code ? { code, time: String(clockMin ?? 3) } : {}),
+  });
   const ws = new WebSocket(wsUrl(`/api/match?${q}`), [WS_PROTOCOL, token]);
   let done = false;
   const beat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(PING), HEARTBEAT_MS);

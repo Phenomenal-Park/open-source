@@ -449,7 +449,7 @@ dialog.popup::backdrop { background: rgba(10,8,6,.6); }
 
 /* 친구매치 설정 한 줄: 히든 모드 · 시간 */
 .friend-options { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
-.friend-time { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 36px; font-size: 14px; }
+.friend-rule, .friend-time { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 36px; font-size: 14px; }
 /* 대국 시계(점수판 오른쪽) */
 .score-count .clock { margin-left: auto; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); }
 .score-count .clock.on { color: var(--text); }

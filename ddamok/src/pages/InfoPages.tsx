@@ -22,7 +22,7 @@ export function RulesPage() {
     <main className="page narrow">
       <article className="panel prose">
         <h2>{t("rulesPage.title")}</h2>
-        <ul>{(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7", "rules.8"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
+        <ul>{(["rules.1", "rules.2", "rules.3", "rules.4", "rules.5", "rules.6", "rules.7", "rules.8", "rules.9"] as const).map((k) => <li key={k}><Rich text={t(k)} /></li>)}</ul>
         <h3>{t("rulesPage.online")}</h3>
         <ul>{(["rulesPage.o1", "rulesPage.o2", "rulesPage.o3", "rulesPage.o4", "rulesPage.o5"] as const).map((k) => <li key={k}>{t(k)}</li>)}</ul>
       </article>

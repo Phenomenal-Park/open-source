@@ -1,9 +1,10 @@
 // 매칭 대기열(전역 Durable Object 하나).
 //   레이팅매치: 실력 점수가 가까운 사람(기다릴수록 범위가 넓어짐, pairing.ts), 15초 뒤 가장 가까운 AI 3개 중 하나(허용 시)
-//   친선매치: 친선매치를 누른 사람 중 무작위 1명
-//   친구매치: 같은 코드·같은 히든 설정·같은 시간을 고른 사람(레이팅·친선은 항상 히든 모드, 3분)
+//   친선매치: 친선매치를 누른 사람 중 규칙 선택이 맞는 무작위 1명(아무거나/히든룰/노히든룰, 3분)
+//   친구매치: 같은 코드·같은 시간을 고르고 규칙 선택이 맞는 사람
+//   레이팅매치는 늘 히든룰(백 히든 1번 + 흑 스캔 1번)
 import { DurableObject } from "cloudflare:workers";
-import { HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL, type MatchMode, type ServerMessage } from "../src/online/protocol.ts";
+import { agreedRule, HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL, type MatchMode, type MatchRule, type ServerMessage } from "../src/online/protocol.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import { isProvisional } from "../src/rating/elo.ts";
 import { dueForAi, nextCheck, pickBot, pickPairs, type Waiter } from "./pairing.ts";
@@ -14,8 +15,8 @@ interface Ticket {
   userId: string;
   mode: MatchMode;
   code: string | null;
-  /** 백 히든 모드(친구매치만 끌 수 있다) */
-  hidden: boolean;
+  /** 규칙 선택(레이팅매치는 늘 hidden) */
+  rule: MatchRule;
   /** 처음 시간(분) */
   clockMin: number;
   mmr: number;
@@ -71,7 +72,7 @@ export class Matchmaker extends DurableObject<Env> {
     const userId = request.headers.get("x-user-id")!;
     const mode = url.searchParams.get("mode") as MatchMode;
     const code = mode === "friend" ? url.searchParams.get("code") : null;
-    const hidden = mode !== "friend" || url.searchParams.get("hidden") !== "0";
+    const rule = (url.searchParams.get("rule") as MatchRule | null) ?? "hidden";
     const clockMin = Number(url.searchParams.get("time")) || 3;
 
     const pair = new WebSocketPair();
@@ -81,7 +82,7 @@ export class Matchmaker extends DurableObject<Env> {
 
     const me = await this.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first<Row>();
     const ticket: Ticket = {
-      key: crypto.randomUUID(), userId, mode, code, hidden, clockMin, mmr: me?.mmr ?? 1500, allowAi: !!me?.allow_ai, joinedAt: Date.now(),
+      key: crypto.randomUUID(), userId, mode, code, rule, clockMin, mmr: me?.mmr ?? 1500, allowAi: !!me?.allow_ai, joinedAt: Date.now(),
     };
     server.serializeAttachment(ticket);
 
@@ -102,12 +103,12 @@ export class Matchmaker extends DurableObject<Env> {
     if (mode === "rated") {
       this.matchRated();
     } else {
-      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code && (t.hidden ?? true) === hidden && (t.clockMin ?? 3) === clockMin);
+      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code && agreedRule(t.rule ?? "hidden", rule) !== null && (t.clockMin ?? 3) === clockMin);
       if (others.length) {
         const other = others[Math.floor(Math.random() * others.length)];
         this.take(other.ws, other.t);
         this.take(server, ticket);
-        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server], hidden, clockMin));
+        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server], agreedRule(other.t.rule ?? "hidden", rule)!, clockMin));
       }
     }
     return response;

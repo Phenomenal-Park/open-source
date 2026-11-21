@@ -1,7 +1,7 @@
 // 따목 Cloudflare Worker: 계정 API(D1) + 온라인 매칭·대국(Durable Objects, WebSocket). 화면(dist)은 정적 파일.
 import { calibrationFactor, rescale, TOP_MMR } from "../src/rating/elo.ts";
 import { RANKS, rankFor } from "../src/rating/ranks.ts";
-import { DEFAULT_CLOCK_MIN, FAVORITES_MAX, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, MATCH_MODES, WS_PROTOCOL, type MatchMode } from "../src/online/protocol.ts";
+import { DEFAULT_CLOCK_MIN, FAVORITES_MAX, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, MATCH_MODES, MATCH_RULES, WS_PROTOCOL, type MatchMode, type MatchRule } from "../src/online/protocol.ts";
 import { DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
 import { RECORDS_PER_USER } from "./room.ts";
 
@@ -415,7 +415,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     });
   }
 
-  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리][&hidden=0|1 친구매치만]  (WebSocket)
+  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리][&rule=any|hidden|nohidden 친선·친구][&time=분 친구]  (WebSocket)
   if (m === "GET" && path === "/api/match") {
     if (req.headers.get("upgrade") !== "websocket") throw new HttpError(426, "upgrade", "WebSocket이 필요합니다.");
     const u = await requireUser(env, wsToken(req));
@@ -425,12 +425,13 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     if (!MATCH_MODES.includes(mode)) throw new HttpError(400, "bad_mode", "잘못된 매치 종류입니다.");
     const code = url.searchParams.get("code") ?? "";
     if (mode === "friend" && !FRIEND_CODE_RE.test(code)) throw new HttpError(400, "bad_code", "코드는 숫자 1~8자리입니다.");
-    // 친구매치만 히든 모드를 고를 수 있다(레이팅·친선은 항상 히든). 같은 코드·같은 모드끼리 짝짓는다.
-    const hidden = mode !== "friend" || url.searchParams.get("hidden") !== "0";
+    // 규칙: 레이팅매치는 늘 히든룰. 친선·친구매치는 아무거나/히든룰/노히든룰 중 고른다(예전 hidden=0|1도 받는다).
+    const r = url.searchParams.get("rule") ?? (url.searchParams.has("hidden") ? (url.searchParams.get("hidden") === "0" ? "nohidden" : "hidden") : "any");
+    const rule: MatchRule = mode === "rated" ? "hidden" : (MATCH_RULES as readonly string[]).includes(r) ? (r as MatchRule) : "any";
     // 시계: 레이팅·친선은 3분, 친구매치는 1·3·5·10분 중 선택(같은 시간끼리 짝짓는다)
     const t = Number(url.searchParams.get("time"));
     const time = mode === "friend" && (FRIEND_CLOCK_MINUTES as readonly number[]).includes(t) ? t : DEFAULT_CLOCK_MIN;
-    const q = new URLSearchParams({ mode, hidden: hidden ? "1" : "0", time: String(time), ...(mode === "friend" ? { code } : {}) });
+    const q = new URLSearchParams({ mode, rule, time: String(time), ...(mode === "friend" ? { code } : {}) });
     return forwardWs(env.MATCHMAKER.get(env.MATCHMAKER.idFromName("global")), `https://matchmaker/join?${q}`, u);
   }
 

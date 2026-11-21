@@ -122,3 +122,16 @@ export type ClientMessage =
   | { type: "scan"; row: number; col: number; moveNo: number }
   | { type: "resign" }
   | { type: "ping" };
+
+/**
+ * 친선·친구매치의 규칙 선택. "hidden" = 히든룰(백 히든 1번 + 흑 스캔 1번, 따냄 10/10),
+ * "nohidden" = 노히든룰(히든·스캔 없음, 흑 12 / 백 10), "any" = 아무 규칙이나. 레이팅매치는 늘 히든룰.
+ */
+export type MatchRule = "any" | "hidden" | "nohidden";
+export const MATCH_RULES: readonly MatchRule[] = ["any", "hidden", "nohidden"];
+
+/** 두 사람의 규칙 선택이 맞으면 그 판의 규칙(히든이면 true), 안 맞으면 null. 둘 다 "아무거나"면 히든룰 */
+export function agreedRule(a: MatchRule, b: MatchRule): boolean | null {
+  if (a !== "any" && b !== "any" && a !== b) return null;
+  return a !== "nohidden" && b !== "nohidden";
+}

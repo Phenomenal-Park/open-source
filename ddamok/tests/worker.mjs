@@ -75,10 +75,10 @@ async function match(token, q) {
 }
 
 /** 두 사람을 매칭시키고 대국방에 접속 → { gameId, black, white } (각각 { token, sock }) */
-async function pairUp(a, b, q) {
+async function pairUp(a, b, q, qb = q) {
   const ma = await match(a, q);
   await ma.next((m) => m.type === "waiting");
-  const mb = await match(b, q);
+  const mb = await match(b, qb);
   const [x, y] = await Promise.all([ma.next((m) => m.type === "matched"), mb.next((m) => m.type === "matched")]);
   assert.equal(x.gameId, y.gameId);
   const ga = socket(`/api/games/${x.gameId}/ws`, a), gb = socket(`/api/games/${x.gameId}/ws`, b);
@@ -364,6 +364,32 @@ await check("기보: 대국 종류(레이팅·친선·친구)로 나눠 보기, 
   assert.equal(rated.total, rated.games.length);
 });
 
+await check("친선매치 규칙: 히든룰과 노히든룰은 안 만나고, 노히든룰은 아무거나와 노히든으로, 아무거나끼리는 히든룰", async () => {
+  // 히든룰 vs 노히든룰: 안 붙는다
+  const x = await match(A.token, "mode=casual&rule=hidden");
+  await x.next((m) => m.type === "waiting");
+  const y = await match(B.token, "mode=casual&rule=nohidden");
+  await y.next((m) => m.type === "waiting");
+  await sleep(800);
+  assert.ok(!x.queue.some((m) => m.type === "matched") && !y.queue.some((m) => m.type === "matched"));
+  x.close(); y.close();
+  await sleep(1500); // 닫힌 대기 소켓이 서버에서 정리될 때까지
+  // 노히든룰 + 아무거나 → 노히든(흑 12 / 백 10, 스캔 없음)
+  const p1 = await pairUp(A.token, B.token, "mode=casual&rule=nohidden", "mode=casual&rule=any");
+  assert.equal(p1.game.hiddenMove, false);
+  assert.deepEqual(p1.game.view.config.captureTarget, { black: 12, white: 10 });
+  p1.black.sock.send({ type: "resign" });
+  await p1.white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  p1.black.sock.close(); p1.white.sock.close();
+  // 아무거나끼리 → 히든룰
+  const p2 = await pairUp(A.token, B.token, "mode=casual");
+  assert.equal(p2.game.hiddenMove, true);
+  assert.deepEqual(p2.game.view.config.captureTarget, { black: 10, white: 10 });
+  p2.black.sock.send({ type: "resign" });
+  await p2.white.sock.next((m) => m.type === "state" && m.game.status === "finished");
+  p2.black.sock.close(); p2.white.sock.close();
+});
+
 await check("시계(피셔): 친구매치는 고른 시간(다른 시간끼리는 안 붙음), 흑부터 줄고 한 수마다 1초 추가", async () => {
   const x = await match(A.token, "mode=friend&code=8888&time=1");
   await x.next((m) => m.type === "waiting");
@@ -374,7 +400,8 @@ await check("시계(피셔): 친구매치는 고른 시간(다른 시간끼리�
   x.close(); y.close();
   await sleep(300);
   const { black, white, game } = await pairUp(A.token, B.token, "mode=friend&code=8889&time=5");
-  const st = await black.sock.next((m) => m.type === "state" && m.game.clock?.running === "black");
+  // 두 사람이 다 들어온 첫 화면에서 이미 흑 시계가 돌고 있을 수 있다(그 화면은 pairUp이 받았다)
+  const st = game.clock?.running === "black" ? { game } : await black.sock.next((m) => m.type === "state" && m.game.clock?.running === "black");
   assert.equal(st.game.clock.baseMs, 300000);
   assert.equal(st.game.clock.incMs, 1000);
   await sleep(1200);
@@ -386,7 +413,6 @@ await check("시계(피셔): 친구매치는 고른 시간(다른 시간끼리�
   black.sock.send({ type: "resign" });
   await white.sock.next((m) => m.type === "state" && m.game.status === "finished");
   black.sock.close(); white.sock.close();
-  void game;
 });
 
 await check("친구매치: 같은 코드끼리, 숫자 1~8자리만", async () => {
