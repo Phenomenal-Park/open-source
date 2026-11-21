@@ -359,8 +359,10 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
   if (vb.winningMoves(1).length) return null;
   const h = view.hidden;
   if (h && h.index >= 0 && !h.revealed) {
+    // 실드는 한 번뿐인 방어라 아낀다: 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)일 때만 숨은 돌 의심에 쓴다
+    // (의심만으로 쓴 28번 중 7번 적중, 흑 9승 — 정작 결정타를 막을 실드가 없었다)
     const d = scanDecision(view, level);
-    if (d) return { pos: d.pos, reason: "hidden" };
+    if (d && d.reason === "danger1") return { pos: d.pos, reason: "hidden" };
   }
   vb.setWallAvail(false); // ⓧ 없이 버틸 수 있는지 본다
   const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores;
