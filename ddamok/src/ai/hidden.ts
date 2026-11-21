@@ -599,22 +599,29 @@ export function mineScanDecision(view: GameState, level: AiLevel): Position | nu
   if (wins.length) {
     const safest = Math.min(...wins.map((p) => belief.get(p) ?? 0));
     if (safest < MINE_SCAN_WIN) return null; // 안전해 보이는 이기는 수가 있으면 그냥 둔다
-    const w = wins.sort((a, b) => (belief.get(a) ?? 0) - (belief.get(b) ?? 0))[0];
-    return toPos(w, n);
+    return toPos(wins.sort((a, b) => (belief.get(a) ?? 0) - (belief.get(b) ?? 0))[0], n);
   }
-  const sc = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 10), Math.max(30, fl.timeMs * 0.25), false, true).scores.slice(0, 3);
-  let best = -1, bestP = 0;
+  // 위험 = (지뢰일 확률) × (거기 두려다 밟았을 때 잃는 값). 지금 두고 싶은 수들 중 위험이 가장 큰 자리를 기준 이상이면 스캔한다.
+  // 확신이 없어도, 결정적인 수(넉·쌍삼)를 두려는 순간이면 그 자리를 확인한다.
+  const sc = new FastSearcher(vb, fl.width).searchRoot(Math.min(fl.depth, 10), Math.max(30, fl.timeMs * 0.3), true, true).scores.slice(0, 5);
+  if (!sc.length) return null;
+  const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
+  let best = -1, bestRisk = 0;
   for (const [i, x] of sc.entries()) {
     const p = belief.get(x.p) ?? 0;
-    const need = i === 0 ? MINE_SCAN_TOP : MINE_SCAN_OTHER;
-    if (p >= need && p > bestP) { bestP = p; best = x.p; }
+    if (p < 0.03) continue;
+    if (i > 0 && clamp(x.s) < clamp(sc[0].s) - 300) continue; // 어차피 안 둘 수는 확인할 필요가 없다
+    const stepped: GameState = { ...view, mine: null, magic: [...(view.magic ?? []), { pos: toPos(x.p, n), at: view.moves.length + 1, hit: false }], currentPlayer: "white" };
+    const w = new FastSearcher(FastBoard.fromState(stepped), fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(20, fl.timeMs * 0.12), false, true).scores[0]?.s ?? 0;
+    const loss = Math.max(0, clamp(x.s) - clamp(-w));
+    const risk = p * loss * (vb.makesFour(x.p, 1) ? 2 : 1);
+    if (risk > bestRisk) { bestRisk = risk; best = x.p; }
   }
-  return best >= 0 ? toPos(best, n) : null;
+  return best >= 0 && bestRisk >= MINE_SCAN_RISK_MIN ? toPos(best, n) : null;
 }
-/** 지뢰 스캔 기준(지뢰일 확률): 이기는 자리 / 가장 두고 싶은 수 / 그다음 수 */
+/** 지뢰 스캔 기준: 이기는 자리의 지뢰 확률 / 위험(확률 × 잃는 값, 형세 점수) */
 const MINE_SCAN_WIN = 0.05;
-const MINE_SCAN_TOP = 0.2;
-const MINE_SCAN_OTHER = 0.35;
+const MINE_SCAN_RISK_MIN = 120;
 
 /**
  * 흑이 지뢰를 경계하며 두기: 후보 수마다 "지뢰일 확률 × 밟았을 때 값 + 나머지 × 그냥 둔 값"으로 고른다.
@@ -628,7 +635,7 @@ function chooseBlackMoveMine(view: GameState, level: AiLevel, rand: Rng): Positi
   const vb = FastBoard.fromState(view);
   const wins = vb.winningMoves(1);
   if (wins.length) return toPos(wins.sort((a, b) => (belief.get(a) ?? 0) - (belief.get(b) ?? 0))[0], n);
-  const sc = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.6), true, true).scores.slice(0, 8);
+  const sc = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.6), true, true).scores.slice(0, 12);
   if (!sc.length) return chooseMove(view, level, rand);
   const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
   let best = sc[0].p, bestEv = -Infinity;
@@ -638,7 +645,7 @@ function chooseBlackMoveMine(view: GameState, level: AiLevel, rand: Rng): Positi
     if (p > 0.02) {
       const keep = !!view.config.mineKeepsTurn;
       const stepped: GameState = { ...view, mine: null, magic: [...(view.magic ?? []), { pos: toPos(x.p, n), at: view.moves.length + (keep ? 0 : 1), hit: false }], currentPlayer: keep ? "black" : "white" };
-      const w = new FastSearcher(FastBoard.fromState(stepped), fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(20, fl.timeMs * 0.1), false, true).scores[0]?.s ?? 0;
+      const w = new FastSearcher(FastBoard.fromState(stepped), fl.width).searchRoot(Math.min(fl.depth, 10), Math.max(25, fl.timeMs * 0.15), false, true).scores[0]?.s ?? 0;
       ev = (1 - p) * clamp(x.s) + p * clamp(keep ? w : -w); // 차례 유지면 밟은 뒤에도 흑 차례
     }
     if (ev > bestEv) { bestEv = ev; best = x.p; }
