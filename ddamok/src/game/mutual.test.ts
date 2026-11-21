@@ -50,4 +50,15 @@ describe("(실험) 양쪽 히든", () => {
     const s = seq(createGame(15, { hiddenMove: true }), at(7, 7), at(7, 8), at(6, 6), at(8, 8));
     expect(canUseHidden(s)).toBe(false);
   });
+
+  it("상대의 숨은 돌 자리에 숨기려 해도 그 돌이 드러나고 차례는 그대로", () => {
+    const s = seq(mutual(), at(7, 7), { hidden: at(6, 8) }, at(6, 6), at(8, 8));
+    const r = tryMove(s, at(6, 8), undefined, { hidden: true });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.revealedHidden).toBe(true);
+    expect(r.state.hidden?.revealed).toBe(true);
+    expect(r.state.hiddenB ?? null).toBeNull(); // 흑의 히든 기회는 남아 있다
+    expect(r.state.currentPlayer).toBe("black");
+  });
 });
+

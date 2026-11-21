@@ -130,11 +130,12 @@ export function viewFor(state: GameState, viewer: Player | null): GameState {
  */
 export function tryMove(state: GameState, position: Position, player: Player = state.currentPlayer, opts: MoveOptions = {}): MoveResult {
   const h = state.hidden;
-  if (!opts.hidden && h && !h.revealed && !state.isFinished && player === state.currentPlayer && player === "black" && samePos(h.pos, position)) {
+  // 상대의 숨은 돌 자리를 누르면(숨기려고 눌렀어도) 그 돌이 드러나고 차례는 그대로
+  if (h && !h.revealed && !state.isFinished && player === state.currentPlayer && player === "black" && samePos(h.pos, position)) {
     return { ok: true, state: { ...state, hidden: { ...h, revealed: true }, lastCaptured: [] }, captured: [], revealedHidden: true };
   }
   const hb0 = state.hiddenB;
-  if (!opts.hidden && hb0 && !hb0.revealed && !state.isFinished && player === state.currentPlayer && player === "white" && samePos(hb0.pos, position)) {
+  if (hb0 && !hb0.revealed && !state.isFinished && player === state.currentPlayer && player === "white" && samePos(hb0.pos, position)) {
     return { ok: true, state: { ...state, hiddenB: { ...hb0, revealed: true }, lastCaptured: [] }, captured: [], revealedHidden: true };
   }
   const reason = whyIllegal(state, position, player);
