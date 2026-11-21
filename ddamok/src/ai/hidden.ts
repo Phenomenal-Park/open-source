@@ -500,6 +500,15 @@ function whiteHideOptions(state: GameState, level: AiLevel, plain: Position, opt
     const w = new Map(rank.map((x, i) => [x.p, 0.7 ** i] as const));
     const wsum = [...w.values()].reduce((a, x) => a + x, 0) || 1;
     findProb = (p) => Math.min(0.9, 2 * ((w.get(p) ?? 0) / wsum));
+    // (매직스톤 실험) 흑이 곧 둘 법한 자리(흑 입장 좋은 수 위 8곳)에 숨기면 흑의 착수에 부딪혀 드러난다
+    // (1세트: 흑이 착수로 찾은 32판에서 백 6승). 그런 자리도 들킬 확률로 친다.
+    if (state.config.blackBlock) {
+      const rb = b.candidates().map((p) => ({ p, s: b.moveScore(p, 1) })).sort((x, y) => y.s - x.s).slice(0, 8);
+      const wb = new Map(rb.map((x, i) => [x.p, 0.7 ** i] as const));
+      const wbsum = [...wb.values()].reduce((a, x) => a + x, 0) || 1;
+      const base = findProb;
+      findProb = (p) => Math.min(0.9, base(p) + BUMP_WEIGHT * 2 * ((wb.get(p) ?? 0) / wbsum));
+    }
   }
   const clamp = (v: number) => Math.max(-3000, Math.min(3000, v));
   const options: HideOption[] = [];
@@ -633,6 +642,8 @@ const HIDE_WILL = 0.5;
 
 /** 첫 수에 먼 곳에 숨길 때 더하는 값(들키지 않는 값 — 백 돌이 없어 잠재 가치를 셀 수 없다) */
 const FIRST_FAR_BONUS = 120;
+/** (매직스톤 실험) 흑의 착수에 부딪혀 드러날 확률의 무게 */
+const BUMP_WEIGHT = 1;
 /** 먼 히든 자리의 잠재 가치 1점당 형세 점수 */
 const FAR_LATENT = 40;
 
