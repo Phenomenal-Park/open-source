@@ -16,7 +16,7 @@ export function RecordItem({ g, href, current }: { g: RecordSummary; href: strin
         </span>
         <span className="meta">
           <span className={`mode-tag ${g.mode}`}>{t(`rec.mode.${g.mode}`)}</span>
-          <span className={`mode-tag ${g.hiddenMove ? "hidden" : "plain"}`}>{t(g.hiddenMove ? "rec.hidden" : "rec.noHidden")}</span>
+          <span className={`mode-tag rule-${g.rule ?? (g.hiddenMove ? "hidden13" : "plain")}`}>{t(`rule.${g.rule ?? (g.hiddenMove ? "hidden13" : "plain")}`)}</span>
           {outcomeLabel(g.color, g.moveCount, g.result, g.reason)}
         </span>
         <span className={`delta ${d && d > 0 ? "up" : d && d < 0 ? "down" : ""}`}>{d === null ? "" : d > 0 ? `+${d}` : d}</span>

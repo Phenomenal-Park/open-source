@@ -4,7 +4,8 @@
 //   친구매치: 같은 코드·같은 시간을 고르고 규칙 선택이 맞는 사람
 //   레이팅매치는 늘 히든룰(백 히든 1번 + 흑 스캔 1번)
 import { DurableObject } from "cloudflare:workers";
-import { agreedRule, HEARTBEAT_TIMEOUT_MS, PING, PONG, WS_PROTOCOL, type MatchMode, type MatchRule, type ServerMessage } from "../src/online/protocol.ts";
+import { agreedRule, DEFAULT_CLOCK_MIN, HEARTBEAT_TIMEOUT_MS, normalizeRule, PING, PONG, WS_PROTOCOL, type MatchMode, type MatchRule, type ServerMessage } from "../src/online/protocol.ts";
+import type { GameRule } from "../src/game/config.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import { isProvisional } from "../src/rating/elo.ts";
 import { dueForAi, nextCheck, pickBot, pickPairs, type Waiter } from "./pairing.ts";
@@ -15,7 +16,7 @@ interface Ticket {
   userId: string;
   mode: MatchMode;
   code: string | null;
-  /** 규칙 선택(레이팅매치는 늘 hidden) */
+  /** 규칙 선택(레이팅매치는 늘 random) */
   rule: MatchRule;
   /** 처음 시간(분) */
   clockMin: number;
@@ -72,8 +73,8 @@ export class Matchmaker extends DurableObject<Env> {
     const userId = request.headers.get("x-user-id")!;
     const mode = url.searchParams.get("mode") as MatchMode;
     const code = mode === "friend" ? url.searchParams.get("code") : null;
-    const rule = (url.searchParams.get("rule") as MatchRule | null) ?? "hidden";
-    const clockMin = Number(url.searchParams.get("time")) || 3;
+    const rule: MatchRule = normalizeRule(mode, url.searchParams.get("rule"));
+    const clockMin = Number(url.searchParams.get("time")) || DEFAULT_CLOCK_MIN;
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
@@ -103,12 +104,12 @@ export class Matchmaker extends DurableObject<Env> {
     if (mode === "rated") {
       this.matchRated();
     } else {
-      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code && agreedRule(t.rule ?? "hidden", rule) !== null && (t.clockMin ?? 3) === clockMin);
+      const others = this.open().filter(({ ws, t }) => ws !== server && t.userId !== userId && t.mode === mode && t.code === code && agreedRule(normalizeRule(mode, t.rule), rule) !== null && (t.clockMin ?? DEFAULT_CLOCK_MIN) === clockMin);
       if (others.length) {
         const other = others[Math.floor(Math.random() * others.length)];
         this.take(other.ws, other.t);
         this.take(server, ticket);
-        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server], agreedRule(other.t.rule ?? "hidden", rule)!, clockMin));
+        this.ctx.waitUntil(this.startGame(mode, [other.t.userId, userId], [other.ws, server], agreedRule(normalizeRule(mode, other.t.rule), rule)!, clockMin));
       }
     }
     return response;
@@ -150,13 +151,14 @@ export class Matchmaker extends DurableObject<Env> {
     if (stillWaiting) await this.ctx.storage.setAlarm(Date.now() + 2_000); // AI가 비기를 기다리며 다시 확인
   }
 
-  private async startGame(mode: MatchMode, userIds: [string, string], sockets: WebSocket[], hiddenMove = true, clockMin = 3) {
+  /** 대국 시작. 규칙을 주지 않으면(레이팅매치) 히든따목·지뢰따목 중 무작위 */
+  private async startGame(mode: MatchMode, userIds: [string, string], sockets: WebSocket[], rule: GameRule = agreedRule("random", "random")!, clockMin = DEFAULT_CLOCK_MIN) {
     try {
       const rows = (await this.env.DB.prepare("SELECT * FROM users WHERE id IN (?, ?)").bind(...userIds).all<Row>()).results;
       const [a, b] = userIds.map((id) => rows.find((r) => r.id === id)!);
       const [black, white] = Math.random() < 0.5 ? [a, b] : [b, a];
       const gameId = crypto.randomUUID();
-      const init: RoomInit = { id: gameId, mode, rated: mode === "rated", hiddenMove, clockMin, black: player(black), white: player(white) };
+      const init: RoomInit = { id: gameId, mode, rated: mode === "rated", rule, clockMin, black: player(black), white: player(white) };
       const room = this.env.GAME_ROOM.get(this.env.GAME_ROOM.idFromName(gameId)) as unknown as DurableObjectStub<GameRoom>;
       await room.init(init);
       // 사람·AI 모두 "대국 중" 표시(AI는 이 표시가 있는 동안 다른 사람과 매칭되지 않는다)

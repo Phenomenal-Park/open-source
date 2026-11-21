@@ -1,3 +1,4 @@
+import type { GameRule } from "./game/config.ts";
 import type { Player, Position } from "./game/index.ts";
 import type { MatchMode, ResultReason } from "./online/protocol.ts";
 import { errorText, lang, t } from "./i18n/index.ts";
@@ -61,6 +62,8 @@ export interface RecordSummary {
   finishedAt: string;
   /** 대국 설정: 백 히든 모드였나 */
   hiddenMove?: boolean;
+  /** 대국 규칙(따목 / 히든따목 / 지뢰따목, 예전 히든 판은 hidden13) */
+  rule?: GameRule;
 }
 
 export interface GameRecord {
@@ -79,6 +82,9 @@ export interface GameRecord {
   hiddenIndex?: number | null;
   /** 흑 스캔(그때까지 둔 수의 개수와 자리) */
   scan?: { at: number; pos: Position } | null;
+  /** 대국 규칙과 (지뢰따목) 백 지뢰 */
+  rule?: GameRule;
+  mine?: { at: number; pos: Position } | null;
 }
 
 export interface RecordsPage {

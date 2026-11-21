@@ -15,7 +15,7 @@ export interface MatchHandlers {
 }
 
 /** 매칭 대기. 돌려주는 함수를 부르면 취소. */
-export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, rule: MatchRule = "any", clockMin?: number): () => void {
+export function findMatch(token: string, mode: MatchMode, code: string | null, h: MatchHandlers, rule: MatchRule = "random", clockMin?: number): () => void {
   const q = new URLSearchParams({
     mode,
     ...(mode !== "rated" ? { rule } : {}),

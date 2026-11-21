@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  blockedCells, canPlaceMine, canScan, canUseHidden, createGame, placeMine, hiddenTurnsLeft, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
+  blockedCells, canPlaceMine, canScan, canUseHidden, createGame, placeMine, ruleConfig, ruleOf, hiddenTurnsLeft, createHistory, currentState, DEFAULT_BOARD_SIZE, forfeitHidden, makeConfig, opponent, replayMoves, scanAt, tryMove,
   undoMove, viewFor, type GameHistory, type GameState, type MoveOptions, type Player, type Position,
 } from "../game/index.ts";
 import { api, ApiError, loadSession, saveSession, type Session } from "../api.ts";
@@ -22,14 +22,15 @@ import { beep, captureSound, foundSound, hiddenSound, scanMissSound, stoneClick 
 const SECOND_MIN = Number(import.meta.env.VITE_SECOND_MOVE_MIN_DISTANCE ?? 0) || 0;
 /** 백 히든은 AI 대국에서만(같은 화면 2인 대국은 숨길 수 없다) */
 /** (시험 중) 히든 대국은 흑도 10개를 따내면 승리 */
-const freshGame = (size: number, hiddenMove = false, rule: AiRule = "hidden") =>
-  rule === "mine"
-    ? createGame(size, { secondMoveMinDistance: SECOND_MIN, whiteMine: true, mineScan: true, captureTarget: { black: 8, white: 8 } }) // (베타) 지뢰룰: 8/8, 밟으면 흑 차례 잃음, 흑 스캔 1번(찾으면 지뢰가 사라지고 흑 차례 그대로)
-    : createGame(size, { secondMoveMinDistance: SECOND_MIN, hiddenMove, ...(hiddenMove ? { captureTarget: { black: 8, white: 8 }, noTimedReveal: true, scanRemoves: true } : {}) }); // AI 대국 히든룰: 8/8, 숨긴 돌은 저절로 공개되지 않고, 흑 스캔에 걸리면 사라진다
+/** AI 대국은 고른 규칙(히든따목·지뢰따목), 같은 화면 2인 대국은 따목 */
+const freshGame = (size: number, aiGame = false, rule: AiRule = "hidden") =>
+  createGame(size, { secondMoveMinDistance: SECOND_MIN, ...ruleConfig(aiGame ? rule : "plain") });
 /** 백 히든: 버튼을 누른 뒤 둘 때까지 주어지는 시간 */
 const HIDDEN_MS = 10_000;
 /** "백 히든!" 배너가 떠 있는 시간(AI는 이만큼 뒤에 둔다) */
 const BANNER_MS = 1_900;
+/** 대국 시작 때 규칙을 크게 알리는 시간 */
+const START_BANNER_MS = 2_200;
 /** 대국이 끝난 뒤 승리 문구를 보여 주는 시간(그 뒤 결과 창) */
 const END_BANNER_MS = 2_600;
 
@@ -63,6 +64,13 @@ export function MainPage() {
   /** 이용 제한(관리자) — 온라인 대국 불가 */
   const [bannedUntil, setBannedUntil] = useState<number | null>(null);
   const [banner, setBanner] = useState(0);
+  /** 대국 시작 안내("이번 판 · 지뢰따목") */
+  const [startBanner, setStartBanner] = useState<{ id: number; rule: string } | null>(null);
+  useEffect(() => {
+    if (!startBanner) return;
+    const timer = setTimeout(() => setStartBanner(null), START_BANNER_MS);
+    return () => clearTimeout(timer);
+  }, [startBanner]);
   const [bannerText, setBannerText] = useState<MessageKey>("hidden.banner");
   /** (시험) 지뢰룰: 백이 지뢰 자리를 고르는 중 / 흑이 지뢰를 밟은 자리 */
   const [mining, setMining] = useState(false);
@@ -88,6 +96,8 @@ export function MainPage() {
   const state = onlineState ?? currentState(history);
   /** 이 화면을 보는 사람의 색(AI·온라인 대국) — 숨은 돌은 백에게만 보인다 */
   const viewer: Player | null = online ? online.you ?? null : aiGame ? opponent(aiGame.aiColor) : null;
+  /** 지금 판의 규칙(판 위 배너·안내용) */
+  const currentRule: string = online?.game?.rule ?? ruleOf(state.config);
   // 온라인 판은 이미 서버가 보는 사람에 맞춰 보낸 판이다
   const shown = !online && viewer ? viewFor(state, viewer) : state;
   /** 히든을 누르고 아직 두지 않았다면 그 마감 시각(온라인은 서버가 알려 준 남은 시간 기준) */
@@ -247,9 +257,14 @@ export function MainPage() {
 
   function play(pos: Position) {
     if (scanning) return doScan(pos);
-    if (mining && !online) {
-      if (aiThinking) return;
+    if (mining) {
       setMining(false);
+      if (online) {
+        const g = online.game;
+        if (g && g.status === "playing" && onlineState?.currentPlayer === "white" && online.you === "white") conn.current?.send({ type: "mine", row: pos.row, col: pos.col, moveNo: g.moves.length });
+        return;
+      }
+      if (aiThinking) return;
       setHistory((h) => { const r = placeMine(currentState(h), pos); return r.ok ? [...h, r.state] : h; });
       return;
     }
@@ -321,13 +336,41 @@ export function MainPage() {
     const cur = { armed: online.game.hiddenArmedMs !== undefined, hiddenIndex: h ? h.index : null, revealed: !!h?.revealed, moveCount: onlineState.moveCount };
     const prev = prevOnline.current;
     if (prev) {
-      if (cur.armed && !prev.armed) { setBanner((b) => b + 1); setNotice(null); }
-      else if (cur.hiddenIndex !== null && cur.hiddenIndex >= 0 && prev.hiddenIndex === null && !prev.armed) setBanner((b) => b + 1); // AI 백이 바로 숨김
+      if (cur.armed && !prev.armed) { setBannerText("hidden.banner"); setBanner((b) => b + 1); setNotice(null); }
+      else if (cur.hiddenIndex !== null && cur.hiddenIndex >= 0 && prev.hiddenIndex === null && !prev.armed) { setBannerText("hidden.banner"); setBanner((b) => b + 1); } // AI 백이 바로 숨김
       if (prev.armed && !cur.armed && cur.hiddenIndex !== null && cur.hiddenIndex < 0) setNotice({ kind: "lost", at: cur.moveCount, id: Date.now() });
       if (h && h.index >= 0 && cur.revealed && !prev.revealed && cur.moveCount === prev.moveCount && onlineState.currentPlayer === "black")
         setNotice({ kind: "found", at: cur.moveCount, pos: h.pos, id: Date.now() });
     }
     prevOnline.current = cur;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online?.game, onlineState]);
+
+  // 온라인 대국 시작 안내: 첫 상태가 오면(아직 아무도 두지 않은 판) 이번 판의 규칙을 크게 알린다
+  const announced = useRef("");
+  useEffect(() => {
+    const g = online?.game;
+    if (!g || announced.current === g.id) return;
+    announced.current = g.id;
+    if (g.status === "playing" && g.moves.length === 0) setStartBanner({ id: Date.now(), rule: g.rule ?? (g.hiddenMove ? "hidden13" : "plain") });
+  }, [online?.game]);
+
+  // 온라인 지뢰따목: 지뢰를 묻으면 "지뢰 매설!", 흑이 밟으면 "지뢰!"
+  const prevMine = useRef<{ id: string; planted: boolean; triggered: boolean } | null>(null);
+  useEffect(() => {
+    if (!online?.game || !onlineState) { prevMine.current = null; return; }
+    const m = onlineState.mine;
+    const cur = { id: online.game.id, planted: !!m, triggered: !!m?.triggered && !m?.defused };
+    const prev = prevMine.current;
+    if (prev && prev.id === cur.id) {
+      if (cur.planted && !prev.planted) { setBannerText("mine.banner"); setBanner((b) => b + 1); }
+      if (cur.triggered && !prev.triggered && m && m.pos.row >= 0) {
+        setBoom({ pos: m.pos, id: Date.now(), at: onlineState.moveCount });
+        setBannerText("mine.boom");
+        setBanner((b) => b + 1);
+      }
+    }
+    prevMine.current = cur;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online?.game, onlineState]);
 
@@ -408,8 +451,9 @@ export function MainPage() {
 
   useEffect(() => () => workerRef.current?.terminate(), []);
 
-  const reset = useCallback((size: number, hiddenMove = false, rule: AiRule = "hidden") => {
-    setHistory(createHistory(freshGame(size, hiddenMove, rule)));
+  const reset = useCallback((size: number, aiRule: AiRule | null = null) => {
+    setHistory(createHistory(freshGame(size, !!aiRule, aiRule ?? "hidden")));
+    if (aiRule) setStartBanner({ id: Date.now(), rule: aiRule });
     setMining(false);
     setBoom(null);
     setVanish(null);
@@ -444,14 +488,14 @@ export function MainPage() {
       if (onlinePlaying) return;
       leaveOnline();
     }
-    reset(boardSize, !!aiGame, aiGame?.rule);
+    reset(boardSize, aiGame ? aiGame.rule ?? "hidden" : null);
   }
 
   function resign() {
     if (online && onlinePlaying && window.confirm(t("confirm.resign"))) conn.current?.send({ type: "resign" });
   }
 
-  function find(mode: MatchMode, code: string | null, rule: MatchRule = "any", clockMin?: number) {
+  function find(mode: MatchMode, code: string | null, rule: MatchRule = "random", clockMin?: number) {
     if (!session) return;
     setOnlineError(null);
     cancelMatch.current?.();
@@ -560,6 +604,11 @@ export function MainPage() {
             <a href="/profile" className="greet-rank">{rankName(session.user.rating)} · {t("points", { rating: formatRating(session.user.rating, session.user.provisional) })}</a>
           </p>
         )}
+        {/* 지금 판의 규칙: 늘 판 위에 보인다 */}
+        <div className={`rule-bar rule-${currentRule}`} role="status">
+          <b>{t(`rule.${currentRule}` as MessageKey)}</b>
+          <span>{t(`rule.short.${currentRule}` as MessageKey)}</span>
+        </div>
         <Scoreboard state={shown} names={{ black: seatLabel("black"), white: seatLabel("white") }} />
         <div className={`board-wrap${armedAt !== null ? " hidden-armed" : ""}`}>
           <Board
@@ -582,6 +631,12 @@ export function MainPage() {
           />
           {banner > 0 && (
             <div key={banner} className={`hidden-banner${bannerText === "hidden.banner" ? "" : " mine-banner"}`} aria-hidden><span>{t(bannerText)}</span></div>
+          )}
+          {startBanner && !result && (
+            <div key={`start-${startBanner.id}`} className="end-banner start-banner" aria-hidden>
+              <span className="end-line1">{t("rule.thisGame")}</span>
+              <span className={`end-line2 rule-${startBanner.rule}`}>{t(`rule.${startBanner.rule}` as MessageKey)}</span>
+            </div>
           )}
           {result && cardKey !== endKey && (
             <div key={endKey} className="end-banner" aria-hidden>
@@ -615,6 +670,9 @@ export function MainPage() {
                   {viewer === "white" && canUseHidden(state) && armedAt === null && state.currentPlayer === "white" && (
                     <button className="btn hidden-btn" onClick={startHidden}>{t("btn.hidden")}</button>
                   )}
+                  {viewer === "white" && state.config.whiteMine && !state.mine && !state.isFinished && (
+                    <button className={`btn mine-btn${mining ? " active" : ""}`} onClick={() => setMining((x) => !x)} disabled={state.currentPlayer !== "white"}>{t(mining ? "btn.cancel" : "btn.mine")}</button>
+                  )}
                   {viewer === "black" && (state.config.hiddenMove || (state.config.whiteMine && state.config.mineScan)) && state.scan === null && !state.isFinished && (
                     <button className={`btn scan-btn${scanning ? " active" : ""}`} onClick={() => setScanning((x) => !x)} disabled={!scanNow}>{t(scanning ? "btn.cancel" : "btn.scan")}</button>
                   )}
@@ -647,7 +705,7 @@ export function MainPage() {
             <h2>{online.game ? t(`mode.${online.game.mode}`) : t("online.title")}</h2>
             <p className="muted">
               {t(online.game?.rated ? "online.ratedNote" : "online.unratedNote")} {t("online.rulesNote")}
-              {online.game && <> {t(online.game.hiddenMove ? "online.hiddenOn" : "online.hiddenOff")}</>}
+              {online.game && <> {t(`rule.${currentRule}` as MessageKey)} · {t(`rule.short.${currentRule}` as MessageKey)}</>}
               {online.game?.clock && <> {t("online.clockNote", { n: Math.round(online.game.clock.baseMs / 60000) })}</>}
             </p>
           </section>
@@ -664,11 +722,11 @@ export function MainPage() {
               active={aiGame}
               onStart={(levelId, humanColor, rule) => {
                 setAiGame({ levelId, aiColor: opponent(humanColor), rule });
-                reset(boardSize, true, rule);
+                reset(boardSize, rule);
               }}
               onStop={() => {
                 setAiGame(null);
-                reset(boardSize);
+                reset(boardSize, null);
               }}
             />
           </>

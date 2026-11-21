@@ -1,7 +1,8 @@
 // 따목 Cloudflare Worker: 계정 API(D1) + 온라인 매칭·대국(Durable Objects, WebSocket). 화면(dist)은 정적 파일.
 import { calibrationFactor, rescale, TOP_MMR } from "../src/rating/elo.ts";
 import { RANKS, rankFor } from "../src/rating/ranks.ts";
-import { DEFAULT_CLOCK_MIN, FAVORITES_MAX, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, MATCH_MODES, MATCH_RULES, WS_PROTOCOL, type MatchMode, type MatchRule } from "../src/online/protocol.ts";
+import type { GameRule } from "../src/game/config.ts";
+import { DEFAULT_CLOCK_MIN, FAVORITES_MAX, FRIEND_CLOCK_MINUTES, FRIEND_CODE_RE, MATCH_MODES, normalizeRule, WS_PROTOCOL, type MatchMode } from "../src/online/protocol.ts";
 import { DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
 import { RECORDS_PER_USER } from "./room.ts";
 
@@ -385,7 +386,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     const g = await env.DB.prepare(
       `SELECT g.*, b.username AS cur_black_name, w.username AS cur_white_name FROM games g
        LEFT JOIN users b ON b.id = g.black_id LEFT JOIN users w ON w.id = g.white_id WHERE g.id = ?`,
-    ).bind(gr[1]).first<GameRow & { moves: string; board_size?: number; hidden_move?: number; hidden_index?: number | null; scan?: string | null }>();
+    ).bind(gr[1]).first<GameRow & { moves: string; board_size?: number; hidden_move?: number; hidden_index?: number | null; scan?: string | null; mine?: string | null }>();
     if (!g) throw new HttpError(404, "not_found", "기보를 찾을 수 없습니다(오래된 기보는 지워집니다).");
     const moves = JSON.parse(g.moves) as { row: number; col: number }[];
     const size = Math.max(DEFAULT_BOARD_SIZE, ...moves.flatMap((p) => [p.row + 1, p.col + 1]));
@@ -399,6 +400,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
       ratings: g.rated ? { black: { before: g.black_before, after: g.black_after }, white: { before: g.white_before, after: g.white_after } } : null,
       moves, boardSize: size === DEFAULT_BOARD_SIZE ? DEFAULT_BOARD_SIZE : size, finishedAt: g.finished_at,
       hiddenMove: !!g.hidden_move, hiddenIndex: g.hidden_index ?? null, scan: parseScan(g.scan),
+      rule: gameRule(g), mine: parseScan(g.mine ?? null),
     });
   }
 
@@ -415,7 +417,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     });
   }
 
-  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리][&rule=any|hidden|nohidden 친선·친구][&time=분 친구]  (WebSocket)
+  // 매칭 대기: GET /api/match?mode=rated|casual|friend[&code=숫자 1~8자리][&rule=random|hidden|mine|plain 친선·친구][&time=분 친구]  (WebSocket)
   if (m === "GET" && path === "/api/match") {
     if (req.headers.get("upgrade") !== "websocket") throw new HttpError(426, "upgrade", "WebSocket이 필요합니다.");
     const u = await requireUser(env, wsToken(req));
@@ -425,10 +427,11 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
     if (!MATCH_MODES.includes(mode)) throw new HttpError(400, "bad_mode", "잘못된 매치 종류입니다.");
     const code = url.searchParams.get("code") ?? "";
     if (mode === "friend" && !FRIEND_CODE_RE.test(code)) throw new HttpError(400, "bad_code", "코드는 숫자 1~8자리입니다.");
-    // 규칙: 레이팅매치는 늘 히든룰. 친선·친구매치는 아무거나/히든룰/노히든룰 중 고른다(예전 hidden=0|1도 받는다).
-    const r = url.searchParams.get("rule") ?? (url.searchParams.has("hidden") ? (url.searchParams.get("hidden") === "0" ? "nohidden" : "hidden") : "any");
-    const rule: MatchRule = mode === "rated" ? "hidden" : (MATCH_RULES as readonly string[]).includes(r) ? (r as MatchRule) : "any";
-    // 시계: 레이팅·친선은 3분, 친구매치는 1·3·5·10분 중 선택(같은 시간끼리 짝짓는다)
+    // 규칙: 레이팅매치는 히든따목·지뢰따목 중 무작위. 친선매치는 무작위/히든따목/지뢰따목, 친구매치는 히든따목/지뢰따목/따목 중 고른다
+    // (예전 값 rule=any|nohidden, hidden=0|1도 받는다)
+    const r = url.searchParams.get("rule") ?? (url.searchParams.has("hidden") ? (url.searchParams.get("hidden") === "0" ? "nohidden" : "hidden") : null);
+    const rule = normalizeRule(mode, r);
+    // 시계: 레이팅·친선은 2분, 친구매치는 1·2·3·5·10분 중 선택(같은 시간끼리 짝짓는다)
     const t = Number(url.searchParams.get("time"));
     const time = mode === "friend" && (FRIEND_CLOCK_MINUTES as readonly number[]).includes(t) ? t : DEFAULT_CLOCK_MIN;
     const q = new URLSearchParams({ mode, rule, time: String(time), ...(mode === "friend" ? { code } : {}) });
@@ -454,7 +457,7 @@ const REPORT_CATEGORIES = ["ai", "proxy", "multi", "throw", "manner", "other"];
 const SUMMARY_COLUMNS = `g.id, g.mode, g.rated, g.black_id, g.white_id, g.winner_id, g.win_reason, g.move_count,
   g.black_before, g.black_after, g.white_before, g.white_after, g.black_rating, g.white_rating,
   g.black_provisional, g.white_provisional, g.finished_at,
-  COALESCE(g.black_name, b.username) AS black_name, COALESCE(g.white_name, w.username) AS white_name, g.hidden_move`;
+  COALESCE(g.black_name, b.username) AS black_name, COALESCE(g.white_name, w.username) AS white_name, g.hidden_move, g.rule`;
 
 interface GameRow {
   id: string; mode: string; rated: number; black_id: string; white_id: string; winner_id: string | null; win_reason: string; move_count: number;
@@ -462,6 +465,13 @@ interface GameRow {
   black_rating: number | null; white_rating: number | null; black_provisional: number | null; white_provisional: number | null;
   finished_at: string; black_name: string | null; white_name: string | null; cur_black_name?: string | null; cur_white_name?: string | null;
   hidden_move?: number;
+  rule?: string | null;
+}
+
+/** 기보의 규칙(예전 판은 rule이 없다: 히든이면 예전 히든룰 v1.3) */
+function gameRule(g: { rule?: string | null; hidden_move?: number }): GameRule {
+  if (g.rule === "plain" || g.rule === "hidden" || g.rule === "mine") return g.rule;
+  return g.hidden_move ? "hidden13" : "plain";
 }
 
 function recordSummary(g: GameRow, userId: string) {
@@ -480,6 +490,8 @@ function recordSummary(g: GameRow, userId: string) {
     moveCount: g.move_count, finishedAt: g.finished_at,
     /** 대국 설정: 백 히든 모드였나 */
     hiddenMove: !!g.hidden_move,
+    /** 대국 규칙 */
+    rule: gameRule(g),
   };
 }
 

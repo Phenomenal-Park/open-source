@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, loadSession, type GameRecord, type RecordsPage as Page, type RecordSummary } from "../api.ts";
-import { makeConfig, replayMoves } from "../game/index.ts";
-import { FAVORITES_MAX, formatRating, HIDDEN_CAPTURE_TARGET, MATCH_MODES, type MatchMode } from "../online/protocol.ts";
+import { blockedCells, makeConfig, replayMoves, ruleConfig } from "../game/index.ts";
+import { FAVORITES_MAX, formatRating, MATCH_MODES, type MatchMode } from "../online/protocol.ts";
 import { Board } from "../components/Board.tsx";
 import { Scoreboard } from "../components/Scoreboard.tsx";
 import { AdSlot, AD_SLOTS } from "../components/AdSlot.tsx";
@@ -55,8 +55,8 @@ function Viewer({ id }: { id: string }) {
   }, [id]);
   const state = useMemo(() => {
     if (!g) return null;
-    const config = g.hiddenMove ? makeConfig(g.boardSize, { hiddenMove: true, captureTarget: { ...HIDDEN_CAPTURE_TARGET } }) : makeConfig(g.boardSize);
-    const r = replayMoves(config, g.moves.slice(0, step), g.hiddenIndex ?? null, g.scan ?? null);
+    const config = makeConfig(g.boardSize, ruleConfig(g.rule ?? (g.hiddenMove ? "hidden13" : "plain")));
+    const r = replayMoves(config, g.moves.slice(0, step), g.hiddenIndex ?? null, g.scan ?? null, g.mine ?? null);
     return r.ok ? r.state : null;
   }, [g, step]);
   if (error) return <p className="form-error">{error}</p>;
@@ -72,11 +72,16 @@ function Viewer({ id }: { id: string }) {
         {g.winner
           ? t("rec.title", { mode: t(`rec.mode.${g.mode}`), color: colorName(g.winner), reason: t(`reason.${g.reason}`), when: formatDate(g.finishedAt) })
           : `${t(`rec.mode.${g.mode}`)} · ${t("result.draw")} · ${formatDate(g.finishedAt)}`}
-        {" · "}{t(g.hiddenMove ? "rec.hidden" : "rec.noHidden")}
+        {" · "}{t(`rule.${g.rule ?? (g.hiddenMove ? "hidden13" : "plain")}`)}
       </p>
       <Scoreboard state={state} names={{ black: label("black"), white: label("white") }} />
       <div className="board-wrap">
-        <Board state={state} onPlay={() => undefined} disabled fx={null} hiddenMark={state.hidden && state.hidden.index >= 0 && state.board[state.hidden.pos.row][state.hidden.pos.col] ? state.hidden.pos : null} />
+        <Board
+          state={state} onPlay={() => undefined} disabled fx={null}
+          hiddenMark={state.hidden && state.hidden.index >= 0 && state.board[state.hidden.pos.row][state.hidden.pos.col] ? state.hidden.pos : null}
+          magic={state.config.whiteMine || state.magic?.length ? blockedCells(state) : undefined}
+          mine={state.mine && !state.mine.triggered ? state.mine.pos : null}
+        />
       </div>
       <div className="viewer-controls">
         <button className="btn small" onClick={() => setStep(0)} disabled={step === 0} aria-label={t("rec.first")}>⏮</button>

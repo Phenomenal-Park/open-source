@@ -1,5 +1,6 @@
 // 온라인 대국 — 브라우저와 Cloudflare Worker가 함께 쓰는 메시지 형식(타입·상수만, 런타임 의존 없음).
 import type { GameState, Player, Position } from "../game/types.ts";
+import type { GameRule } from "../game/config.ts";
 
 /** 레이팅매치(무작위·점수 반영) / 친선매치(무작위·미반영) / 친구매치(같은 코드·미반영) */
 export type MatchMode = "rated" | "casual" | "friend";
@@ -27,7 +28,7 @@ export const PONG = '{"type":"pong"}';
 export const HIDDEN_MS = 10_000;
 export const HIDDEN_GRACE_MS = 1_500;
 
-/** 온라인 대국 규칙: 백 히든이 있는 판은 흑·백 모두 10개 따내면 승리 */
+/** (예전 히든룰 v1.3) 흑·백 모두 10개 따내면 승리 — 옛 기보용. 지금 규칙은 game/config.ts의 ruleConfig */
 export const HIDDEN_CAPTURE_TARGET = { black: 10, white: 10 } as const;
 
 export type ResultReason = "five" | "capture" | "resign" | "disconnect" | "timeout" | "draw";
@@ -96,6 +97,8 @@ export interface GameSnapshot {
   disconnected: Partial<Record<Player, number>>;
   /** 백 히든 규칙이 켜진 판 */
   hiddenMove?: boolean;
+  /** 이 판의 규칙(따목 / 히든따목 / 지뢰따목) */
+  rule?: GameRule;
   /**
    * 이 화면을 보는 사람에게 보이는 판(서버가 계산). 백 히든이 있는 판에서는 흑에게 숨은 돌이 빈칸으로,
    * moves의 그 수도 (-1, -1)로 온다. 있으면 클라이언트는 기보를 다시 두지 않고 이 판을 그대로 그린다.
@@ -120,18 +123,38 @@ export type ClientMessage =
   | { type: "hidden" }
   /** 흑 스캔: 교차점 하나에 숨은 돌이 있는지 본다(한 판에 한 번, 차례 그대로) */
   | { type: "scan"; row: number; col: number; moveNo: number }
+  /** (지뢰따목) 백이 착수 대신 지뢰를 묻는다(한 판에 한 번, 흑에게는 안 보임) */
+  | { type: "mine"; row: number; col: number; moveNo: number }
   | { type: "resign" }
   | { type: "ping" };
 
 /**
- * 친선·친구매치의 규칙 선택. "hidden" = 히든룰(백 히든 1번 + 흑 스캔 1번, 따냄 10/10),
- * "nohidden" = 노히든룰(히든·스캔 없음, 흑 12 / 백 10), "any" = 아무 규칙이나. 레이팅매치는 늘 히든룰.
+ * 매칭 때 고르는 규칙.
+ * - 레이팅매치: 늘 "random"(판마다 히든따목·지뢰따목 중 무작위)
+ * - 친선매치: "random" / "hidden" / "mine"
+ * - 친구매치: "plain"(따목) / "hidden" / "mine" — 같은 규칙끼리만 만난다
+ * (예전 값 "any"는 random, "nohidden"은 plain으로 받는다)
  */
-export type MatchRule = "any" | "hidden" | "nohidden";
-export const MATCH_RULES: readonly MatchRule[] = ["any", "hidden", "nohidden"];
+export type MatchRule = "random" | "plain" | "hidden" | "mine";
+export const MATCH_RULES: readonly MatchRule[] = ["random", "plain", "hidden", "mine"];
+/** 매치 종류별로 고를 수 있는 규칙(맨 앞이 기본) */
+export const MODE_RULES: Readonly<Record<MatchMode, readonly MatchRule[]>> = {
+  rated: ["random"],
+  casual: ["random", "hidden", "mine"],
+  friend: ["hidden", "mine", "plain"],
+};
 
-/** 두 사람의 규칙 선택이 맞으면 그 판의 규칙(히든이면 true), 안 맞으면 null. 둘 다 "아무거나"면 히든룰 */
-export function agreedRule(a: MatchRule, b: MatchRule): boolean | null {
-  if (a !== "any" && b !== "any" && a !== b) return null;
-  return a !== "nohidden" && b !== "nohidden";
+/** 들어온 값(예전 값 포함)을 이 매치 종류에서 쓸 수 있는 규칙으로 */
+export function normalizeRule(mode: MatchMode, raw: string | null | undefined): MatchRule {
+  const r = raw === "any" ? "random" : raw === "nohidden" ? "plain" : raw;
+  const allowed = MODE_RULES[mode];
+  return (allowed as readonly string[]).includes(r ?? "") ? (r as MatchRule) : allowed[0];
+}
+
+/** 두 사람의 규칙 선택이 맞으면 그 판의 규칙, 안 맞으면 null. 무작위끼리면 히든따목·지뢰따목 중 하나 */
+export function agreedRule(a: MatchRule, b: MatchRule, rand: () => number = Math.random): GameRule | null {
+  if (a === "random" && b === "random") return rand() < 0.5 ? "hidden" : "mine";
+  if (a === "random") return b === "plain" ? null : (b as GameRule);
+  if (b === "random") return a === "plain" ? null : (a as GameRule);
+  return a === b ? (a as GameRule) : null;
 }

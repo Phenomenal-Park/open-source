@@ -1,17 +1,17 @@
 // 대국방(대국마다 Durable Object 하나). 착수는 src/game 엔진으로 검증하고, 끝나면 D1에 기록·점수 반영.
 import { DurableObject } from "cloudflare:workers";
-import { makeConfig, opponent, DEFAULT_BOARD_SIZE } from "../src/game/config.ts";
+import { makeConfig, opponent, ruleConfig, DEFAULT_BOARD_SIZE, type GameRule } from "../src/game/config.ts";
 import { replayMoves } from "../src/game/gameState.ts";
-import { canUseHidden, forfeitHidden, scanAt, tryMove, viewFor, type MoveOptions } from "../src/game/rules.ts";
+import { canUseHidden, forfeitHidden, placeMine, scanAt, tryMove, viewFor, type MoveOptions } from "../src/game/rules.ts";
 import type { GameState, Player, Position } from "../src/game/types.ts";
 import { isProvisional, rateDraw, rateGame, type PlayerUpdate } from "../src/rating/elo.ts";
 import { chooseMove } from "../src/ai/search.ts";
-import { chooseBlackMove, chooseBlackScan, chooseWhiteMove } from "../src/ai/hidden.ts";
+import { chooseBlackMove, chooseBlackScan, chooseWhiteMove, mineDecision, mineScanDecision } from "../src/ai/hidden.ts";
 import { learnFromGame } from "../src/ai/experience.ts";
 import { levelById } from "../src/ai/levels.ts";
 import { rankFor } from "../src/rating/ranks.ts";
 import {
-  CLOCK_INCREMENT_MS, DEFAULT_CLOCK_MIN, DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, HIDDEN_CAPTURE_TARGET, HIDDEN_GRACE_MS, HIDDEN_MS, PING, PONG, WS_PROTOCOL,
+  CLOCK_INCREMENT_MS, DEFAULT_CLOCK_MIN, DISCONNECT_MS, HEARTBEAT_TIMEOUT_MS, HIDDEN_GRACE_MS, HIDDEN_MS, PING, PONG, WS_PROTOCOL,
   type ClockView,
   type ClientMessage, type GameSnapshot, type MatchMode, type OnlineResult, type ResultReason, type ServerMessage,
 } from "../src/online/protocol.ts";
@@ -34,9 +34,11 @@ export interface RoomInit {
   id: string;
   mode: MatchMode;
   rated: boolean;
-  /** 백 히든 모드(친구매치만 끌 수 있다, 없으면 켜짐) */
+  /** 이 판의 규칙(따목 / 히든따목 / 지뢰따목) */
+  rule?: GameRule;
+  /** (예전 대국방) 백 히든 모드 — rule이 없을 때만 본다 */
   hiddenMove?: boolean;
-  /** 처음 시간(분). 레이팅·친선 3분, 친구매치는 1·3·5·10분 */
+  /** 처음 시간(분). 레이팅·친선 2분, 친구매치는 1·2·3·5·10분 */
   clockMin?: number;
   black: RoomPlayer;
   white: RoomPlayer;
@@ -57,6 +59,8 @@ interface RoomData extends RoomInit {
   hiddenForfeit?: boolean;
   /** 흑 스캔: 그때까지 둔 수의 개수와 자리(쓰지 않았으면 null) */
   scan?: { at: number; pos: Position } | null;
+  /** (지뢰따목) 백 지뢰: 묻은 때까지 둔 수의 개수와 자리(묻지 않았으면 null) */
+  mine?: { at: number; pos: Position } | null;
   /** 백이 히든을 누른 시각 + HIDDEN_MS (아직 두지 않았으면) */
   hiddenArmedUntil?: number | null;
   /** 대국 시계(피셔): 남은 시간, 지금 줄어드는 쪽이 줄기 시작한 시각(멈췄으면 null) */
@@ -138,7 +142,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private replay(d: RoomData): GameState {
-    const r = replayMoves(roomConfig(d), d.moves, d.hiddenIndex ?? null, d.scan ?? null);
+    const r = replayMoves(roomConfig(d), d.moves, d.hiddenIndex ?? null, d.scan ?? null, d.mine ?? null);
     if (!r.ok) throw new Error("stored moves are invalid");
     let s = r.state;
     if (d.hiddenRevealed && s.hidden && !s.hidden.revealed) s = { ...s, hidden: { ...s.hidden, revealed: true } };
@@ -152,7 +156,8 @@ export class GameRoom extends DurableObject<Env> {
     const deadline = Date.now() + this.disconnectMs;
     this.data = {
       ...init, boardSize: this.boardSize, secondMoveMinDistance: Number(this.env.SECOND_MOVE_MIN_DISTANCE) || 0, moves: [], status: "playing", result: null,
-      hiddenMove: this.env.HIDDEN_MOVE !== "0" && init.hiddenMove !== false, hiddenIndex: null,
+      // 규칙: 매칭에서 정한 대로(HIDDEN_MOVE=0 설정이면 늘 따목)
+      rule: this.env.HIDDEN_MOVE === "0" ? "plain" : init.rule ?? (init.hiddenMove === false ? "plain" : "hidden"), hiddenIndex: null, mine: null,
       clock: newClock(this.clockBaseMs(init.clockMin)), hiddenRevealed: false, hiddenForfeit: false, hiddenArmedUntil: null,
       deadlines: {}, joined: { black: !!init.black.bot, white: !!init.white.bot }, createdAt: new Date().toISOString(),
     };
@@ -176,7 +181,18 @@ export class GameRoom extends DurableObject<Env> {
         const cur = await this.load();
         if (!cur || cur.status !== "playing" || cur.moves.length !== moveNo || !!cur.hiddenRevealed !== revealed) return;
         const s = this.replay(cur);
-        if (!cur.hiddenMove) return void (await this.applyMove(s.currentPlayer, chooseMove(s, level)));
+        if (s.config.whiteMine) {
+          // 지뢰따목: 백 AI는 지뢰를 묻을지 먼저 정하고, 흑 AI는 지뢰를 못 보는 판으로 경계하며 둔다(수상하면 스캔부터)
+          if (s.currentPlayer === "white") {
+            const spot = mineDecision(s, level);
+            if (spot && (await this.applyMine(spot))) return;
+            return void (await this.applyMove("white", chooseWhiteMove(s, level).move));
+          }
+          const sc = mineScanDecision(viewFor(s, "black"), level);
+          if (sc && (await this.applyScan(sc))) return void (await this.applyMove("black", chooseBlackMove(viewFor(this.replay(this.data!), "black"), level)));
+          return void (await this.applyMove("black", chooseBlackMove(viewFor(s, "black"), level)));
+        }
+        if (!s.config.hiddenMove) return void (await this.applyMove(s.currentPlayer, chooseMove(s, level)));
         // 백 히든 판: 흑 AI는 흑에게 보이는 판만 보고, 백 AI는 숨겨 둘지도 정한다
         if (s.currentPlayer === "black") {
           // 흑 AI: 정말 의심되는 자리가 있으면 먼저 스캔(차례는 그대로), 그 뒤 둔다
@@ -199,6 +215,26 @@ export class GameRoom extends DurableObject<Env> {
     if (r.hit) d.hiddenRevealed = true;
     await this.save();
     this.broadcast();
+    return true;
+  }
+
+  /** (지뢰따목) 백이 착수 대신 지뢰를 묻는다. 시계는 착수처럼 넘어간다. 성공하면 true */
+  private async applyMine(pos: Position): Promise<boolean> {
+    const d = this.data!;
+    const r = placeMine(this.replay(d), pos);
+    if (!r.ok) return false;
+    if (d.clock) {
+      const now = Date.now();
+      const c = d.clock;
+      if (c.since !== null) c.remaining.white -= now - c.since;
+      if (c.remaining.white <= 0) { await this.finish("black", "timeout"); return true; }
+      c.remaining.white += c.incMs;
+      c.since = now;
+    }
+    d.mine = { at: d.moves.length, pos: { row: pos.row, col: pos.col } };
+    await this.save();
+    this.broadcast();
+    this.maybeBotTurn();
     return true;
   }
 
@@ -279,7 +315,7 @@ export class GameRoom extends DurableObject<Env> {
 
     if (msg.type === "hidden") {
       // 백 히든 누름: 10초 안에 숨겨 둬야 한다(못 두면 alarm에서 기회 소멸)
-      if (color !== "white" || !d.hiddenMove || d.hiddenArmedUntil || !canUseHidden(this.replay(d))) return this.sendState(ws, color);
+      if (color !== "white" || !roomConfig(d).hiddenMove || d.hiddenArmedUntil || !canUseHidden(this.replay(d))) return this.sendState(ws, color);
       d.hiddenArmedUntil = Date.now() + HIDDEN_MS;
       this.stopClock(d, this.replay(d), Date.now()); // 히든 고르는 10초 동안 백 시계는 멈춘다
       await this.save();
@@ -291,6 +327,12 @@ export class GameRoom extends DurableObject<Env> {
     if (msg.type === "scan") {
       // 흑 스캔: 한 판에 한 번, 백 히든이 쓰인 뒤 흑 차례에만
       if (color !== "black" || msg.moveNo !== d.moves.length || !(await this.applyScan({ row: msg.row, col: msg.col }))) return this.sendState(ws, color);
+      return;
+    }
+
+    if (msg.type === "mine") {
+      // 지뢰따목: 백 차례에 한 번, 착수 대신
+      if (color !== "white" || msg.moveNo !== d.moves.length || !(await this.applyMine({ row: msg.row, col: msg.col }))) return this.sendState(ws, color);
       return;
     }
 
@@ -454,13 +496,14 @@ export class GameRoom extends DurableObject<Env> {
           `INSERT OR IGNORE INTO games (id, mode, rated, black_id, white_id, winner_id, win_reason, moves, move_count,
              black_before, black_after, white_before, white_after,
              black_name, white_name, black_rating, white_rating, black_provisional, white_provisional, created_at, finished_at,
-             hidden_move, hidden_index, scan)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             hidden_move, hidden_index, scan, rule, mine)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(d.id, d.mode, d.rated ? 1 : 0, d.black.id, d.white.id, winnerId, reason, JSON.stringify(d.moves), d.moves.length,
           before.black ?? null, after.black ?? null, before.white ?? null, after.white ?? null,
           // 대국 당시(매칭 시점) 닉네임·점수 스냅샷
           d.black.username, d.white.username, d.black.rating, d.white.rating, d.black.provisional ? 1 : 0, d.white.provisional ? 1 : 0,
-          d.createdAt, now, d.hiddenMove ? 1 : 0, d.hiddenIndex ?? null, d.scan ? JSON.stringify({ at: d.scan.at, row: d.scan.pos.row, col: d.scan.pos.col }) : null),
+          d.createdAt, now, roomConfig(d).hiddenMove ? 1 : 0, d.hiddenIndex ?? null, d.scan ? JSON.stringify({ at: d.scan.at, row: d.scan.pos.row, col: d.scan.pos.col }) : null,
+          roomRule(d), d.mine ? JSON.stringify({ at: d.mine.at, row: d.mine.pos.row, col: d.mine.pos.col }) : null),
       );
       for (const c of COLORS) {
         stmts.push(db.prepare("INSERT OR IGNORE INTO user_games (user_id, game_id, finished_at) VALUES (?, ?, ?)").bind(d[c].id, d.id, now));
@@ -485,7 +528,7 @@ export class GameRoom extends DurableObject<Env> {
     return {
       id: d.id, mode: d.mode, rated: d.rated, boardSize: d.boardSize, secondMoveMinDistance: d.secondMoveMinDistance ?? 0, players: { black: p(d.black), white: p(d.white) },
       moves: view.moves, status: d.status, result: d.result, disconnected,
-      hiddenMove: !!d.hiddenMove, view,
+      hiddenMove: !!roomConfig(d).hiddenMove, rule: roomRule(d), view,
       ...(d.hiddenArmedUntil ? { hiddenArmedMs: Math.max(0, d.hiddenArmedUntil - now) } : {}),
       ...(d.clock ? { clock: this.clockView(d, now) } : {}),
     };
@@ -520,12 +563,14 @@ function newClock(baseMs: number) {
   return { baseMs, incMs: CLOCK_INCREMENT_MS, remaining: { black: baseMs, white: baseMs }, since: null as number | null };
 }
 
-/** 이 대국의 규칙: 백 히든 판은 흑·백 모두 10개 따내면 승리 */
-export function roomConfig(d: { boardSize: number; secondMoveMinDistance?: number; hiddenMove?: boolean }) {
-  return makeConfig(d.boardSize, {
-    secondMoveMinDistance: d.secondMoveMinDistance ?? 0,
-    ...(d.hiddenMove ? { hiddenMove: true, captureTarget: { ...HIDDEN_CAPTURE_TARGET } } : {}),
-  });
+/** 이 대국의 규칙 이름(예전 대국방은 hiddenMove로: 켜져 있으면 예전 히든룰 v1.3) */
+export function roomRule(d: { rule?: GameRule; hiddenMove?: boolean }): GameRule {
+  return d.rule ?? (d.hiddenMove ? "hidden13" : "plain");
+}
+
+/** 이 대국의 설정 */
+export function roomConfig(d: { boardSize: number; secondMoveMinDistance?: number; rule?: GameRule; hiddenMove?: boolean }) {
+  return makeConfig(d.boardSize, { secondMoveMinDistance: d.secondMoveMinDistance ?? 0, ...ruleConfig(roomRule(d)) });
 }
 
 /**

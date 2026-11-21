@@ -117,6 +117,19 @@ button, input, select { font: inherit; }
 .end-line1 { font-size: clamp(1.4rem, 7vw, 2.6rem); color: var(--text); text-shadow: 0 3px 0 rgba(0,0,0,.5); }
 .end-line2 { font-size: clamp(2.6rem, 13vw, 5.4rem); color: var(--accent); text-shadow: 0 0 22px var(--accent), 0 5px 0 rgba(0,0,0,.55); animation: end-pop .7s cubic-bezier(.2, 1.5, .4, 1) .15s both; }
 .end-line2.draw { color: var(--text); text-shadow: 0 5px 0 rgba(0,0,0,.55); }
+/* 대국 시작 안내("이번 판 / 지뢰따목") — 끝날 때 문구와 같은 모양, 조금 짧게 */
+.start-banner { animation-duration: 2.2s; }
+.end-line2.rule-mine { color: #2fd18e; text-shadow: 0 0 22px #17a673, 0 5px 0 rgba(0,0,0,.55); }
+.end-line2.rule-plain { color: var(--text); text-shadow: 0 5px 0 rgba(0,0,0,.55); }
+/* 판 위 규칙 배너: 지금 둔 판의 규칙을 늘 보여 준다 */
+.rule-bar { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; padding: 6px 12px; border-radius: 10px; background: var(--panel-2); border-left: 4px solid var(--accent); min-width: 0; }
+.rule-bar b { font-size: 15px; font-weight: 900; color: var(--accent); white-space: nowrap; }
+.rule-bar span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rule-bar.rule-mine { border-left-color: #17a673; }
+.rule-bar.rule-mine b { color: #2fd18e; }
+.rule-bar.rule-plain { border-left-color: var(--muted); }
+.rule-bar.rule-plain b { color: var(--text); }
+.casual-rule { width: 100%; margin: 8px 0 0; }
 @keyframes end-in { 0% { opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes end-pop { from { transform: scale(2.2) rotate(-6deg); opacity: 0; } to { transform: scale(1) rotate(-3deg); opacity: 1; } }
 .hidden-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 4; }
