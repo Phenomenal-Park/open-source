@@ -99,7 +99,9 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
   }
   out.sort((x, y) => y.w - x.w);
   const sum = out.reduce((a, x) => a + x.w, 0) || 1;
-  return out.slice(0, maxCells).map((x) => ({ ...x, w: x.w / sum }));
+  // 위험 칸(바로 이김·막을 수 없는 넉)은 순위가 낮아도 늘 함께 돌려준다
+  const keep = [...out.slice(0, maxCells), ...out.slice(maxCells).filter((x) => x.danger1 || x.danger2)];
+  return keep.map((x) => ({ ...x, w: x.w / sum }));
 }
 
 /**
@@ -123,10 +125,12 @@ export function chooseBlackMoveBelief(view: GameState, level: AiLevel, rand: Rng
   const hyp = belief.slice(0, 4);
   // 거기 숨은 돌이 있으면 백이 막을 수 없는 넉을 만드는 자리는 순위가 낮아도 꼭 따로 읽는다(최소 6%로 친다).
   // 백은 천원에서 3~4칸 떨어진 곳에 숨기고 그쪽으로 줄을 이어 오는데, 흑 눈에는 별것 아닌 돌들로 보인다.
+  // 거기 숨은 돌이 있으면 백이 바로 이기는 자리는 짐작상 낮아도 반드시 읽는다(엉뚱한 곳에 숨기고 줄을 이어 오는 백 대비)
+  for (const x of belief) if (x.danger1 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.1) });
   for (const x of belief) if (x.danger2 && !hyp.includes(x) && hyp.length < 8) hyp.push({ ...x, w: Math.max(x.w, 0.06) });
   const roots = new FastSearcher(vb, width).searchRoot(depth, t * 0.15, false, true).scores.slice(0, 10).map((x) => x.p);
   for (const x of belief.slice(0, 3)) if (!roots.includes(x.pos)) roots.push(x.pos);
-  for (const x of belief) if (x.danger2 && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
+  for (const x of belief) if ((x.danger1 || x.danger2) && !roots.includes(x.pos) && roots.length < 14) roots.push(x.pos);
   const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
   const ev = new Map<number, number>(roots.map((p) => [p, 0]));
   const hypMass = hyp.reduce((a, x) => a + x.w, 0);
@@ -278,7 +282,7 @@ const MODEL_SCALE = 25;
 /** 이 상대가 실제로 숨긴 기록의 무게(기록이 많을수록 이 값에 가까워진다): 흉내보다 크게 */
 const HIST_SCALE = 40;
 /** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
-const SCAN_D1 = 0.04;
+const SCAN_D1 = 0.005; // 바로 지는 걸 막는 스캔은 아끼지 않는다
 const SCAN_D2 = 0.1;
 /** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
 const SCAN_RISK = 300;
