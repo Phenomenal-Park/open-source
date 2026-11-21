@@ -341,10 +341,14 @@ function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLeve
   }
   // 후보 셋만 깊게, 정확한 점수로 다시 읽는다(좁은 창의 뿌리 점수는 상한일 뿐이라 지는 수도 비슷해 보인다).
   // 예전엔 짧게(32ms) 다시 읽어 비교했는데, 짧은 읽기가 셋 다 "진다"로 보면 아무거나 골라 열린 3을 안 막는 수를 두었다.
-  const exact = new FastSearcher(b, level.width).searchRoot(level.depth, Math.max(30, level.timeMs * 0.3), true, true, cands).scores;
+  const r = new FastSearcher(b, level.width).searchRoot(level.depth, Math.max(30, level.timeMs * 0.4), true, true, cands);
+  const exact = r.scores;
   const val = (x: { p: number; s: number }) => x.s + experienceBonus(key, x.p);
   const ref = exact.find((x) => x.p === bestP);
   if (!ref || exact.length < 2 || ref.s <= -(WIN / 2)) return -1;
+  // 다시 읽은 결과가 처음 읽기와 어긋나면(가장 좋은 수가 바뀜 — 바쁠 때 얕게 읽힘) 흔들지 않는다
+  if (exact[0].p !== bestP && exact[0].s > ref.s + level.vary!) return -1;
+  if (r.stats.depth < Math.min(6, level.depth)) return -1;
   const ok = exact.filter((x) => x.s > -(WIN / 2) && val(x) >= val(ref) - level.vary!);
   return ok.length ? ok[Math.floor(rand() * ok.length)].p : -1;
 }
