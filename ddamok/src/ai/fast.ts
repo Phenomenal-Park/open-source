@@ -127,6 +127,9 @@ export class FastBoard {
     const wall = blockedCell(s);
     if (wall) b.addWall(wall.row * n + wall.col);
     if (s.config.blackBlock && s.scan === null && !s.isFinished) b.setWallAvail(true);
+    // 백이 보는 판: 아직 안 드러난 숨은 돌 자리(흑은 그 돌로 생긴 위협을 모른다)
+    const h = s.hidden;
+    if (h && !h.revealed && h.pos.row >= 0 && s.board[h.pos.row][h.pos.col] === "white") b.hiddenCell = h.pos.row * n + h.pos.col;
     b.caps = [0, s.capturedByBlack, s.capturedByWhite];
     b.toMove = s.currentPlayer === "black" ? BLACK : WHITE;
     return b;
@@ -163,6 +166,19 @@ export class FastBoard {
     this.cells[pos] = EMPTY;
     this.empties++;
     this.hash ^= 0x5bd1e995 ^ pos;
+  }
+
+  /** 백 숨은 돌 칸(백이 보는 판에서만, 없으면 -1) */
+  hiddenCell = -1;
+
+  /** 흑 눈에 보이는 백의 이길 자리: 숨은 돌이 없다고 쳐도 이길 자리인가 */
+  visibleThreat(t: number): boolean {
+    const hc = this.hiddenCell;
+    if (hc < 0 || this.cells[hc] !== WHITE) return true;
+    this.remove(hc);
+    const r = this.winningMoves(2).includes(t);
+    this.put(hc, WHITE);
+    return r;
   }
 
   /** (실험) 흑이 아직 ⓧ를 쓸 수 있는가 — 수읽기는 "백의 결정타(막을 곳 둘 이상)를 흑이 ⓧ+착수로 막는" 경우까지 본다 */

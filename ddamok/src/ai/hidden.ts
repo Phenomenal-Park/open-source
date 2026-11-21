@@ -358,11 +358,30 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
   const vb = FastBoard.fromState(view);
   if (vb.winningMoves(1).length) return null;
   const h = view.hidden;
-  if (h && h.index >= 0 && !h.revealed) {
-    // 실드는 한 번뿐인 방어라 아낀다: 거기 숨은 돌이 있으면 백이 바로 이기는 자리(위험 칸)일 때만 숨은 돌 의심에 쓴다
-    // (의심만으로 쓴 28번 중 7번 적중, 흑 9승 — 정작 결정타를 막을 실드가 없었다)
-    const d = scanDecision(view, level);
-    if (d && d.reason === "danger1") return { pos: d.pos, reason: "hidden" };
+  if (h && h.index >= 0 && !h.revealed && view.moves.length >= h.index + 3) {
+    // 숨은 돌 의심: 거기 숨은 돌이 있으면 백이 바로 이기는 판들(위험 판)을 "실드 + 이번 착수"로 가장 많이 막는 실드 자리.
+    // 착수 하나로 충분히 막히면 아낀다(한 번뿐인 방어). 실드를 숨은 돌 후보에 치면 거기 있을 때 찾고, 백이 이길 자리에 치면 그 줄을 막는다.
+    const belief = hiddenBelief(view, 20, level.fast || level.rating >= 1400 ? withHidden(level) : undefined);
+    const d1 = belief.filter((x) => x.danger1);
+    const mass = d1.reduce((a, x) => a + x.w, 0);
+    if (mass >= SHIELD_D1) {
+      const plain = blockHiddenWinsCover(view, d1).cover;
+      const cands = new Set<number>(d1.map((x) => x.pos));
+      for (const x of d1) {
+        const board = view.board.map((r) => r.slice());
+        board[(x.pos / n) | 0][x.pos % n] = "white";
+        for (const p of FastBoard.fromState({ ...view, board, hidden: null }).winningMoves(2)) cands.add(p);
+      }
+      let bestCell = -1, bestCover = plain;
+      for (const c of [...cands].slice(0, 16)) {
+        const found = d1.find((x) => x.pos === c)?.w ?? 0;
+        const v2: GameState = { ...view, scan: { pos: toPos(c, n), at: view.moves.length, hit: false } };
+        const rest = d1.filter((x) => x.pos !== c);
+        const cover = found + (rest.length ? blockHiddenWinsCover(v2, rest).cover : 0);
+        if (cover > bestCover) { bestCover = cover; bestCell = c; }
+      }
+      if (bestCell >= 0 && bestCover - plain >= SHIELD_GAIN) return { pos: toPos(bestCell, n), reason: "hidden" };
+    }
   }
   vb.setWallAvail(false); // ⓧ 없이 버틸 수 있는지 본다
   const base = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores;
@@ -380,6 +399,10 @@ export function blockDecision(view: GameState, level: AiLevel): { pos: Position;
   }
   return best >= 0 && bestS > -(WIN / 2) ? { pos: toPos(best, n), reason: "save" } : null;
 }
+
+/** 실드를 숨은 돌 위험에 쓰는 기준: 위험 판 확률 합, 그리고 실드로 더 막게 되는 확률 */
+const SHIELD_D1 = 0.08;
+const SHIELD_GAIN = 0.1;
 
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;

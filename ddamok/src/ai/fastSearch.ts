@@ -116,7 +116,9 @@ export class FastSearcher {
     if (forced && me === 1 && b.wallAvail) {
       const threats = b.winningMoves(2);
       if (threats.length >= 2) {
+        // 흑은 숨은 돌로 생긴 위협은 보지 못하므로 거기엔 실드를 칠 수 없다(백이 보는 판에서만 해당)
         for (const t of threats) {
+          if (!b.visibleThreat(t)) continue;
           b.addWall(t); b.setWallAvail(false);
           const v = this.node(depth, alpha, beta, ply);
           b.setWallAvail(true); b.removeWall(t);
