@@ -266,6 +266,8 @@ function withHidden(level: AiLevel): AiLevel {
 }
 
 export function chooseBlackMove(view: GameState, level: AiLevel, rand: Rng = Math.random): Position {
+  // (베타) 지뢰룰: 아직 안 밟힌 지뢰가 있으면 경계하며 둔다
+  if (view.config.whiteMine && view.mine && !view.mine.triggered && view.currentPlayer === "black") return chooseBlackMoveMine(view, level, rand);
   const L = withHidden(level);
   const unknown = !!view.hidden && !view.hidden.revealed && view.hidden.index >= 0;
   // 다이아(예전 엔진 최상위): 여러 판 읽기는 다이아 자신보다 센 고속 엔진으로 수를 골라 흑만 강해진다(같은 단계끼리 흑 78%).
@@ -455,20 +457,29 @@ const MAGIC_MARGIN = 0;
  * 흑이 밟아 그 자리가 막히고 흑은 한 수를 잃는다. 후보마다 "흑이 실제로 둘 수(지뢰를 모르는 흑의 짧은 읽기)"를 흉내 내,
  * 밟으면 백 차례로, 안 밟으면 흑이 그 수를 둔 뒤 백 차례로 읽어 보통 착수(가장 좋은 수)와 비교한다. 더 나을 때만 묻는다.
  */
-export function mineDecision(state: GameState, level: AiLevel): Position | null {
+export function mineDecision(state: GameState, level: AiLevel, rand: Rng = Math.random): Position | null {
   if (!canPlaceMine(state)) return null;
+  const o = mineOptions(state, level);
+  if (!o) return null;
+  const pool = minePool(o);
+  if (!pool.length) return null;
+  // 섞기: 비슷하게 좋은 자리 중 무작위(흑이 "내가 백이라면" 하고 짐작해도 한 곳으로 좁히기 어렵게)
+  return toPos(pool[Math.floor(rand() * pool.length)].p, state.config.boardSize);
+}
+
+/** 지뢰 후보와 값(백 차례의 판에서). 보통 착수 값 normal과 함께 */
+function mineOptions(state: GameState, level: AiLevel): { normal: number; opts: { p: number; v: number }[] } | null {
   const fl = withHidden(level).fast;
   if (!fl) return null;
   const n = state.config.boardSize;
   const b = FastBoard.fromState(state);
   if (b.winningMoves(2).length) return null; // 바로 이길 수 있으면 이긴다
   const normal = new FastSearcher(b, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.3), false, true).scores[0]?.s ?? 0;
-  const blackView = { ...state, currentPlayer: "black" as const };
-  const vb = FastBoard.fromState(blackView); // 지뢰 없는(흑이 보는) 판, 흑 차례
+  const vb = FastBoard.fromState({ ...state, currentPlayer: "black" }); // 지뢰 없는(흑이 보는) 판, 흑 차례
   // 후보: 흑이 이기는 자리 + 흑 자신의 줄이 가장 크게 자라는 자리(공격 방향). 흑이 백을 막으려고 둘 수비 자리는 빼고 본다 —
   // 거기 묻으면 생긴 매직스톤이 백의 줄을 막아 백이 손해다.
   const cands = new Set<number>(vb.winningMoves(1));
-  const grow = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN).sort((a, b) => b.g - a.g).slice(0, 6);
+  const grow = vb.candidates().map((p) => ({ p, g: vb.ownGain(p, 1) })).filter((x) => x.g >= MINE_MIN_GAIN).sort((a, c) => c.g - a.g).slice(0, 6);
   for (const x of grow) cands.add(x.p);
   const blackPick = (st: GameState): number => {
     const fb = FastBoard.fromState({ ...st, mine: null });
@@ -476,21 +487,100 @@ export function mineDecision(state: GameState, level: AiLevel): Position | null 
     if (w.length) return w[0];
     return new FastSearcher(fb, fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(30, fl.timeMs * 0.12), false, true).scores[0]?.p ?? -1;
   };
-  let best = -1, bestV = normal;
+  const opts: { p: number; v: number }[] = [];
   for (const p of [...cands].slice(0, 8)) {
     const placed: GameState = { ...state, mine: { pos: toPos(p, n), at: state.moves.length, triggered: false }, currentPlayer: "black" };
     const m = blackPick(placed);
     if (m < 0) continue;
     const r = tryMove(placed, toPos(m, n));
-    if (!r.ok) continue;
-    if (r.state.isFinished) { if (r.state.winner === "black") continue; }
+    if (!r.ok || (r.state.isFinished && r.state.winner === "black")) continue;
     const v = r.state.isFinished ? 1e9 : new FastSearcher(FastBoard.fromState(r.state), fl.width).searchRoot(fl.depth, Math.max(30, fl.timeMs * 0.2), false, true).scores[0]?.s ?? 0;
-    if (v > bestV + MINE_MARGIN) { bestV = v; best = p; }
+    opts.push({ p, v });
   }
-  return best >= 0 ? toPos(best, n) : null;
+  return { normal, opts };
 }
+
+/** 백이 실제로 고를 지뢰 자리들: 보통 착수보다 낫고, 가장 좋은 자리와 MINE_WINDOW 안쪽 */
+function minePool(o: { normal: number; opts: { p: number; v: number }[] }): { p: number; v: number }[] {
+  const good = o.opts.filter((x) => x.v > o.normal + MINE_MARGIN);
+  if (!good.length) return [];
+  const top = Math.max(...good.map((x) => x.v));
+  return good.filter((x) => x.v >= top - MINE_WINDOW);
+}
+
+/**
+ * 흑의 지뢰 짐작: 지뢰를 묻은 그 순간의 판(흑도 다 아는 판)으로 돌아가 "내가 백이라면 어디에 묻었을까"를 같은 엔진으로 흉내 낸다.
+ * 백이 고를 자리들에 고르게, 그 밖의 흑 공격 방향 자리에 조금. 지금 돌이 놓였거나 매직스톤이 된 자리는 뺀다.
+ */
+const mineBeliefCache = new Map<string, Map<number, number>>();
+export function mineBelief(view: GameState, level: AiLevel): Map<number, number> {
+  const mn = view.mine;
+  const out = new Map<number, number>();
+  if (!mn || mn.triggered) return out;
+  const key = `${level.id}|${view.moves.slice(0, mn.at).map((m) => `${m.row},${m.col}`).join(" ")}`;
+  let base = mineBeliefCache.get(key);
+  if (!base) {
+    base = new Map();
+    let before = createGameFromConfig(view.config);
+    let ok = true;
+    for (let i = 0; i < mn.at; i++) {
+      const r = tryMove(before, view.moves[i]);
+      if (!r.ok) { ok = false; break; }
+      before = replayMagic(r.state, view);
+    }
+    if (ok && before.currentPlayer === "white") {
+      const o = mineOptions(before, level);
+      const pool = o ? minePool(o) : [];
+      for (const x of pool) base.set(x.p, (base.get(x.p) ?? 0) + 0.85 / pool.length);
+      const rest = (o?.opts ?? []).filter((x) => !pool.some((y) => y.p === x.p));
+      const spread = pool.length ? 0.15 : 1;
+      for (const x of rest) base.set(x.p, (base.get(x.p) ?? 0) + spread / Math.max(1, rest.length));
+    }
+    if (mineBeliefCache.size > 32) mineBeliefCache.clear();
+    mineBeliefCache.set(key, base);
+  }
+  const n = view.config.boardSize;
+  const fb = FastBoard.fromState(view);
+  let sum = 0;
+  for (const [p, w] of base) if (!fb.cells[p]) { out.set(p, w); sum += w; }
+  for (const [p, w] of out) out.set(p, sum ? w / sum : 0);
+  void n;
+  return out;
+}
+
+/**
+ * 흑이 지뢰를 경계하며 두기: 후보 수마다 "지뢰일 확률 × 밟았을 때 값 + 나머지 × 그냥 둔 값"으로 고른다.
+ * 밟으면 그 자리는 매직스톤이 되고 백 차례다. 이기는 수가 여럿이면 덜 수상한 쪽부터.
+ */
+function chooseBlackMoveMine(view: GameState, level: AiLevel, rand: Rng): Position {
+  const fl = withHidden(level).fast;
+  if (!fl) return chooseMove(view, level, rand);
+  const n = view.config.boardSize;
+  const belief = mineBelief(view, level);
+  const vb = FastBoard.fromState(view);
+  const wins = vb.winningMoves(1);
+  if (wins.length) return toPos(wins.sort((a, b) => (belief.get(a) ?? 0) - (belief.get(b) ?? 0))[0], n);
+  const sc = new FastSearcher(vb, fl.width).searchRoot(fl.depth, Math.max(40, fl.timeMs * 0.6), true, true).scores.slice(0, 8);
+  if (!sc.length) return chooseMove(view, level, rand);
+  const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
+  let best = sc[0].p, bestEv = -Infinity;
+  for (const x of sc) {
+    const p = belief.get(x.p) ?? 0;
+    let ev = clamp(x.s);
+    if (p > 0.02) {
+      const stepped: GameState = { ...view, mine: null, magic: [...(view.magic ?? []), { pos: toPos(x.p, n), at: view.moves.length + 1, hit: false }], currentPlayer: "white" };
+      const w = new FastSearcher(FastBoard.fromState(stepped), fl.width).searchRoot(Math.min(fl.depth, 8), Math.max(20, fl.timeMs * 0.1), false, true).scores[0]?.s ?? 0;
+      ev = (1 - p) * clamp(x.s) + p * clamp(-w);
+    }
+    if (ev > bestEv) { bestEv = ev; best = x.p; }
+  }
+  return toPos(best, n);
+}
+
 /** 지뢰를 보통 착수 대신 묻을 기준(형세 점수) */
 const MINE_MARGIN = 0;
+/** 지뢰 자리 섞기: 가장 좋은 자리와 이만큼 안쪽이면 비슷하게 좋다고 본다(형세 점수) */
+const MINE_WINDOW = 150;
 /** 지뢰 후보로 볼 흑 줄의 최소 성장(흑 2개 창이 3개가 되는 정도 이상) */
 const MINE_MIN_GAIN = 100;
 
