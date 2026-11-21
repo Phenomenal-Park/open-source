@@ -723,6 +723,7 @@ export function MainPage() {
               onStart={(levelId, humanColor, rule) => {
                 setAiGame({ levelId, aiColor: opponent(humanColor), rule });
                 reset(boardSize, rule);
+                window.scrollTo({ top: 0, behavior: "smooth" }); // 판·규칙 배너·"이번 판" 안내가 보이게
               }}
               onStop={() => {
                 setAiGame(null);
