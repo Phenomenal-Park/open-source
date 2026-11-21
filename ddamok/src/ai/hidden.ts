@@ -8,7 +8,7 @@ import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
 import { chooseMove } from "./search.ts";
-import { experienceBonus, positionKey } from "./experience.ts";
+import { experienceBonus, hideHistory, positionKey } from "./experience.ts";
 
 const SIM: FastLevel = { depth: 4, timeMs: 30, width: 10, noise: 0, randomPick: 0, randomPool: 1, missWin: 0, focus: 1 };
 type Rng = () => number;
@@ -66,6 +66,10 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
   const b0 = FastBoard.fromState(before);
   // "내가 백이라면 어디 숨겼을까"(같은 엔진으로 흉내) — 있으면 사전 확률에 크게 더한다
   const model = modelLevel ? whiteHideModel(before, modelLevel) : null;
+  // 이 상대가 같은 판에서 지난번에 실제로 숨긴 자리(기록이 쌓일수록 더 믿는다)
+  const hist = modelLevel ? hideHistory(before) : undefined;
+  const histTotal = hist ? [...hist.values()].reduce((a, x) => a + x, 0) : 0;
+  const histScale = histTotal ? (HIST_SCALE * histTotal) / (histTotal + 2) / histTotal : 0;
   const n = b0.n;
   const rank = new Map(b0.candidates().map((p) => ({ p, s: b0.moveScore(p, 2) })).sort((x, y) => y.s - x.s).map((x, i) => [x.p, i] as const));
   const vb = FastBoard.fromState(view);
@@ -77,7 +81,7 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
     if (view.scan && !view.scan.hit && view.scan.pos.row * n + view.scan.pos.col === c) continue; // 스캔으로 비어 있다고 확인된 칸
     const r = rank.get(c);
     // 사전 확률은 완만하게: 백은 뻔한 자리를 피해 멀리 숨기기도 한다(무작위로 숨기는 백에게 뻔한 자리만 의심하면 당한다)
-    const prior = (r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05) + (model?.get(c) ?? 0) * MODEL_SCALE;
+    const prior = (r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05) + (model?.get(c) ?? 0) * MODEL_SCALE + (hist?.get(c) ?? 0) * histScale;
     const use = Math.max(0, vb.moveScore(c, 2));
     vb.cells[c] = 2;
     const danger1 = vb.winningMoves(2).length > 0;
@@ -221,6 +225,8 @@ export function chooseBlackScan(view: GameState, level?: AiLevel): Position | nu
 }
 /** 백 숨김 흉내의 무게: 일반 사전 확률 전체(대략 13)보다 크게 */
 const MODEL_SCALE = 25;
+/** 이 상대가 실제로 숨긴 기록의 무게(기록이 많을수록 이 값에 가까워진다): 흉내보다 크게 */
+const HIST_SCALE = 40;
 /** 스캔 기준: 위험 칸(바로 짐) / 막을 수 없는 넉 칸 / 그 밖의 칸의 의심(확률) */
 const SCAN_D1 = 0.04;
 const SCAN_D2 = 0.06;
