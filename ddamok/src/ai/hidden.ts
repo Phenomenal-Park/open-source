@@ -215,7 +215,7 @@ export function chooseBlackScan(view: GameState, level?: AiLevel): Position | nu
 }
 
 /** 스캔 판단과 그 이유(위험 칸 / 넉 칸 / 확신)·그 자리 의심(확률) — 측정·분석용으로도 쓴다 */
-export function scanDecision(view: GameState, level?: AiLevel): { pos: Position; reason: "danger1" | "danger2" | "top"; w: number } | null {
+export function scanDecision(view: GameState, level?: AiLevel): { pos: Position; reason: "danger1" | "danger2" | "risk" | "top"; w: number } | null {
   if (!canScan(view)) return null;
   // 근거 없이 찍지 않는다: 백이 숨긴 뒤 보이는 수를 한 번 이상 두어 흔적이 생긴 다음에만
   if (view.moves.length < view.hidden!.index + 3) return null;
@@ -224,6 +224,29 @@ export function scanDecision(view: GameState, level?: AiLevel): { pos: Position;
   const n = view.config.boardSize;
   const d1 = belief.filter((x) => x.danger1).sort((a, b) => b.w - a.w)[0];
   if (d1 && d1.w >= SCAN_D1) return { pos: toPos(d1.pos, n), reason: "danger1", w: d1.w };
+  // 배제용 스캔: 맞히려는 게 아니라, 거기 숨은 돌이 있으면 흑의 수가 가장 크게 망가지는 의심 자리를 지워 둔다.
+  // 위험 = (그 자리일 확률) × (흑이 지금 두려는 수가 그 판에서 잃는 값). 가장 큰 곳이 기준을 넘으면 스캔.
+  const fastLevel = level && withHidden(level).fast;
+  if (fastLevel && SCAN_RISK > 0) {
+    const vb = FastBoard.fromState(view);
+    const plan = new FastSearcher(vb, fastLevel.width).searchRoot(fastLevel.depth, Math.max(30, fastLevel.timeMs * 0.3), false, true).scores.slice(0, 3);
+    if (plan.length) {
+      const ms = Math.max(15, fastLevel.timeMs * 0.12);
+      let bestRisk = 0, bestCell = -1;
+      for (const x of belief.slice(0, 6)) {
+        const board = view.board.map((r) => r.slice());
+        board[(x.pos / n) | 0][x.pos % n] = "white";
+        const fb = FastBoard.fromState({ ...view, board, hidden: null });
+        const sc = new FastSearcher(fb, fastLevel.width).searchRoot(Math.min(fastLevel.depth, 8), ms, true, true, plan.map((y) => y.p).filter((p) => p !== x.pos)).scores;
+        if (!sc.length) continue;
+        const clamp = (v: number) => Math.max(-1e5, Math.min(1e5, v));
+        const loss = Math.max(0, clamp(plan[0].s) - clamp(sc[0].s)); // 계획한 수들 중 가장 나은 것도 이 판에선 이만큼 나빠진다
+        const risk = x.w * loss;
+        if (risk > bestRisk) { bestRisk = risk; bestCell = x.pos; }
+      }
+      if (bestCell >= 0 && bestRisk >= SCAN_RISK) return { pos: toPos(bestCell, n), reason: "risk", w: belief.find((b) => b.pos === bestCell)!.w };
+    }
+  }
   const d2 = belief.filter((x) => x.danger2).sort((a, b) => b.w - a.w)[0];
   if (d2 && d2.w >= SCAN_D2) return { pos: toPos(d2.pos, n), reason: "danger2", w: d2.w };
   // 확신이 설 때만: 처음엔 의심이 한 자리에 35% 이상 몰려야 쓰고, 수가 진행될수록 기준을 20%까지 낮춘다
@@ -238,6 +261,8 @@ const HIST_SCALE = 40;
 const SCAN_D1 = 0.04;
 const SCAN_D2 = 0.1;
 const SCAN_TOP = 0.2;
+/** 배제용 스캔 기준(확률 × 잃는 값, 형세 점수 단위) */
+const SCAN_RISK = Number((globalThis as { process?: { env: Record<string, string> } }).process?.env.SCAN_RISK ?? 150);
 
 /** 흑의 반응 흉내(보이는 판으로 고르고, 숨은 돌을 누르면 드러난 판으로 다시 고른다) */
 function simulateBlack(s: GameState): GameState {
