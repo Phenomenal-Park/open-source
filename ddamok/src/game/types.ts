@@ -66,6 +66,8 @@ export interface GameConfig {
    * 나타난 자리에 백의 숨은 돌이 있으면 숨은 돌이 드러나고 매직스톤은 남지 않는다.
    */
   randomMagic?: boolean;
+  /** (실험) "숨긴 뒤 5수면 공개"를 끈다 */
+  noTimedReveal?: boolean;
 }
 
 /** 흑 스캔: 백이 히든을 쓴 뒤 한 판에 한 번, 흑 차례에 교차점 하나에 숨은 돌이 있는지 본다(차례는 그대로) */

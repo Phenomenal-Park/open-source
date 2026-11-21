@@ -124,7 +124,7 @@ export const HIDDEN_TURNS = 5;
 /** 숨은 돌이 드러나기까지 남은 백의 수(숨기지 않았거나 이미 드러났으면 null) */
 export function hiddenTurnsLeft(state: GameState): number | null {
   const h = state.hidden;
-  if (!h || h.revealed || h.index < 0 || state.config.mutualHidden || state.config.blackBlock) return null;
+  if (!h || h.revealed || h.index < 0 || state.config.mutualHidden || state.config.blackBlock || state.config.noTimedReveal) return null;
   const whiteMovesSince = Math.floor((state.moves.length - 1 - h.index) / 2);
   return Math.max(0, HIDDEN_TURNS - whiteMovesSince);
 }
