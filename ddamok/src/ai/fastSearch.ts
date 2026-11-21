@@ -334,21 +334,17 @@ export function fastChooseMove(state: GameState, level: FastLevel, rand: () => n
  * 가장 좋은 수보다 level.vary 이상 나쁘지 않은 것 중 하나를 고른다. 모두 나쁘면 -1.
  */
 function varyAmong(b: FastBoard, cands: number[], bestP: number, level: FastLevel, rand: () => number, key: string): number {
-  const vals: { p: number; v: number }[] = [];
-  const ms = Math.max(10, level.timeMs * 0.08);
   for (const p of cands) {
     const res = b.play(p);
-    try {
-      if (res === 1) return p; // 이기는 수
-      if (res === 2) continue;
-      const opp = new FastSearcher(b, level.width).searchRoot(Math.min(level.depth, 6), ms, true, true).scores[0];
-      vals.push({ p, v: (opp ? -opp.s : 0) + experienceBonus(key, p) });
-    } finally {
-      b.undo();
-    }
+    b.undo();
+    if (res === 1) return p; // 이기는 수
   }
-  const ref = vals.find((x) => x.p === bestP);
-  if (!ref || vals.length < 2) return -1;
-  const ok = vals.filter((x) => x.v >= ref.v - level.vary!);
-  return ok[Math.floor(rand() * ok.length)].p;
+  // 후보 셋만 깊게, 정확한 점수로 다시 읽는다(좁은 창의 뿌리 점수는 상한일 뿐이라 지는 수도 비슷해 보인다).
+  // 예전엔 짧게(32ms) 다시 읽어 비교했는데, 짧은 읽기가 셋 다 "진다"로 보면 아무거나 골라 열린 3을 안 막는 수를 두었다.
+  const exact = new FastSearcher(b, level.width).searchRoot(level.depth, Math.max(30, level.timeMs * 0.3), true, true, cands).scores;
+  const val = (x: { p: number; s: number }) => x.s + experienceBonus(key, x.p);
+  const ref = exact.find((x) => x.p === bestP);
+  if (!ref || exact.length < 2 || ref.s <= -(WIN / 2)) return -1;
+  const ok = exact.filter((x) => x.s > -(WIN / 2) && val(x) >= val(ref) - level.vary!);
+  return ok.length ? ok[Math.floor(rand() * ok.length)].p : -1;
 }
