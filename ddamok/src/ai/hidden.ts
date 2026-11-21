@@ -3,7 +3,7 @@
 //   (흑이 그 자리를 누르면 드러나고 흑이 다시 두는 것까지 흉내 낸다.) 약한 단계는 가끔 무작위로 숨긴다.
 // - 흑: 숨은 돌이 있다는 것만 안다. "백 돌이 거기 있으면 백이 바로 이기는" 빈칸이 있으면 그 자리를 눌러 본다
 //   — 숨은 돌이면 드러나고(차례 유지) 아니면 그 줄을 막는 수가 되어 손해가 없다.
-import { canScan, canUseHidden, createGameFromConfig, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
+import { canScan, canUseHidden, createGameFromConfig, inWhiteThree, tryMove, viewFor, type GameState, type Position } from "../game/index.ts";
 import { FastBoard } from "./fast.ts";
 import { fastChooseMove, FastSearcher, type FastLevel } from "./fastSearch.ts";
 import type { AiLevel } from "./levels.ts";
@@ -82,9 +82,16 @@ export function hiddenBelief(view: GameState, maxCells = 10, modelLevel?: AiLeve
   for (let p = 0; p < n * n; p++) if (!vb.cells[p] && vb.capturesAt(p, 2).length) capNow.add(p);
   const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1], [0, -1], [-1, 0], [-1, -1], [-1, 1]];
   const out: BeliefCell[] = [];
+  const probe = view.board.map((r) => r.slice());
   for (let c = 0; c < n * n; c++) {
     if (vb.cells[c] || before.board[(c / n) | 0][c % n] !== null) continue; // 숨길 때 비어 있었고 지금도 비어 보이는 칸
     if (view.scan && !view.scan.hit && view.scan.pos.row * n + view.scan.pos.col === c) continue; // 스캔으로 비어 있다고 확인된 칸
+    // 숨은 돌이 거기 있었다면 백 돌과 붙어 3개가 되어 이미 드러났을 자리 — 숨은 돌일 수 없다
+    const cr0 = (c / n) | 0, cc0 = c % n;
+    probe[cr0][cc0] = "white";
+    const wouldShow = inWhiteThree(probe, { row: cr0, col: cc0 });
+    probe[cr0][cc0] = null;
+    if (wouldShow) continue;
     const r = rank.get(c);
     // 사전 확률은 완만하게: 백은 뻔한 자리를 피해 멀리 숨기기도 한다(무작위로 숨기는 백에게 뻔한 자리만 의심하면 당한다)
     const prior = (r === undefined ? 0.03 : r < 20 ? Math.max(0.05, 0.85 ** r) : 0.05) + (model?.get(c) ?? 0) * MODEL_SCALE + (hist?.get(c) ?? 0) * histScale;

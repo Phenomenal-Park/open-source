@@ -55,9 +55,10 @@ describe("백 히든", () => {
   });
 
   it("숨은 돌도 5목에 쓰이고, 대국이 끝나면 드러난다", () => {
-    const s = seq(on(), at(7, 7), { hidden: at(3, 3) }, at(0, 14), at(3, 4), at(1, 14), at(3, 5), at(14, 0), at(3, 6), at(14, 2));
+    // 숨은 돌(3,3)과 띄어서 3,5~3,7 — 붙은 3이 아니라 아직 숨어 있다. 3,4로 이으면 5목.
+    const s = seq(on(), at(7, 7), { hidden: at(3, 3) }, at(0, 14), at(3, 5), at(1, 14), at(3, 6), at(14, 0), at(3, 7), at(14, 2));
     expect(s.hidden?.revealed).toBe(false);
-    const end = seq(s, at(3, 7));
+    const end = seq(s, at(3, 4));
     expect(end.winner).toBe("white");
     expect(end.winReason).toBe("five");
     expect(end.hidden?.revealed).toBe(true);
@@ -103,4 +104,23 @@ describe("백 히든", () => {
     expect(tryMove(s, at(7, 8)).ok).toBe(true);
   });
 
+
+  it("숨은 돌이 백 돌과 붙어 한 줄로 3개가 되면 드러난다(가로·세로·대각)", () => {
+    const s = seq(on(), at(7, 7), { hidden: at(3, 3) }, at(0, 14), at(4, 4));
+    expect(s.hidden?.revealed).toBe(false); // 붙은 2개
+    const t = seq(s, at(1, 14), at(5, 5)); // 3,3 · 4,4 · 5,5 대각선 3개
+    expect(t.hidden?.revealed).toBe(true);
+    expect(viewFor(t, "black").board[3][3]).toBe("white");
+  });
+
+  it("띈 모양(숨은 돌 _ 백 백)은 드러나지 않는다", () => {
+    const s = seq(on(), at(7, 7), { hidden: at(3, 3) }, at(0, 14), at(3, 5), at(1, 14), at(3, 6));
+    expect(s.hidden?.revealed).toBe(false);
+  });
+
+  it("숨기자마자 3개가 되는 자리에 숨기면 바로 드러난다", () => {
+    const s = seq(on(), at(7, 7), at(3, 3), at(0, 14), at(3, 4), at(1, 14), { hidden: at(3, 5) });
+    expect(s.hidden).toEqual({ index: 5, pos: at(3, 5), revealed: true });
+  });
 });
+

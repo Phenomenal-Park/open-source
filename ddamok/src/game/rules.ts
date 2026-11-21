@@ -147,6 +147,10 @@ export function tryMove(state: GameState, position: Position, player: Player = s
     if (opts.hidden || anchored || captured.some((c) => samePos(c, hs.pos))) next.hidden = { ...hs, revealed: true };
   }
 
+  // 숨은 돌이 백 돌과 붙어 한 줄로 3개 이상이 되면 드러난다(띈 모양은 세지 않는다). 숨기는 순간에도 마찬가지.
+  const h3 = next.hidden;
+  if (h3 && !h3.revealed && h3.index >= 0 && inWhiteThree(board, h3.pos)) next.hidden = { ...h3, revealed: true };
+
   // 10. 포획 승리
   const captureWin = checkCaptureVictory(next, me);
   // 11. 포획 후 최종 판에서 5목
@@ -175,4 +179,19 @@ export function tryMove(state: GameState, position: Position, player: Player = s
 export function applyMove(state: GameState, position: Position, player?: Player): GameState {
   const result = tryMove(state, position, player);
   return result.ok ? result.state : state;
+}
+
+/** pos의 백 돌이 가로·세로·대각선 어느 쪽으로든 붙은 백 돌과 함께 3개 이상 한 줄인가 */
+export function inWhiteThree(board: GameState["board"], pos: Position): boolean {
+  const n = board.length;
+  if (board[pos.row]?.[pos.col] !== "white") return false;
+  for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+    let count = 1;
+    for (const sgn of [1, -1]) {
+      let r = pos.row + dr * sgn, c = pos.col + dc * sgn;
+      while (r >= 0 && c >= 0 && r < n && c < n && board[r][c] === "white") { count++; r += dr * sgn; c += dc * sgn; }
+    }
+    if (count >= 3) return true;
+  }
+  return false;
 }

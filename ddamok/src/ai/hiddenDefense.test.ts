@@ -24,20 +24,24 @@ describe("흑: 숨은 돌로 바로 오목이 되는 판 막기", () => {
     expect([`${m.row},${m.col}`]).toSatisfy((x: string[]) => ["7,11", "7,12"].includes(x[0]));
   }, 30_000);
 
-  it("스캔이 빗나간 뒤에도 남은 위험 자리를 막는다", () => {
-    const r = scanAt(game(), p(7, 12));
+  it("스캔이 빗나간 뒤에도 남은 위험 자리를 막는다(띈 모양: 7,8~7,10 + 빈칸 + 숨은 돌 7,12)", () => {
+    const g = seq(createGame(15, { hiddenMove: true, captureTarget: { black: 10, white: 10 } }),
+      p(7, 7), p(7, 8), p(0, 0), p(7, 9), p(0, 2), { hidden: p(7, 12) }, p(0, 4), p(7, 10));
+    expect(g.hidden?.revealed).toBe(false);
+    const r = scanAt(g, p(0, 10));
     if (!r.ok) throw new Error(r.reason);
     const m = chooseBlackMove(viewFor(r.state, "black"), L);
-    expect(m).toEqual(p(7, 11));
+    expect(["7,11", "7,12"]).toContain(`${m.row},${m.col}`);
   }, 30_000);
 });
 
 describe("흑: 외딴 곳에 숨긴 돌로 생기는 오목도 본다", () => {
   it("다른 돌과 멀리 떨어진 숨은 돌로 이어지는 위험 자리를 위험으로 안다", async () => {
     const { hiddenBelief } = await import("./hidden.ts");
-    // 백: 3,10 · 4,9 · 5,8 이 보이고 2,11에 숨김 → 1,12에 두면 오목(2,11~5,8 + 1,12). 1,12 둘레엔 다른 돌이 없다.
+    // 백: 4,9 · 5,8 · 6,7 이 보이고 2,11에 숨김(3,10은 빈칸이라 붙은 3이 아니다) → 3,10에 두면 오목. 2,11 둘레엔 다른 돌이 없다.
     const s = seq(createGame(15, { hiddenMove: true, captureTarget: { black: 10, white: 10 } }),
-      p(7, 7), { hidden: p(2, 11) }, p(9, 9), p(3, 10), p(9, 7), p(4, 9), p(10, 5), p(5, 8));
+      p(7, 7), { hidden: p(2, 11) }, p(9, 9), p(4, 9), p(9, 3), p(5, 8), p(10, 5), p(6, 7));
+    expect(s.hidden?.revealed).toBe(false);
     const bel = hiddenBelief(viewFor(s, "black"), 20);
     const c = bel.find((x) => x.pos === 2 * 15 + 11);
     expect(c?.danger1).toBe(true);
